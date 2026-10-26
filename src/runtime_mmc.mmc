@@ -2325,3 +2325,201 @@ extern "C" ဒသမ tanh(ဒသမ x)
     mmc_free(row_d)
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 28. Incremental step with KV cache
+//   cache layout: [layer][pos][d]  (caller-allocated doubles)
+//   causal: attention over p2 = 0..pos only
+// ═══════════════════════════════════════
+လုပ်ငန်း mmc_step(အစု buf, ကိန်း ds, ကိန်း d, ကိန်း d_ff,
+                 ကိန်း n_layers, ကိန်း n_heads, ကိန်း vocab,
+                 ကိန်း out_norm_g, ကိန်း out_norm_b,
+                 ကိန်း lm_head, ကိန်း lm_type,
+                 ကိန်း max_seq, ကိန်း pos, ကိန်း token_id,
+                 ကိန်း tok_off, ကိန်း pos_off,
+                 အစု kc_ptr, အစု vc_ptr, အစု logits_ptr, အစု trace_ptr) ကိန်း {
+
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် kc_ptr == 0 သို့မဟုတ် vc_ptr == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(pos < 0 သို့မဟုတ် pos >= max_seq) { ပြန်ပေး -2 }
+    သုံးသပ်ချက်အရ(d % n_heads != 0) { ပြန်ပေး -3 }
+
+    တည်ဆောက် ဒသမ* kc = kc_ptr
+    တည်ဆောက် ဒသမ* vc = vc_ptr
+    တည်ဆောက် ဒသမ* logits = logits_ptr
+    တည်ဆောက် ဒသမ* trace = trace_ptr
+
+    တည်ဆောက် ဒသမ* x = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* normed = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* qkv = mmc_malloc(3 * d * 8)
+    တည်ဆောက် ဒသမ* attn = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* proj = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* x1 = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* tmp = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* h = mmc_malloc(d_ff * 8)
+    တည်ဆောက် ဒသမ* sc = mmc_malloc(max_seq * 8)
+    တည်ဆောက် ဒသမ* row_d = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* row_df = mmc_malloc(d_ff * 8)
+
+    သုံးသပ်ချက်အရ(x == 0 သို့မဟုတ် normed == 0 သို့မဟုတ် qkv == 0) { ပြန်ပေး -4 }
+    သုံးသပ်ချက်အရ(attn == 0 သို့မဟုတ် proj == 0 သို့မဟုတ် x1 == 0) { ပြန်ပေး -4 }
+    သုံးသပ်ချက်အရ(tmp == 0 သို့မဟုတ် h == 0 သို့မဟုတ် sc == 0) { ပြန်ပေး -4 }
+    သုံးသပ်ချက်အရ(row_d == 0 သို့မဟုတ် row_df == 0) { ပြန်ပေး -4 }
+
+    တည်ဆောက် ကိန်း rc = mmc_embedding(buf, ds, tok_off, pos_off, token_id, pos, d, x)
+    သုံးသပ်ချက်အရ(rc != 0) { ပြန်ပေး -5 }
+
+    တည်ဆောက် ကိန်း hd = d / n_heads
+    တည်ဆောက် ဒသမ hscale = 1.0 / sqrt(hd * 1.0)
+    တည်ဆောက် ကိန်း L = 0
+    တည်ဆောက် ကိန်း i = 0
+    တည်ဆောက် ကိန်း base = 0
+
+    ပြည့်အောင်(L < n_layers) {
+        base = 5 + L * 12
+
+        // LN1
+        i = 0
+        ပြည့်အောင်(i < d) {
+            normed[i] = x[i]
+            i = i + 1
+        }
+        mmc_layernorm_gguf(buf, ds, gguf_tensor_offset(base + 1),
+                           gguf_tensor_offset(base + 0), normed, d, 0.00001)
+
+        // QKV
+        mmc_linear_q4_0(buf, ds, gguf_tensor_offset(base + 5),
+                        3 * d, d, normed, 0, qkv, row_d)
+        i = 0
+        ပြည့်အောင်(i < 3 * d) {
+            qkv[i] = qkv[i] + mmc_f32_at(buf, ds, gguf_tensor_offset(base + 4) + i * 4)
+            i = i + 1
+        }
+
+        // store K,V at [L][pos]
+        i = 0
+        ပြည့်အောင်(i < d) {
+            kc[(L * max_seq + pos) * d + i] = qkv[d + i]
+            vc[(L * max_seq + pos) * d + i] = qkv[2 * d + i]
+            i = i + 1
+        }
+
+        // attention per head
+        တည်ဆောက် ကိန်း hh = 0
+        ပြည့်အောင်(hh < n_heads) {
+            တည်ဆောက် ကိန်း p2 = 0
+            တည်ဆောက် ဒသမ mx = 0.0 - 1000000000.0
+            ပြည့်အောင်(p2 <= pos) {
+                တည်ဆောက် ကိန်း cb = (L * max_seq + p2) * d + hh * hd
+                တည်ဆောက် ဒသမ dot = 0.0
+                တည်ဆောက် ကိန်း c = 0
+                ပြည့်အောင်(c < hd) {
+                    dot = dot + qkv[hh * hd + c] * kc[cb + c]
+                    c = c + 1
+                }
+                dot = dot * hscale
+                sc[p2] = dot
+                သုံးသပ်ချက်အရ(dot > mx) { mx = dot }
+                p2 = p2 + 1
+            }
+            တည်ဆောက် ဒသမ sm = 0.0
+            p2 = 0
+            ပြည့်အောင်(p2 <= pos) {
+                sc[p2] = exp(sc[p2] - mx)
+                sm = sm + sc[p2]
+                p2 = p2 + 1
+            }
+            p2 = 0
+            ပြည့်အောင်(p2 <= pos) {
+                sc[p2] = sc[p2] / sm
+                p2 = p2 + 1
+            }
+            တည်ဆောက် ကိန်း c2 = 0
+            ပြည့်အောင်(c2 < hd) {
+                တည်ဆောက် ဒသမ acc = 0.0
+                p2 = 0
+                ပြည့်အောင်(p2 <= pos) {
+                    acc = acc + sc[p2] * vc[(L * max_seq + p2) * d + hh * hd + c2]
+                    p2 = p2 + 1
+                }
+                attn[hh * hd + c2] = acc
+                c2 = c2 + 1
+            }
+            hh = hh + 1
+        }
+
+        // out projection
+        mmc_linear_q4_0(buf, ds, gguf_tensor_offset(base + 3),
+                        d, d, attn, 0, proj, row_d)
+        i = 0
+        ပြည့်အောင်(i < d) {
+            proj[i] = proj[i] + mmc_f32_at(buf, ds, gguf_tensor_offset(base + 2) + i * 4)
+            i = i + 1
+        }
+
+        // x1 = x + proj
+        i = 0
+        ပြည့်အောင်(i < d) {
+            x1[i] = x[i] + proj[i]
+            i = i + 1
+        }
+
+        // LN2
+        i = 0
+        ပြည့်အောင်(i < d) {
+            normed[i] = x1[i]
+            i = i + 1
+        }
+        mmc_layernorm_gguf(buf, ds, gguf_tensor_offset(base + 9),
+                           gguf_tensor_offset(base + 8), normed, d, 0.00001)
+
+        // ffn up + gelu
+        mmc_linear_q4_0(buf, ds, gguf_tensor_offset(base + 11),
+                        d_ff, d, normed, 0, h, row_d)
+        i = 0
+        ပြည့်အောင်(i < d_ff) {
+            h[i] = h[i] + mmc_f32_at(buf, ds, gguf_tensor_offset(base + 10) + i * 4)
+            i = i + 1
+        }
+        mmc_gelu_vec(h, d_ff)
+
+        // ffn down
+        mmc_linear_q4_0(buf, ds, gguf_tensor_offset(base + 7),
+                        d, d_ff, h, 0, tmp, row_df)
+        i = 0
+        ပြည့်အောင်(i < d) {
+            tmp[i] = tmp[i] + mmc_f32_at(buf, ds, gguf_tensor_offset(base + 6) + i * 4)
+            i = i + 1
+        }
+
+        // residual 2
+        i = 0
+        ပြည့်အောင်(i < d) {
+            x[i] = x1[i] + tmp[i]
+            i = i + 1
+        }
+        သုံးသပ်ချက်အရ(trace != 0) { trace[L] = x[0] }
+        L = L + 1
+    }
+
+    // final LN + LM head
+    i = 0
+    ပြည့်အောင်(i < d) {
+        normed[i] = x[i]
+        i = i + 1
+    }
+    mmc_layernorm_gguf(buf, ds, out_norm_g, out_norm_b, normed, d, 0.00001)
+    mmc_linear_any(buf, ds, lm_head, lm_type, vocab, d, normed, 0, logits, row_d)
+
+    mmc_free(x)
+    mmc_free(normed)
+    mmc_free(qkv)
+    mmc_free(attn)
+    mmc_free(proj)
+    mmc_free(x1)
+    mmc_free(tmp)
+    mmc_free(h)
+    mmc_free(sc)
+    mmc_free(row_d)
+    mmc_free(row_df)
+    ပြန်ပေး 0
+}
