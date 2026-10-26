@@ -464,3 +464,124 @@ extern "C" void putchar(ကိန်း c)
     mmc_println("")
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 8. Fgram (5-gram hash) — ML functions
+// ═══════════════════════════════════════
+တည်ဆောက် ကိန်း g_fg_ctx0[65536]
+တည်ဆောက် ကိန်း g_fg_ctx1[65536]
+တည်ဆောက် ကိန်း g_fg_ctx2[65536]
+တည်ဆောက် ကိန်း g_fg_ctx3[65536]
+တည်ဆောက် ကိန်း g_fg_next[65536]
+တည်ဆောက် ကိန်း g_fg_count[65536]
+
+လုပ်ငန်း fg_hash4(ကိန်း a, ကိန်း b, ကိန်း c, ကိန်း d) ကိန်း {
+    တည်ဆောက် ကိန်း h = a * 73856093 ♫ b * 19349663 ♫ c * 83492791 ♫ d * 2654435761
+    ပြန်ပေး h % 65536
+}
+
+လုပ်ငန်း mmc_fgram_clear() ကိန်း {
+    တည်ဆောက် ကိန်း k = 0
+    ပြည့်အောင်(k < 65536) {
+        g_fg_ctx0[k] = 0
+        g_fg_ctx1[k] = 0
+        g_fg_ctx2[k] = 0
+        g_fg_ctx3[k] = 0
+        g_fg_next[k] = 0
+        g_fg_count[k] = 0
+        k = k + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း mmc_fgram_train(စာသား text) ကိန်း {
+    mmc_fgram_clear()
+    တည်ဆောက် ကိန်း len = mmc_string_length(text)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < len - 4) {
+        တည်ဆောက် ကိန်း c0 = text[i] ♩ 255
+        တည်ဆောက် ကိန်း c1 = text[i + 1] ♩ 255
+        တည်ဆောက် ကိန်း c2 = text[i + 2] ♩ 255
+        တည်ဆောက် ကိန်း c3 = text[i + 3] ♩ 255
+        တည်ဆောက် ကိန်း nc = text[i + 4] ♩ 255
+        တည်ဆောက် ကိန်း h = fg_hash4(c0, c1, c2, c3)
+        တည်ဆောက် ကိန်း found = 0
+        ပြည့်အောင်(g_fg_count[h] > 0) {
+            သုံးသပ်ချက်အရ(g_fg_ctx0[h] == c0 နှင့် g_fg_ctx1[h] == c1 နှင့် g_fg_ctx2[h] == c2 နှင့် g_fg_ctx3[h] == c3 နှင့် g_fg_next[h] == nc) {
+                g_fg_count[h] = g_fg_count[h] + 1
+                found = 1
+                ရပ်
+            }
+            h = (h + 1) % 65536
+        }
+        သုံးသပ်ချက်အရ(found == 0) {
+            g_fg_ctx0[h] = c0
+            g_fg_ctx1[h] = c1
+            g_fg_ctx2[h] = c2
+            g_fg_ctx3[h] = c3
+            g_fg_next[h] = nc
+            g_fg_count[h] = 1
+        }
+        i = i + 1
+    }
+    ပြန်ပေး len
+}
+
+လုပ်ငန်း mmc_fgram_generate(စာသား seed, ကိန်း max_len) ကိန်း {
+    srand(42)
+    တည်ဆောက် ကိန်း slen = mmc_string_length(seed)
+    သုံးသပ်ချက်အရ(slen < 4) {
+        ပြန်ပေး -1
+    }
+    တည်ဆောက် ကိန်း ctx0 = seed[slen - 4] ♩ 255
+    တည်ဆောက် ကိန်း ctx1 = seed[slen - 3] ♩ 255
+    တည်ဆောက် ကိန်း ctx2 = seed[slen - 2] ♩ 255
+    တည်ဆောက် ကိန်း ctx3 = seed[slen - 1] ♩ 255
+    mmc_print(seed)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < max_len) {
+        တည်ဆောက် ကိန်း h = fg_hash4(ctx0, ctx1, ctx2, ctx3)
+        တည်ဆောက် ကိန်း start = h
+        တည်ဆောက် ကိန်း total = 0
+        ပြည့်အောင်(g_fg_count[h] > 0) {
+            သုံးသပ်ချက်အရ(g_fg_ctx0[h] == ctx0 နှင့် g_fg_ctx1[h] == ctx1 နှင့် g_fg_ctx2[h] == ctx2 နှင့် g_fg_ctx3[h] == ctx3) {
+                total = total + g_fg_count[h]
+            }
+            h = (h + 1) % 65536
+            သုံးသပ်ချက်အရ(h == start) {
+                ရပ်
+            }
+        }
+        သုံးသပ်ချက်အရ(total == 0) {
+            ရပ်
+        }
+        တည်ဆောက် ကိန်း r = rand() % total
+        တည်ဆောက် ကိန်း cum = 0
+        တည်ဆောက် ကိန်း nxt = 0
+        h = start
+        ပြည့်အောင်(g_fg_count[h] > 0) {
+            သုံးသပ်ချက်အရ(g_fg_ctx0[h] == ctx0 နှင့် g_fg_ctx1[h] == ctx1 နှင့် g_fg_ctx2[h] == ctx2 နှင့် g_fg_ctx3[h] == ctx3) {
+                cum = cum + g_fg_count[h]
+                သုံးသပ်ချက်အရ(cum > r) {
+                    nxt = g_fg_next[h]
+                    ရပ်
+                }
+            }
+            h = (h + 1) % 65536
+            သုံးသပ်ချက်အရ(h == start) {
+                ရပ်
+            }
+        }
+        သုံးသပ်ချက်အရ(nxt == 0) {
+            ရပ်
+        }
+        putchar(nxt)
+        ctx0 = ctx1
+        ctx1 = ctx2
+        ctx2 = ctx3
+        ctx3 = nxt
+        i = i + 1
+    }
+    mmc_println("")
+    ပြန်ပေး 0
+}
