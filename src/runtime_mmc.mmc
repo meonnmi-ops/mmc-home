@@ -1509,3 +1509,135 @@ extern "C" ဒသမ tanh(ဒသမ x)
 လုပ်ငန်း gguf_get_version() ကိန်း { ပြန်ပေး g_gguf_version }
 လုပ်ငန်း gguf_get_tensor_count() ကိန်း { ပြန်ပေး g_gguf_tensor_count }
 လုပ်ငန်း gguf_get_kv_count() ကိန်း { ပြန်ပေး g_gguf_kv_count }
+
+// ═══════════════════════════════════════
+// 18. GGUF Tensor Info Parser
+// ═══════════════════════════════════════
+// Parse KV (24) by type, then 293 tensor infos.
+
+တည်ဆောက် ကိန်း g_gguf_size = 0
+တည်ဆောက် ကိန်း g_t_count = 0
+တည်ဆောက် ကိန်း g_t_data_start = 0
+
+တည်ဆောက် ကိန်း g_t_name_off[300]
+တည်ဆောက် ကိန်း g_t_name_len[300]
+တည်ဆောက် ကိန်း g_t_n_dims[300]
+တည်ဆောက် ကိန်း g_t_dims[1200]
+တည်ဆောက် ကိန်း g_t_type[300]
+တည်ဆောက် ကိန်း g_t_offset[300]
+
+လုပ်ငန်း gguf_check_magic(အစု buf) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် g_gguf_size < 24) { ပြန်ပေး 0 }
+    တည်ဆောက် စာသား p = buf
+    သုံးသပ်ချက်အရ((p[0] ♩ 255) != 71) { ပြန်ပေး 0 }
+    သုံးသပ်ချက်အရ((p[1] ♩ 255) != 71) { ပြန်ပေး 0 }
+    သုံးသပ်ချက်အရ((p[2] ♩ 255) != 85) { ပြန်ပေး 0 }
+    သုံးသပ်ချက်အရ((p[3] ♩ 255) != 70) { ပြန်ပေး 0 }
+    ပြန်ပေး 1
+}
+
+
+လုပ်ငန်း gguf_read_u32(အစု buf, ကိန်း pos) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် pos < 0 သို့မဟုတ် pos + 4 > g_gguf_size) { ပြန်ပေး -1 }
+    တည်ဆောက် စာသား p = buf
+    ပြန်ပေး (p[pos] ♩ 255) ♪ ((p[pos+1] ♩ 255) ♭ 8) ♪ ((p[pos+2] ♩ 255) ♭ 16) ♪ ((p[pos+3] ♩ 255) ♭ 24)
+}
+
+လုပ်ငန်း gguf_read_u64_lo(အစု buf, ကိန်း pos) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် pos < 0 သို့မဟုတ် pos + 8 > g_gguf_size) { ပြန်ပေး -1 }
+    ပြန်ပေး gguf_read_u32(buf, pos)
+}
+
+// Skip one GGUF value. Returns new pos, -1 on error.
+လုပ်ငန်း gguf_skip_value(အစု buf, ကိန်း pos, ကိန်း vtype) ကိန်း {
+    သုံးသပ်ချက်အရ(vtype == 0 သို့မဟုတ် vtype == 1 သို့မဟုတ် vtype == 7) { ပြန်ပေး pos + 1 }
+    သုံးသပ်ချက်အရ(vtype == 2 သို့မဟုတ် vtype == 3) { ပြန်ပေး pos + 2 }
+    သုံးသပ်ချက်အရ(vtype == 4 သို့မဟုတ် vtype == 5 သို့မဟုတ် vtype == 6) { ပြန်ပေး pos + 4 }
+    သုံးသပ်ချက်အရ(vtype == 8) {
+        တည်ဆောက် ကိန်း n = gguf_read_u64_lo(buf, pos)
+        သုံးသပ်ချက်အရ(n < 0) { ပြန်ပေး -1 }
+        ပြန်ပေး pos + 8 + n
+    }
+    သုံးသပ်ချက်အရ(vtype == 9) {
+        တည်ဆောက် ကိန်း etype = gguf_read_u32(buf, pos)
+        တည်ဆောက် ကိန်း cnt = gguf_read_u64_lo(buf, pos + 4)
+        သုံးသပ်ချက်အရ(etype < 0 သို့မဟုတ် cnt < 0) { ပြန်ပေး -1 }
+        pos = pos + 12
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < cnt) {
+            pos = gguf_skip_value(buf, pos, etype)
+            သုံးသပ်ချက်အရ(pos < 0) { ပြန်ပေး -1 }
+            i = i + 1
+        }
+        ပြန်ပေး pos
+    }
+    သုံးသပ်ချက်အရ(vtype == 10 သို့မဟုတ် vtype == 11 သို့မဟုတ် vtype == 12) { ပြန်ပေး pos + 8 }
+    ပြန်ပေး -1
+}
+
+လုပ်ငန်း gguf_skip_kv(အစု buf, ကိန်း pos, ကိန်း count) ကိန်း {
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < count) {
+        တည်ဆောက် ကိန်း klen = gguf_read_u64_lo(buf, pos)
+        သုံးသပ်ချက်အရ(klen < 0 သို့မဟုတ် klen > 500) { ပြန်ပေး -1 }
+        pos = pos + 8 + klen
+        တည်ဆောက် ကိန်း vtype = gguf_read_u32(buf, pos)
+        သုံးသပ်ချက်အရ(vtype < 0) { ပြန်ပေး -1 }
+        pos = pos + 4
+        pos = gguf_skip_value(buf, pos, vtype)
+        သုံးသပ်ချက်အရ(pos < 0) { ပြန်ပေး -1 }
+        i = i + 1
+    }
+    ပြန်ပေး pos
+}
+
+လုပ်ငန်း mmc_gguf_parse_tensors(အစု buf, ကိန်း size) ကိန်း {
+    g_gguf_size = size
+    g_t_count = 0
+    g_t_data_start = 0
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် size < 24) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(gguf_check_magic(buf) == 0) { ပြန်ပေး -2 }
+    တည်ဆောက် ကိန်း tcount = gguf_read_u64_lo(buf, 8)
+    တည်ဆောက် ကိန်း kcount = gguf_read_u64_lo(buf, 16)
+    သုံးသပ်ချက်အရ(tcount < 0 သို့မဟုတ် tcount > 300) { ပြန်ပေး -3 }
+    သုံးသပ်ချက်အရ(kcount < 0 သို့မဟုတ် kcount > 100) { ပြန်ပေး -4 }
+    g_t_count = tcount
+    တည်ဆောက် ကိန်း pos = 24
+    pos = gguf_skip_kv(buf, pos, kcount)
+    သုံးသပ်ချက်အရ(pos < 0) { ပြန်ပေး -5 }
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < tcount) {
+        တည်ဆောက် ကိန်း nlen = gguf_read_u64_lo(buf, pos)
+        သုံးသပ်ချက်အရ(nlen < 0 သို့မဟုတ် nlen > 200) { ပြန်ပေး -6 }
+        pos = pos + 8
+        g_t_name_off[i] = pos
+        g_t_name_len[i] = nlen
+        pos = pos + nlen
+        တည်ဆောက် ကိန်း nd = gguf_read_u32(buf, pos)
+        သုံးသပ်ချက်အရ(nd < 0 သို့မဟုတ် nd > 4) { ပြန်ပေး -7 }
+        pos = pos + 4
+        g_t_n_dims[i] = nd
+        တည်ဆောက် ကိန်း d = 0
+        ပြည့်အောင်(d < nd) {
+            g_t_dims[i * 4 + d] = gguf_read_u64_lo(buf, pos)
+            pos = pos + 8
+            d = d + 1
+        }
+        g_t_type[i] = gguf_read_u32(buf, pos)
+        pos = pos + 4
+        g_t_offset[i] = gguf_read_u64_lo(buf, pos)
+        pos = pos + 8
+        i = i + 1
+    }
+    g_t_data_start = pos
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း gguf_tensor_count_final() ကိန်း { ပြန်ပေး g_t_count }
+လုပ်ငန်း gguf_tensor_name_off(ကိန်း i) ကိန်း { ပြန်ပေး g_t_name_off[i] }
+လုပ်ငန်း gguf_tensor_name_len(ကိန်း i) ကိန်း { ပြန်ပေး g_t_name_len[i] }
+လုပ်ငန်း gguf_tensor_n_dims(ကိန်း i) ကိန်း { ပြန်ပေး g_t_n_dims[i] }
+လုပ်ငန်း gguf_tensor_dim(ကိန်း i, ကိန်း d) ကိန်း { ပြန်ပေး g_t_dims[i * 4 + d] }
+လုပ်ငန်း gguf_tensor_type(ကိန်း i) ကိန်း { ပြန်ပေး g_t_type[i] }
+လုပ်ငန်း gguf_tensor_offset(ကိန်း i) ကိန်း { ပြန်ပေး g_t_offset[i] }
+လုပ်ငန်း gguf_data_start() ကိန်း { ပြန်ပေး g_t_data_start }
