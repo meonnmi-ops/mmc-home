@@ -104,6 +104,7 @@
 တည်ဆောက် ကိန်း TT_GOTO = 59      // သွားမယ် (goto)
 တည်ဆောက် ကိန်း TT_LABEL = 60     // အမှတ် (label)
 တည်ဆောက် ကိန်း TT_CHAR = 61     // character literal
+တည်ဆောက် ကိန်း TT_EXTERN = 69   // extern "C" (FFI)
 
 // === Constants: AST Node Kinds ===
 တည်ဆောက် ကိန်း NK_PROGRAM = 100
@@ -120,6 +121,7 @@
 တည်ဆောက် ကိန်း NK_ASSIGN = 111
 တည်ဆောက် ကိန်း NK_EXPR_STMT = 112
 တည်ဆောက် ကိန်း NK_IMPORT = 113
+တည်ဆောက် ကိန်း NK_EXTERN_DECL = 114
 တည်ဆောက် ကိန်း NK_BINARY_OP = 200
 တည်ဆောက် ကိန်း NK_UNARY_OP = 201
 တည်ဆောက် ကိန်း NK_IDENT = 202
@@ -783,6 +785,10 @@
         }
     }
 
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "extern") == 0) {
+        ပြန်ပေး make_token(TT_EXTERN, buf, start_line, start_col)
+    }
+
     ပြန်ပေး make_token(TT_IDENT, buf, start_line, start_col)
 }
 
@@ -850,7 +856,9 @@
 
 လုပ်ငန်း advance(အစု cs_ptr) {
     တည်ဆောက် CompilerState* cs = cs_ptr
-    cs->token_pos = cs->token_pos + 1
+    သုံးသပ်ချက်အရ(cs->token_pos < (mmc_array_size(cs->tokens) - 1)) {
+        cs->token_pos = cs->token_pos + 1
+    }
 }
 
 လုပ်ငန်း skip_newlines(အစု cs_ptr) {
@@ -889,6 +897,23 @@
     ပြန်ပေး make_node(NK_IMPORT, module, "", mmc_array_new())
 }
 
+// === Parse Extern "C" (FFI) ===
+လုပ်ငန်း parse_extern(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_EXTERN)
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_STRING) {
+        advance(cs)
+    }
+    ပြည့်အောင်(current_type(cs) != TT_NEWLINE နှင့် current_type(cs) != TT_EOF) {
+        advance(cs)
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_NEWLINE) {
+        advance(cs)
+    }
+    ပြန်ပေး make_node(NK_EXTERN_DECL, "", "", mmc_array_new())
+}
+
+
 // === Parse Struct ===
 လုပ်ငန်း parse_struct(အစု cs_ptr) အစု {
     တည်ဆောက် CompilerState* cs = cs_ptr
@@ -901,7 +926,7 @@
     skip_newlines(cs)
 
     တည်ဆောက် စာရင်း fields = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
             ရပ်
@@ -952,7 +977,7 @@
         advance(cs)
         expect(cs, TT_LPAREN)
         တည်ဆောက် စာရင်း ptypes = mmc_array_new()
-        ပြည့်အောင်(current_type(cs) != TT_RPAREN) {
+        ပြည့်အောင်(current_type(cs) != TT_RPAREN နှင့် current_type(cs) != TT_EOF) {
             mmc_array_push(ptypes, parse_type(cs))
             သုံးသပ်ချက်အရ(current_type(cs) == TT_COMMA) {
                 advance(cs)
@@ -1044,7 +1069,7 @@
     expect(cs, TT_LPAREN)
 
     တည်ဆောက် စာရင်း params = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RPAREN) {
+    ပြည့်အောင်(current_type(cs) != TT_RPAREN နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         // Type first (like var decl)
         တည်ဆောက် စာသား ptype = "int"
@@ -1096,7 +1121,7 @@
     skip_newlines(cs)
 
     တည်ဆောက် စာရင်း body = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
             ရပ်
@@ -1118,6 +1143,9 @@
     တည်ဆောက် CompilerState* cs = cs_ptr
     skip_newlines(cs)
 
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_EXTERN) {
+        ပြန်ပေး parse_extern(cs)
+    }
     သုံးသပ်ချက်အရ(current_type(cs) == TT_VAR) {
         ပြန်ပေး parse_var_decl(cs)
     }
@@ -1185,7 +1213,7 @@
     skip_newlines(cs)
 
     တည်ဆောက် စာရင်း members = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
             ရပ်
@@ -1216,7 +1244,7 @@
     skip_newlines(cs)
 
     တည်ဆောက် စာရင်း cases = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
             ရပ်
@@ -1228,7 +1256,7 @@
             expect(cs, TT_LBRACE)
             skip_newlines(cs)
             တည်ဆောက် စာရင်း body = mmc_array_new()
-            ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+            ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
                 skip_newlines(cs)
                 သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
                     ရပ်
@@ -1244,7 +1272,7 @@
             expect(cs, TT_LBRACE)
             skip_newlines(cs)
             တည်ဆောက် စာရင်း body = mmc_array_new()
-            ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+            ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
                 skip_newlines(cs)
                 သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
                     ရပ်
@@ -1334,7 +1362,7 @@
     skip_newlines(cs)
 
     တည်ဆောက် စာရင်း then_body = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
             ရပ်
@@ -1352,7 +1380,7 @@
         သုံးသပ်ချက်အရ(current_type(cs) == TT_LBRACE) {
             expect(cs, TT_LBRACE)
             skip_newlines(cs)
-            ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+            ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
                 skip_newlines(cs)
                 သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
                     ရပ်
@@ -1386,7 +1414,7 @@
     skip_newlines(cs)
 
     တည်ဆောက် စာရင်း body = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
             ရပ်
@@ -1441,7 +1469,7 @@
     skip_newlines(cs)
 
     တည်ဆောက် စာရင်း body = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
             ရပ်
@@ -1479,7 +1507,7 @@
     expect(cs, TT_PRINT)
     expect(cs, TT_LPAREN)
     တည်ဆောက် စာရင်း args = mmc_array_new()
-    ပြည့်အောင်(current_type(cs) != TT_RPAREN) {
+    ပြည့်အောင်(current_type(cs) != TT_RPAREN နှင့် current_type(cs) != TT_EOF) {
         skip_newlines(cs)
         mmc_array_push(args, parse_expression(cs))
         သုံးသပ်ချက်အရ(current_type(cs) == TT_COMMA) {
@@ -1628,7 +1656,7 @@
             advance(cs_ptr)  // eat (
             တည်ဆောက် စာရင်း args = mmc_array_new()
             skip_newlines(cs_ptr)
-            ပြည့်အောင်(current_type(cs_ptr) != TT_RPAREN) {
+            ပြည့်အောင်(current_type(cs_ptr) != TT_RPAREN နှင့် current_type(cs_ptr) != TT_EOF) {
                 skip_newlines(cs_ptr)
                 mmc_array_push(args, parse_expression(cs_ptr))
                 skip_newlines(cs_ptr)
@@ -1883,7 +1911,9 @@
     တည်ဆောက် ASTNode* node = node_ptr
     တည်ဆောက် စာသား result = ""
 
-    သုံးသပ်ချက်အရ(node->kind == NK_ENUM_DEF) {
+    သုံးသပ်ချက်အရ(node->kind == NK_EXTERN_DECL) {
+        result = ""
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_ENUM_DEF) {
         result = mmc_string_concat(result, mmc_string_concat("enum ", mmc_string_concat(node->data, " {\n")))
         တည်ဆောက် ကိန်း i = 0
         ပြည့်အောင်(i < mmc_array_size(node->children)) {
