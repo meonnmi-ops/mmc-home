@@ -1475,3 +1475,37 @@ extern "C" ဒသမ tanh(ဒသမ x)
     }
     ပြန်ပေး current
 }
+
+// ═══════════════════════════════════════
+// 17. GGUF Header Parser (buffer-only)
+// ═══════════════════════════════════════
+// Caller loads file → passes (buf, size).
+// Results stored in globals.
+
+တည်ဆောက် ကိန်း g_gguf_version = 0
+တည်ဆောက် ကိန်း g_gguf_tensor_count = 0
+တည်ဆောက် ကိန်း g_gguf_kv_count = 0
+
+// Parse GGUF header. Returns 0 = ok, -1 = bad.
+လုပ်ငန်း mmc_gguf_parse_header(အစု buf, ကိန်း size) ကိန်း {
+    g_gguf_version = 0
+    g_gguf_tensor_count = 0
+    g_gguf_kv_count = 0
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် size < 24) { ပြန်ပေး -1 }
+    တည်ဆောက် စာသား p = buf
+    သုံးသပ်ချက်အရ((p[0] ♩ 255) != 71) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ((p[1] ♩ 255) != 71) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ((p[2] ♩ 255) != 85) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ((p[3] ♩ 255) != 70) { ပြန်ပေး -1 }
+    // version at offset 4 (u32 LE)
+    g_gguf_version = (p[4] ♩ 255) ♪ ((p[5] ♩ 255) ♭ 8) ♪ ((p[6] ♩ 255) ♭ 16) ♪ ((p[7] ♩ 255) ♭ 24)
+    // tensor_count at offset 8 (u64 LE, low 32)
+    g_gguf_tensor_count = (p[8] ♩ 255) ♪ ((p[9] ♩ 255) ♭ 8) ♪ ((p[10] ♩ 255) ♭ 16) ♪ ((p[11] ♩ 255) ♭ 24)
+    // kv_count at offset 16 (u64 LE, low 32)
+    g_gguf_kv_count = (p[16] ♩ 255) ♪ ((p[17] ♩ 255) ♭ 8) ♪ ((p[18] ♩ 255) ♭ 16) ♪ ((p[19] ♩ 255) ♭ 24)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း gguf_get_version() ကိန်း { ပြန်ပေး g_gguf_version }
+လုပ်ငန်း gguf_get_tensor_count() ကိန်း { ပြန်ပေး g_gguf_tensor_count }
+လုပ်ငန်း gguf_get_kv_count() ကိန်း { ပြန်ပေး g_gguf_kv_count }
