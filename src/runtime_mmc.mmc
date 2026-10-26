@@ -1745,3 +1745,52 @@ extern "C" ဒသမ tanh(ဒသမ x)
     }
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 20. Tensor Row Readers
+// ═══════════════════════════════════════
+
+// Read full row from Q4_0 tensor. row_size must be multiple of 32.
+လုပ်ငန်း mmc_q4_0_row(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း row, ကိန်း row_size, အစု out_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(row_size % 32 != 0) { ပြန်ပေး -2 }
+    တည်ဆောက် ကိန်း nblocks = row_size / 32
+    တည်ဆောက် ကိန်း row_bytes = nblocks * 18
+    တည်ဆောက် ကိန်း row_start = t_off + row * row_bytes
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ကိန်း b = 0
+    ပြည့်အောင်(b < nblocks) {
+        တည်ဆောက် ကိန်း rc = mmc_q4_0_block(buf, ds, row_start + b * 18, out + b * 32)
+        သုံးသပ်ချက်အရ(rc != 0) { ပြန်ပေး rc }
+        b = b + 1
+    }
+    ပြန်ပေး 0
+}
+
+// Read full row from F32 tensor
+လုပ်ငန်း mmc_f32_row(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း row, ကိန်း row_size, အစု out_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ကိန်း row_bytes = row_size * 4
+    တည်ဆောက် ကိန်း row_start = t_off + row * row_bytes
+    တည်ဆောက် ကိန်း c = 0
+    ပြည့်အောင်(c < row_size) {
+        out[c] = mmc_f32_at(buf, ds, row_start + c * 4)
+        c = c + 1
+    }
+    ပြန်ပေး 0
+}
+
+// Read full row from F16 tensor
+လုပ်ငန်း mmc_f16_row(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း row, ကိန်း row_size, အစု out_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ကိန်း row_bytes = row_size * 2
+    တည်ဆောက် ကိန်း row_start = t_off + row * row_bytes
+    တည်ဆောက် ကိန်း c = 0
+    ပြည့်အောင်(c < row_size) {
+        out[c] = mmc_f16_at(buf, ds, row_start + c * 2)
+        c = c + 1
+    }
+    ပြန်ပေး 0
+}
