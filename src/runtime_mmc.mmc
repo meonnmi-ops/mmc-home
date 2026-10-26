@@ -1,0 +1,394 @@
+// ============================================================
+// runtime_mmc.mmc — The Pure MMC Runtime Implementation (Full)
+// This file implements the runtime functions using MMC itself.
+// (c) NyanLin AI Lab 2026
+// ============================================================
+
+// === External C-links (OS Level) ===
+// Only these remain in C because they talk to the OS/Hardware.
+extern "C" void* malloc(ကိန်း size)
+extern "C" void* realloc(အစု ptr, ကိန်း size)
+extern "C" void free(အစု ptr)
+extern "C" void printf(စာသား fmt, ...)
+extern "C" int puts(စာသား str)
+extern "C" char* fgets(စာသား str, ကိန်း size, void* stream)
+extern "C" void fwrite(အစု ptr, ကိန်း size, ကိန်း nmemb, void* stream)
+extern "C" void fclose(void* stream)
+extern "C" void* fopen(စာသား path, စာသား mode)
+
+// === MMC Types for Runtime ===
+အစုအဝေး MMCArray {
+    data void**
+    size ကိန်း
+    capacity ကိန်း
+}
+
+အစုအဝေး MMCMatrix {
+    data ဒသမ*
+    rows ကိန်း
+    cols ကိန်း
+}
+
+// ============================================================
+// 1. Memory Management (Wrappers)
+// ============================================================
+လုပ်ငန်း mmc_malloc(ကိန်း size) void* {
+    ပြန်ပေး malloc(size)
+}
+
+လုပ်ငန်း mmc_realloc(အစု ptr, ကိန်း size) void* {
+    ပြန်ပေး realloc(ptr, size)
+}
+
+လုပ်ငန်း mmc_free(အစု ptr) {
+    free(ptr)
+}
+
+// ============================================================
+// 2. String Operations (Implemented in MMC)
+// ============================================================
+လုပ်ငန်း mmc_string_length(စာသား str) ကိန်း {
+    တည်ဆောက် ကိန်း len = 0
+    ပြည့်အောင်(str[len] != 0) {
+        len = len + 1
+    }
+    ပြန်ပေး len
+}
+
+လုပ်ငန်း mmc_string_concat(စာသား a, စာသား b) စာသား {
+    တည်ဆောက် ကိန်း len_a = mmc_string_length(a)
+    တည်ဆောက် ကိန်း len_b = mmc_string_length(b)
+    တည်ဆောက် စာသား res = mmc_malloc(len_a + len_b + 1)
+    
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < len_a) {
+        res[i] = a[i]
+        i = i + 1
+    }
+    ပြည့်အောင်(i < len_a + len_b) {
+        res[i] = b[i - len_a]
+        i = i + 1
+    }
+    res[len_a + len_b] = 0
+    ပြန်ပေး res
+}
+
+လုပ်ငန်း mmc_string_compare(စာသား a, စာသား b) ကိန်း {
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(a[i] != 0 နှင့် b[i] != 0) {
+        သုံးသပ်ချက်အရ(a[i] != b[i]) {
+        ပြန်ပေး a[i] - b[i]
+    }
+        i = i + 1
+    }
+    ပြန်ပေး a[i] - b[i]
+}
+
+လုပ်ငန်း mmc_string_substring(စာသား str, ကိန်း start, ကိန်း end) စာသား {
+    တည်ဆောက် ကိန်း len = end - start
+    သုံးသပ်ချက်အရ(len <= 0) {
+        ပြန်ပေး ""
+    }
+    တည်ဆောက် စာသား res = mmc_malloc(len + 1)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < len) {
+        res[i] = str[start + i]
+        i = i + 1
+    }
+    res[len] = 0
+    ပြန်ပေး res
+}
+
+လုပ်ငန်း mmc_int_to_string(ကိန်း val) စာသား {
+    သုံးသပ်ချက်အရ(val == 0) {
+        ပြန်ပေး "0"
+    }
+    တည်ဆောက် ကိန်း is_neg = 0
+    တည်ဆောက် ကိန်း v = val
+    သုံးသပ်ချက်အရ(val < 0) {
+        is_neg = 1
+        v = -val
+    }
+    
+    တည်ဆောက် စာသား res = mmc_malloc(12)
+    တည်ဆောက် ကိန်း pos = 0
+    ပြည့်အောင်(v > 0) {
+        res[pos] = (v % 10) + 48
+        v = v / 10
+        pos = pos + 1
+    }
+    
+    သုံးသပ်ချက်အရ(is_neg) {
+        res[pos] = 45 // '-'
+        pos = pos + 1
+    }
+    res[pos] = 0
+    
+    // Reverse string
+    တည်ဆောက် စာသား rev = mmc_malloc(pos + 1)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < pos) {
+        rev[i] = res[pos - 1 - i]
+        i = i + 1
+    }
+    rev[pos] = 0
+    mmc_free(res)
+    ပြန်ပေး rev
+}
+
+လုပ်ငန်း mmc_string_trim(စာသား str) စာသား {
+    တည်ဆောက် ကိန်း len = mmc_string_length(str)
+    တည်ဆောက် ကိန်း start = 0
+    တည်ဆောက် ကိန်း end = len - 1
+    
+    ပြည့်အောင်(start <= end နှင့် (str[start] == 32 သို့မဟုတ် str[start] == 9 သို့မဟုတ် str[start] == 10)) {
+        start = start + 1
+    }
+    ပြည့်အောင်(end >= start နှင့် (str[end] == 32 သို့မဟုတ် str[end] == 9 သို့မဟုတ် str[end] == 10)) {
+        end = end - 1
+    }
+    
+    ပြန်ပေး mmc_string_substring(str, start, end + 1)
+}
+
+// ============================================================
+// 3. Dynamic Array (Implemented in MMC)
+// ============================================================
+လုပ်ငန်း mmc_array_new() အစု {
+    တည်ဆောက် MMCArray* arr = mmc_malloc(sizeof(MMCArray))
+    arr->size = 0
+    arr->capacity = 4
+    arr->data = mmc_malloc(8 * arr->capacity)
+    ပြန်ပေး arr
+}
+
+လုပ်ငန်း mmc_array_push(အစု arr_ptr, အစု item) {
+    တည်ဆောက် MMCArray* arr = arr_ptr
+    သုံးသပ်ချက်အရ(arr->size == arr->capacity) {
+        တည်ဆောက် ကိန်း new_cap = arr->capacity * 2
+        တည်ဆောက် void* new_data = mmc_realloc(arr->data, 8 * new_cap)
+        arr->data = new_data
+        arr->capacity = new_cap
+    }
+    arr->data[arr->size] = item
+    arr->size = arr->size + 1
+}
+
+လုပ်ငန်း mmc_array_get(အစု arr_ptr, ကိန်း index) void* {
+    တည်ဆောက် MMCArray* arr = arr_ptr
+    သုံးသပ်ချက်အရ(index < 0 သို့မဟုတ် index >= arr->size) {
+        ပြန်ပေး NULL
+    }
+    ပြန်ပေး arr->data[index]
+}
+
+လုပ်ငန်း mmc_array_size(အစု arr_ptr) ကိန်း {
+    တည်ဆောက် MMCArray* arr = arr_ptr
+    ပြန်ပေး arr->size
+}
+
+လုပ်ငန်း mmc_array_free(အစု arr_ptr) {
+    တည်ဆောက် MMCArray* arr = arr_ptr
+    mmc_free(arr->data)
+    mmc_free(arr)
+}
+
+// ============================================================
+// 4. Matrix Implementation (Implemented in MMC)
+// ============================================================
+လုပ်ငန်း mmc_matrix_new(ကိန်း rows, ကိန်း cols) အစု {
+    တည်ဆောက် MMCMatrix* mat = mmc_malloc(sizeof(MMCMatrix))
+    mat->rows = rows
+    mat->cols = cols
+    mat->data = mmc_malloc(8 * rows * cols)
+    ပြန်ပေး mat
+}
+
+လုပ်ငန်း mmc_matrix_get(အစု mat_ptr, ကိန်း r, ကိန်း c) ဒသမ {
+    တည်ဆောက် MMCMatrix* mat = mat_ptr
+    ပြန်ပေး mat->data[r * mat->cols + c]
+}
+
+လုပ်ငန်း mmc_matrix_set(အစု mat_ptr, ကိန်း r, ကိန်း c, ဒသမ val) {
+    တည်ဆောက် MMCMatrix* mat = mat_ptr
+    mat->data[r * mat->cols + c] = val
+}
+
+လုပ်ငန်း mmc_matrix_fill(အစု mat_ptr, ဒသမ val) {
+    တည်ဆောက် MMCMatrix* mat = mat_ptr
+    တည်ဆောက် ကိန်း total = mat->rows * mat->cols
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < total) {
+        mat->data[i] = val
+        i = i + 1
+    }
+}
+
+လုပ်ငန်း mmc_matrix_mul(အစု A_ptr, အစု B_ptr) အစု {
+    တည်ဆောက် MMCMatrix* A = A_ptr
+    တည်ဆောက် MMCMatrix* B = B_ptr
+    သုံးသပ်ချက်အရ(A->cols != B->rows) {
+        ပြန်ပေး NULL
+    }
+    
+    တည်ဆောက် MMCMatrix* C = mmc_matrix_new(A->rows, B->cols)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < A->rows) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < B->cols) {
+            တည်ဆောက် ဒသမ sum = 0.0
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < A->cols) {
+                sum = sum + mmc_matrix_get(A, i, k) * mmc_matrix_get(B, k, j)
+                k = k + 1
+            }
+            mmc_matrix_set(C, i, j, sum)
+            j = j + 1
+        }
+        i = i + 1
+    }
+    ပြန်ပေး C
+}
+
+လုပ်ငန်း mmc_matrix_add(အစု A_ptr, အစု B_ptr) အစု {
+    တည်ဆောက် MMCMatrix* A = A_ptr
+    တည်ဆောက် MMCMatrix* B = B_ptr
+    သုံးသပ်ချက်အရ(A->rows != B->rows သို့မဟုတ် A->cols != B->cols) {
+        ပြန်ပေး NULL
+    }
+    
+    တည်ဆောက် MMCMatrix* C = mmc_matrix_new(A->rows, A->cols)
+    တည်ဆောက် ကိန်း i = 0
+    တည်ဆောက် ကိန်း total = A->rows * A->cols
+    ပြည့်အောင်(i < total) {
+        C->data[i] = A->data[i] + B->data[i]
+        i = i + 1
+    }
+    ပြန်ပေး C
+}
+
+လုပ်ငန်း mmc_matrix_scale(အစု mat_ptr, ဒသမ s) အစု {
+    တည်ဆောက် MMCMatrix* mat = mat_ptr
+    တည်ဆောက် MMCMatrix* res = mmc_matrix_new(mat->rows, mat->cols)
+    တည်ဆောက် ကိန်း i = 0
+    တည်ဆောက် ကိန်း total = mat->rows * mat->cols
+    ပြည့်အောင်(i < total) {
+        res->data[i] = mat->data[i] * s
+        i = i + 1
+    }
+    ပြန်ပေး res
+}
+
+လုပ်ငန်း mmc_matrix_softmax(အစု mat_ptr) အစု {
+    တည်ဆောက် MMCMatrix* mat = mat_ptr
+    တည်ဆောက် MMCMatrix* res = mmc_matrix_new(mat->rows, mat->cols)
+    
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < mat->rows) {
+        တည်ဆောက် ဒသမ max_val = -1000000000
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < mat->cols) {
+            သုံးသပ်ချက်အရ(mat->data[i * mat->cols + j] > max_val) {
+        max_val = mat->data[i * mat->cols + j]
+    }
+            j = j + 1
+        }
+        
+        တည်ဆောက် ဒသမ sum = 0.0
+        j = 0
+        ပြည့်အောင်(j < mat->cols) {
+            တည်ဆောက် ဒသမ e = 2.71828 // Simplified exp(x - max)
+            // In real Pure MMC, we'd implement exp() as a Taylor series
+            // For now, we use a simplified approximation for logic demo
+            တည်ဆောက် ဒသမ val = mat->data[i * mat->cols + j] - max_val
+            // exp(x) approx = 1 + x + x^2/2...
+            တည်ဆောက် ဒသမ exp_approx = 1.0 + val + (val * val / 2.0)
+            res->data[i * mat->cols + j] = exp_approx
+            sum = sum + exp_approx
+            j = j + 1
+        }
+        
+        j = 0
+        ပြည့်အောင်(j < mat->cols) {
+            res->data[i * mat->cols + j] = res->data[i * mat->cols + j] / sum
+            j = j + 1
+        }
+        i = i + 1
+    }
+    ပြန်ပေး res
+}
+
+လုပ်ငန်း mmc_matrix_free(အစု mat_ptr) {
+    တည်ဆောက် MMCMatrix* mat = mat_ptr
+    mmc_free(mat->data)
+    mmc_free(mat)
+}
+
+
+// ============================================================
+// 5. Basic I/O (Implemented in MMC)
+// ============================================================
+လုပ်ငန်း mmc_println(စာသား str) {
+    printf("%s\n", str)
+}
+
+လုပ်ငန်း mmc_print(စာသား str) {
+    printf("%s", str)
+}
+
+လုပ်ငန်း mmc_print_int(ကိန်း val) {
+    printf("%d", val)
+}
+
+လုပ်ငန်း mmc_print_float(ဒသမ val) {
+    printf("%f", val)
+}
+
+// ============================================================
+// 7. File I/O (Implemented in MMC)
+// ============================================================
+လုပ်ငန်း mmc_read_file(စာသား filename) စာသား {
+    တည်ဆောက် void* fp = fopen(filename, "rb")
+    သုံးသပ်ချက်အရ(fp == NULL) {
+        ပြန်ပေး NULL
+    }
+    
+    တည်ဆောက် ကိန်း capacity = 1024
+    တည်ဆောက် ကိန်း size = 0
+    တည်ဆောက် စာသား buffer = mmc_malloc(capacity)
+    
+    တည်ဆောက် ကိန်း ch
+    ပြည့်အောင်(1) {
+        // Use fgetc for byte-by-byte reading to ensure full file capture
+        extern "C" ကိန်း fgetc(void* stream)
+        ch = fgetc(fp)
+        သုံးသပ်ချက်အရ(ch == -1) {
+        ရပ်
+    }
+        
+        သုံးသပ်ချက်အရ(size + 1 >= capacity) {
+            capacity = capacity * 2
+            buffer = mmc_realloc(buffer, capacity)
+        }
+        
+        buffer[size] = ch
+        size = size + 1
+    }
+    
+    buffer[size] = 0
+    fclose(fp)
+    ပြန်ပေး buffer
+}
+
+လုပ်ငန်း mmc_write_file(စာသား filename, စာသား content) ကိန်း {
+    တည်ဆောက် void* fp = fopen(filename, "w")
+    သုံးသပ်ချက်အရ(fp == NULL) {
+        ပြန်ပေး 0
+    }
+    
+    တည်ဆောက် ကိန်း len = mmc_string_length(content)
+    fwrite(content, 1, len, fp)
+    
+    fclose(fp)
+    ပြန်ပေး 1
+}
