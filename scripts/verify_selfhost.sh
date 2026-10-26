@@ -20,7 +20,7 @@ echo "✓ build/mmc_v1 ($(ls -la build/mmc_v1 | awk '{print $5}') bytes)"
 
 echo ""
 echo "[2/5] Stage 1 compiles source → C1.c"
-./build/mmc_v1 src/compiler_v11.mmc build/C1.c 2>&1 | tail -3
+./build/mmc_v1 src/compiler_v13.mmc build/C1.c 2>&1 | tail -3
 echo "✓ C1.c: $(wc -c < build/C1.c) bytes"
 
 echo ""
@@ -37,7 +37,7 @@ echo "✓ build/mmc_v2 ($(ls -la build/mmc_v2 | awk '{print $5}') bytes)"
 
 echo ""
 echo "[4/5] Stage 2 compiles source → C2.c"
-./build/mmc_v2 src/compiler_v11.mmc build/C2.c 2>&1 | tail -3
+./build/mmc_v2 src/compiler_v13.mmc build/C2.c 2>&1 | tail -3
 echo "✓ C2.c: $(wc -c < build/C2.c) bytes"
 
 echo ""

@@ -17,7 +17,7 @@ C1.c == C2.c  ✅
 
 **SHA-256 (identical):**
 
-71facdb5bc78afab25cec935cdbadd3941c8e8df4741cdcf677f87d5ad996c03
+9876ee473982bc607c4eb05bead79b480494f3a8b5427bdbffdcc0e003d4cead
 
 **Verify it yourself:**
 
@@ -99,7 +99,7 @@ Build and run:
 
 ## 🏗️ Architecture
 
-    compiler_v11.mmc  (MMC source, 111 KB)
+    compiler_v13.mmc  (MMC source, 111 KB)
             ↓
        Lexer (MMC)
             ↓
