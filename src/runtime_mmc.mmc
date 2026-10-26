@@ -15,6 +15,7 @@ extern "C" char* fgets(စာသား str, ကိန်း size, void* stream)
 extern "C" void fwrite(အစု ptr, ကိန်း size, ကိန်း nmemb, void* stream)
 extern "C" void fclose(void* stream)
 extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ဒသမ exp(ဒသမ x)
 
 // === MMC Types for Runtime ===
 အစုအဝေး MMCArray {
@@ -297,12 +298,8 @@ extern "C" void* fopen(စာသား path, စာသား mode)
         တည်ဆောက် ဒသမ sum = 0.0
         j = 0
         ပြည့်အောင်(j < mat->cols) {
-            တည်ဆောက် ဒသမ e = 2.71828 // Simplified exp(x - max)
-            // In real Pure MMC, we'd implement exp() as a Taylor series
-            // For now, we use a simplified approximation for logic demo
             တည်ဆောက် ဒသမ val = mat->data[i * mat->cols + j] - max_val
-            // exp(x) approx = 1 + x + x^2/2...
-            တည်ဆောက် ဒသမ exp_approx = 1.0 + val + (val * val / 2.0)
+            တည်ဆောက် ဒသမ exp_approx = exp(val)
             res->data[i * mat->cols + j] = exp_approx
             sum = sum + exp_approx
             j = j + 1
