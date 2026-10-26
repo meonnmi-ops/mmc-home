@@ -1794,3 +1794,97 @@ extern "C" ဒသမ tanh(ဒသမ x)
     }
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 21. Linear Layer (Q4_0 / F32 / F16)
+// ═══════════════════════════════════════
+// y[rows] = W[rows, cols] @ x[cols] + b[rows]
+// W is row-major; each row = cols values.
+// Caller must pass row_buffer of cols doubles (avoids malloc per call).
+
+// Q4_0 linear. row_buffer is temp workspace (cols doubles).
+လုပ်ငန်း mmc_linear_q4_0(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း rows, ကိန်း cols,
+                          အစု x_ptr, အစု b_ptr, အစု out_ptr, အစု row_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် x_ptr == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(cols % 32 != 0) { ပြန်ပေး -2 }
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ဒသမ* row = row_ptr
+    သုံးသပ်ချက်အရ(row == 0) { ပြန်ပေး -3 }
+    တည်ဆောက် ကိန်း nblocks = cols / 32
+    တည်ဆောက် ကိန်း row_bytes = nblocks * 18
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < rows) {
+        တည်ဆောက် ကိန်း rc = mmc_q4_0_row(buf, ds, t_off, j, cols, row)
+        သုံးသပ်ချက်အရ(rc != 0) { ပြန်ပေး rc }
+        တည်ဆောက် ဒသမ sum = 0.0
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < cols) {
+            sum = sum + row[k] * x[k]
+            k = k + 1
+        }
+        သုံးသပ်ချက်အရ(b_ptr != 0) {
+            တည်ဆောက် ဒသမ* b = b_ptr
+            sum = sum + b[j]
+        }
+        out[j] = sum
+        j = j + 1
+    }
+    ပြန်ပေး 0
+}
+
+// F32 linear
+လုပ်ငန်း mmc_linear_f32(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း rows, ကိန်း cols,
+                         အစု x_ptr, အစု b_ptr, အစု out_ptr, အစု row_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် x_ptr == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ဒသမ* row = row_ptr
+    သုံးသပ်ချက်အရ(row == 0) { ပြန်ပေး -3 }
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < rows) {
+        တည်ဆောက် ကိန်း rc = mmc_f32_row(buf, ds, t_off, j, cols, row)
+        သုံးသပ်ချက်အရ(rc != 0) { ပြန်ပေး rc }
+        တည်ဆောက် ဒသမ sum = 0.0
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < cols) {
+            sum = sum + row[k] * x[k]
+            k = k + 1
+        }
+        သုံးသပ်ချက်အရ(b_ptr != 0) {
+            တည်ဆောက် ဒသမ* b = b_ptr
+            sum = sum + b[j]
+        }
+        out[j] = sum
+        j = j + 1
+    }
+    ပြန်ပေး 0
+}
+
+// F16 linear
+လုပ်ငန်း mmc_linear_f16(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း rows, ကိန်း cols,
+                         အစု x_ptr, အစု b_ptr, အစု out_ptr, အစု row_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် x_ptr == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ဒသမ* row = row_ptr
+    သုံးသပ်ချက်အရ(row == 0) { ပြန်ပေး -3 }
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < rows) {
+        တည်ဆောက် ကိန်း rc = mmc_f16_row(buf, ds, t_off, j, cols, row)
+        သုံးသပ်ချက်အရ(rc != 0) { ပြန်ပေး rc }
+        တည်ဆောက် ဒသမ sum = 0.0
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < cols) {
+            sum = sum + row[k] * x[k]
+            k = k + 1
+        }
+        သုံးသပ်ချက်အရ(b_ptr != 0) {
+            တည်ဆောက် ဒသမ* b = b_ptr
+            sum = sum + b[j]
+        }
+        out[j] = sum
+        j = j + 1
+    }
+    ပြန်ပေး 0
+}
