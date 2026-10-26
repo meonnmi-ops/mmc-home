@@ -1070,3 +1070,155 @@ extern "C" ဒသမ tanh(ဒသမ x)
     mmc_matrix_free(scores_ptr)
     ပြန်ပေး out_ptr
 }
+
+// ═══════════════════════════════════════
+// 13. Linear + FFN + Transformer Block
+// ═══════════════════════════════════════
+
+// Linear: out[i][j] = sum_k x[i][k] * W[k][j] + b[j]
+// x: [seq_len, d_in], W: [d_in, d_out], b: double[d_out]
+လုပ်ငန်း mmc_linear(အစု x_ptr, အစု W_ptr, အစု b_ptr) အစု {
+    တည်ဆောက် MMCMatrix* x = x_ptr
+    တည်ဆောက် MMCMatrix* W = W_ptr
+    သုံးသပ်ချက်အရ(x == 0 သို့မဟုတ် W == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် ကိန်း seq_len = x->rows
+    တည်ဆောက် ကိန်း d_in = x->cols
+    တည်ဆောက် ကိန်း d_out = W->cols
+    သုံးသပ်ချက်အရ(W->rows != d_in) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု out_ptr = mmc_matrix_new(seq_len, d_out)
+    သုံးသပ်ချက်အရ(out_ptr == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် MMCMatrix* out = out_ptr
+    တည်ဆောက် ဒသမ* b = 0
+    သုံးသပ်ချက်အရ(b_ptr != 0) { b = b_ptr }
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < seq_len) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < d_out) {
+            တည်ဆောက် ဒသမ sum = 0.0
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < d_in) {
+                sum = sum + x->data[i * d_in + k] * W->data[k * d_out + j]
+                k = k + 1
+            }
+            သုံးသပ်ချက်အရ(b != 0) { sum = sum + b[j] }
+            out->data[i * d_out + j] = sum
+            j = j + 1
+        }
+        i = i + 1
+    }
+    ပြန်ပေး out_ptr
+}
+
+// Add matrix in place: target += other
+လုပ်ငန်း mmc_matrix_add_inplace(အစု target_ptr, အစု other_ptr) ကိန်း {
+    တည်ဆောက် MMCMatrix* t = target_ptr
+    တည်ဆောက် MMCMatrix* o = other_ptr
+    သုံးသပ်ချက်အရ(t == 0 သို့မဟုတ် o == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(t->rows != o->rows သို့မဟုတ် t->cols != o->cols) { ပြန်ပေး -2 }
+    တည်ဆောက် ကိန်း total = t->rows * t->cols
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < total) {
+        t->data[i] = t->data[i] + o->data[i]
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+// Copy matrix (new allocation)
+လုပ်ငန်း mmc_matrix_copy(အစု src_ptr) အစု {
+    တည်ဆောက် MMCMatrix* s = src_ptr
+    သုံးသပ်ချက်အရ(s == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု dst_ptr = mmc_matrix_new(s->rows, s->cols)
+    သုံးသပ်ချက်အရ(dst_ptr == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် MMCMatrix* d = dst_ptr
+    တည်ဆောက် ကိန်း total = s->rows * s->cols
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < total) {
+        d->data[i] = s->data[i]
+        i = i + 1
+    }
+    ပြန်ပေး dst_ptr
+}
+
+// FFN: h = GELU(x@W1 + b1), out = h@W2 + b2
+လုပ်ငန်း mmc_ffn(အစု x_ptr, အစု W1_ptr, အစု b1_ptr, အစု W2_ptr, အစု b2_ptr) အစု {
+    တည်ဆောက် အစု h_ptr = mmc_linear(x_ptr, W1_ptr, b1_ptr)
+    သုံးသပ်ချက်အရ(h_ptr == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် MMCMatrix* h = h_ptr
+    mmc_gelu_vec(h->data, h->rows * h->cols)
+    တည်ဆောက် အစု out_ptr = mmc_linear(h_ptr, W2_ptr, b2_ptr)
+    mmc_matrix_free(h_ptr)
+    ပြန်ပေး out_ptr
+}
+
+// Transformer block (pre-norm, single head self-attention)
+လုပ်ငန်း mmc_transformer_block(အစု x_ptr,
+    အစု Wq_ptr, အစု bq_ptr, အစု Wk_ptr, အစု bk_ptr,
+    အစု Wv_ptr, အစု bv_ptr, အစု Wo_ptr, အစု bo_ptr,
+    အစု ln1_g_ptr, အစု ln1_b_ptr,
+    အစု W1_ptr, အစု b1_ptr, အစု W2_ptr, အစု b2_ptr,
+    အစု ln2_g_ptr, အစု ln2_b_ptr) အစု {
+
+    တည်ဆောက် MMCMatrix* x = x_ptr
+    သုံးသပ်ချက်အရ(x == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် ကိန်း seq_len = x->rows
+    တည်ဆောက် ကိန်း d = x->cols
+
+    // ── Attention (pre-norm) ──
+    တည်ဆောက် အစု normed_ptr = mmc_matrix_copy(x_ptr)
+    သုံးသပ်ချက်အရ(normed_ptr == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် MMCMatrix* normed = normed_ptr
+    mmc_layer_norm(normed->data, seq_len * d, 0.00001, ln1_g_ptr, ln1_b_ptr)
+
+    တည်ဆောက် အစု Q_ptr = mmc_linear(normed_ptr, Wq_ptr, bq_ptr)
+    တည်ဆောက် အစု K_ptr = mmc_linear(normed_ptr, Wk_ptr, bk_ptr)
+    တည်ဆောက် အစု V_ptr = mmc_linear(normed_ptr, Wv_ptr, bv_ptr)
+    mmc_matrix_free(normed_ptr)
+    သုံးသပ်ချက်အရ(Q_ptr == 0 သို့မဟုတ် K_ptr == 0 သို့မဟုတ် V_ptr == 0) {
+        သုံးသပ်ချက်အရ(Q_ptr != 0) { mmc_matrix_free(Q_ptr) }
+        သုံးသပ်ချက်အရ(K_ptr != 0) { mmc_matrix_free(K_ptr) }
+        သုံးသပ်ချက်အရ(V_ptr != 0) { mmc_matrix_free(V_ptr) }
+        ပြန်ပေး 0
+    }
+
+    တည်ဆောက် အစု attn_ptr = mmc_attention_single(Q_ptr, K_ptr, V_ptr, seq_len, d)
+    mmc_matrix_free(Q_ptr)
+    mmc_matrix_free(K_ptr)
+    mmc_matrix_free(V_ptr)
+    သုံးသပ်ချက်အရ(attn_ptr == 0) { ပြန်ပေး 0 }
+
+    တည်ဆောက် အစု proj_ptr = mmc_linear(attn_ptr, Wo_ptr, bo_ptr)
+    mmc_matrix_free(attn_ptr)
+    သုံးသပ်ချက်အရ(proj_ptr == 0) { ပြန်ပေး 0 }
+
+    // Residual 1
+    တည်ဆောက် အစု x1_ptr = mmc_matrix_copy(x_ptr)
+    သုံးသပ်ချက်အရ(x1_ptr == 0) {
+        mmc_matrix_free(proj_ptr)
+        ပြန်ပေး 0
+    }
+    mmc_matrix_add_inplace(x1_ptr, proj_ptr)
+    mmc_matrix_free(proj_ptr)
+
+    // ── FFN (pre-norm) ──
+    တည်ဆောက် အစု normed2_ptr = mmc_matrix_copy(x1_ptr)
+    သုံးသပ်ချက်အရ(normed2_ptr == 0) {
+        mmc_matrix_free(x1_ptr)
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် MMCMatrix* normed2 = normed2_ptr
+    mmc_layer_norm(normed2->data, seq_len * d, 0.00001, ln2_g_ptr, ln2_b_ptr)
+
+    တည်ဆောက် အစု ffn_ptr = mmc_ffn(normed2_ptr, W1_ptr, b1_ptr, W2_ptr, b2_ptr)
+    mmc_matrix_free(normed2_ptr)
+    သုံးသပ်ချက်အရ(ffn_ptr == 0) {
+        mmc_matrix_free(x1_ptr)
+        ပြန်ပေး 0
+    }
+
+    // Residual 2
+    mmc_matrix_add_inplace(x1_ptr, ffn_ptr)
+    mmc_matrix_free(ffn_ptr)
+
+    ပြန်ပေး x1_ptr
+}
