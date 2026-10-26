@@ -938,3 +938,61 @@ extern "C" void putchar(ကိန်း c)
     mmc_println("")
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 11. LayerNorm + GELU (Transformer blocks)
+// ═══════════════════════════════════════
+extern "C" ဒသမ sqrt(ဒသမ x)
+extern "C" ဒသမ tanh(ဒသမ x)
+
+// LayerNorm: y = (x - mean) / sqrt(var + eps) * gamma + beta
+// In-place: modifies x in place
+လုပ်ငန်း mmc_layer_norm(အစု x_ptr, ကိန်း n, ဒသမ eps, အစု gamma_ptr, အစု beta_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(n <= 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ဒသမ* g = gamma_ptr
+    တည်ဆောက် ဒသမ* b = beta_ptr
+    တည်ဆောက် ဒသမ sum = 0.0
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        sum = sum + x[i]
+        i = i + 1
+    }
+    တည်ဆောက် ဒသမ mean = sum / n
+    တည်ဆောက် ဒသမ var = 0.0
+    i = 0
+    ပြည့်အောင်(i < n) {
+        တည်ဆောက် ဒသမ d = x[i] - mean
+        var = var + d * d
+        i = i + 1
+    }
+    var = var / n
+    တည်ဆောက် ဒသမ inv_std = 1.0 / sqrt(var + eps)
+    i = 0
+    ပြည့်အောင်(i < n) {
+        x[i] = (x[i] - mean) * inv_std * g[i] + b[i]
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+// GELU (tanh approximation): 0.5*x*(1+tanh(√(2/π)·(x+0.044715·x³)))
+လုပ်ငန်း mmc_gelu(ဒသမ x) ဒသမ {
+    တည်ဆောက် ဒသမ c = 0.7978845608
+    တည်ဆောက် ဒသမ x2 = x * x
+    တည်ဆောက် ဒသမ x3 = x2 * x
+    တည်ဆောက် ဒသမ inner = c * (x + 0.044715 * x3)
+    ပြန်ပေး 0.5 * x * (1.0 + tanh(inner))
+}
+
+// GELU element-wise (in-place)
+လုပ်ငန်း mmc_gelu_vec(အစု x_ptr, ကိန်း n) ကိန်း {
+    သုံးသပ်ချက်အရ(n <= 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        x[i] = mmc_gelu(x[i])
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
