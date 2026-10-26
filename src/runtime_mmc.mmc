@@ -1953,3 +1953,209 @@ extern "C" ဒသမ tanh(ဒသမ x)
     }
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 23. Single-Token Transformer Block (GPT-2)
+// ═══════════════════════════════════════
+// seq_len=1 ⇒ softmax([s])=[1] ⇒ attention output = V
+// Flow: x → LN1 → QKV → V → Wo → +x → LN2 → up → GELU → down → +x1
+
+လုပ်ငန်း mmc_block_1tok(အစု buf, ကိန်း ds, ကိန်း d, ကိန်း d_ff,
+                        ကိန်း ln1_g, ကိန်း ln1_b,
+                        ကိန်း qkv_w, ကိန်း qkv_b,
+                        ကိန်း o_w, ကိန်း o_b,
+                        ကိန်း ln2_g, ကိန်း ln2_b,
+                        ကိန်း up_w, ကိန်း up_b,
+                        ကိန်း down_w, ကိန်း down_b,
+                        အစု x_ptr, အစု out_ptr) ကိန်း {
+
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် x_ptr == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ဒသမ* out = out_ptr
+
+    တည်ဆောက် ဒသမ* normed = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* x1 = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* qkv = mmc_malloc(3 * d * 8)
+    တည်ဆောက် ဒသမ* tmp = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* h = mmc_malloc(d_ff * 8)
+    တည်ဆောက် ဒသမ* row_d = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* row_df = mmc_malloc(d_ff * 8)
+
+    သုံးသပ်ချက်အရ(normed == 0 သို့မဟုတ် x1 == 0 သို့မဟုတ် qkv == 0 သို့မဟုတ် tmp == 0 သို့မဟုတ် h == 0 သို့မဟုတ် row_d == 0 သို့မဟုတ် row_df == 0) {
+        ပြန်ပေး -2
+    }
+
+    တည်ဆောက် ကိန်း i = 0
+
+    // 1. normed = LN1(x)
+    i = 0
+    ပြည့်အောင်(i < d) {
+        normed[i] = x[i]
+        i = i + 1
+    }
+    mmc_layernorm_gguf(buf, ds, ln1_g, ln1_b, normed, d, 0.00001)
+
+    // 2. qkv = normed @ W_qkv^T + b_qkv
+    mmc_linear_q4_0(buf, ds, qkv_w, 3 * d, d, normed, 0, qkv, row_d)
+    i = 0
+    ပြည့်အောင်(i < 3 * d) {
+        qkv[i] = qkv[i] + mmc_f32_at(buf, ds, qkv_b + i * 4)
+        i = i + 1
+    }
+
+    // 3-4. attn = V = qkv[2d:3d]; proj = attn @ Wo^T + bo
+    mmc_linear_q4_0(buf, ds, o_w, d, d, qkv + 2 * d, 0, tmp, row_d)
+    i = 0
+    ပြည့်အောင်(i < d) {
+        tmp[i] = tmp[i] + mmc_f32_at(buf, ds, o_b + i * 4)
+        i = i + 1
+    }
+
+    // 5. x1 = x + proj
+    i = 0
+    ပြည့်အောင်(i < d) {
+        x1[i] = x[i] + tmp[i]
+        i = i + 1
+    }
+
+    // 6. normed = LN2(x1)
+    i = 0
+    ပြည့်အောင်(i < d) {
+        normed[i] = x1[i]
+        i = i + 1
+    }
+    mmc_layernorm_gguf(buf, ds, ln2_g, ln2_b, normed, d, 0.00001)
+
+    // 7. h = normed @ W_up^T + b_up
+    mmc_linear_q4_0(buf, ds, up_w, d_ff, d, normed, 0, h, row_d)
+    i = 0
+    ပြည့်အောင်(i < d_ff) {
+        h[i] = h[i] + mmc_f32_at(buf, ds, up_b + i * 4)
+        i = i + 1
+    }
+
+    // 8. h = GELU(h)
+    mmc_gelu_vec(h, d_ff)
+
+    // 9. tmp = h @ W_down^T + b_down
+    mmc_linear_q4_0(buf, ds, down_w, d, d_ff, h, 0, tmp, row_df)
+    i = 0
+    ပြည့်အောင်(i < d) {
+        tmp[i] = tmp[i] + mmc_f32_at(buf, ds, down_b + i * 4)
+        i = i + 1
+    }
+
+    // 10. out = x1 + down
+    i = 0
+    ပြည့်အောင်(i < d) {
+        out[i] = x1[i] + tmp[i]
+        i = i + 1
+    }
+
+    mmc_free(normed)
+    mmc_free(x1)
+    mmc_free(qkv)
+    mmc_free(tmp)
+    mmc_free(h)
+    mmc_free(row_d)
+    mmc_free(row_df)
+
+    ပြန်ပေး 0
+}
+
+// ═══════════════════════════════════════
+// 24. Full 24-Layer Forward Pass (seq_len=1)
+// ═══════════════════════════════════════
+// Tensor index layout (verified from GGUF):
+//   non-block: [0]=token_embd [1]=position_embd
+//              [2]=output_norm.bias [3]=output_norm.weight [4]=output.weight
+//   blk.L: base = 5 + L*12
+//     +0 attn_norm.bias   +1 attn_norm.weight
+//     +2 attn_output.bias +3 attn_output.weight
+//     +4 attn_qkv.bias    +5 attn_qkv.weight
+//     +6 ffn_down.bias    +7 ffn_down.weight
+//     +8 ffn_norm.bias    +9 ffn_norm.weight
+//    +10 ffn_up.bias     +11 ffn_up.weight
+
+လုပ်ငန်း mmc_forward_1tok(အစု buf, ကိန်း ds, ကိန်း d, ကိန်း d_ff,
+                         ကိန်း n_layers, ကိန်း vocab,
+                         ကိန်း out_norm_g, ကိန်း out_norm_b, ကိန်း lm_head,
+                         အစု x_ptr, အစု logits_ptr) ကိန်း {
+
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် x_ptr == 0 သို့မဟုတ် logits_ptr == 0) { ပြန်ပေး -1 }
+
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ဒသမ* logits = logits_ptr
+    တည်ဆောက် ဒသမ* x2 = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* xnorm = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* row_d = mmc_malloc(d * 8)
+
+    သုံးသပ်ချက်အရ(x2 == 0 သို့မဟုတ် xnorm == 0 သို့မဟုတ် row_d == 0) {
+        ပြန်ပေး -2
+    }
+
+    တည်ဆောက် ကိန်း L = 0
+    တည်ဆောက် ကိန်း base = 0
+    တည်ဆောက် ကိန်း i = 0
+
+    ပြည့်အောင်(L < n_layers) {
+        base = 5 + L * 12
+
+        mmc_block_1tok(buf, ds, d, d_ff,
+            gguf_tensor_offset(base + 1),
+            gguf_tensor_offset(base + 0),
+            gguf_tensor_offset(base + 5),
+            gguf_tensor_offset(base + 4),
+            gguf_tensor_offset(base + 3),
+            gguf_tensor_offset(base + 2),
+            gguf_tensor_offset(base + 9),
+            gguf_tensor_offset(base + 8),
+            gguf_tensor_offset(base + 11),
+            gguf_tensor_offset(base + 10),
+            gguf_tensor_offset(base + 7),
+            gguf_tensor_offset(base + 6),
+            x, x2)
+
+        i = 0
+        ပြည့်အောင်(i < d) {
+            x[i] = x2[i]
+            i = i + 1
+        }
+        L = L + 1
+    }
+
+    // final LayerNorm
+    i = 0
+    ပြည့်အောင်(i < d) {
+        xnorm[i] = x[i]
+        i = i + 1
+    }
+    mmc_layernorm_gguf(buf, ds, out_norm_g, out_norm_b, xnorm, d, 0.00001)
+
+    // logits = xnorm @ W_lm^T   (no bias, GPT-2)
+    mmc_linear_q4_0(buf, ds, lm_head, vocab, d, xnorm, 0, logits, row_d)
+
+    mmc_free(x2)
+    mmc_free(xnorm)
+    mmc_free(row_d)
+
+    ပြန်ပေး 0
+}
+
+// 25. Argmax (token ရွေးဖို့)
+လုပ်ငန်း mmc_argmax(အစု v_ptr, ကိန်း n) ကိန်း {
+    သုံးသပ်ချက်အရ(v_ptr == 0 သို့မဟုတ် n <= 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ဒသမ* v = v_ptr
+    တည်ဆောက် ကိန်း best = 0
+    တည်ဆောက် ဒသမ bv = v[0]
+    တည်ဆောက် ကိန်း i = 1
+    ပြည့်အောင်(i < n) {
+        သုံးသပ်ချက်အရ(v[i] > bv) {
+            bv = v[i]
+            best = i
+        }
+        i = i + 1
+    }
+    ပြန်ပေး best
+}
