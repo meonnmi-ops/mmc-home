@@ -1374,3 +1374,104 @@ extern "C" ဒသမ tanh(ဒသမ x)
 
     ပြန်ပေး out_ptr
 }
+
+// ═══════════════════════════════════════
+// 16. Multi-Head Transformer Block + Stack
+// ═══════════════════════════════════════
+
+// Multi-head transformer block (same as mmc_transformer_block but uses attention_multi)
+လုပ်ငန်း mmc_transformer_block_mh(အစု x_ptr,
+    အစု Wq_ptr, အစု bq_ptr, အစု Wk_ptr, အစု bk_ptr,
+    အစု Wv_ptr, အစု bv_ptr, အစု Wo_ptr, အစု bo_ptr,
+    အစု ln1_g_ptr, အစု ln1_b_ptr,
+    အစု W1_ptr, အစု b1_ptr, အစု W2_ptr, အစု b2_ptr,
+    အစု ln2_g_ptr, အစု ln2_b_ptr,
+    ကိန်း n_heads) အစု {
+
+    တည်ဆောက် MMCMatrix* x = x_ptr
+    သုံးသပ်ချက်အရ(x == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် ကိန်း seq_len = x->rows
+    တည်ဆောက် ကိန်း d = x->cols
+
+    // ── Attention (pre-norm) ──
+    တည်ဆောက် အစု normed_ptr = mmc_matrix_copy(x_ptr)
+    သုံးသပ်ချက်အရ(normed_ptr == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် MMCMatrix* normed = normed_ptr
+    mmc_layer_norm(normed->data, seq_len * d, 0.00001, ln1_g_ptr, ln1_b_ptr)
+
+    တည်ဆောက် အစု Q_ptr = mmc_linear(normed_ptr, Wq_ptr, bq_ptr)
+    တည်ဆောက် အစု K_ptr = mmc_linear(normed_ptr, Wk_ptr, bk_ptr)
+    တည်ဆောက် အစု V_ptr = mmc_linear(normed_ptr, Wv_ptr, bv_ptr)
+    mmc_matrix_free(normed_ptr)
+    သုံးသပ်ချက်အရ(Q_ptr == 0 သို့မဟုတ် K_ptr == 0 သို့မဟုတ် V_ptr == 0) {
+        သုံးသပ်ချက်အရ(Q_ptr != 0) { mmc_matrix_free(Q_ptr) }
+        သုံးသပ်ချက်အရ(K_ptr != 0) { mmc_matrix_free(K_ptr) }
+        သုံးသပ်ချက်အရ(V_ptr != 0) { mmc_matrix_free(V_ptr) }
+        ပြန်ပေး 0
+    }
+
+    တည်ဆောက် အစု attn_ptr = mmc_attention_multi(Q_ptr, K_ptr, V_ptr, seq_len, d, n_heads)
+    mmc_matrix_free(Q_ptr)
+    mmc_matrix_free(K_ptr)
+    mmc_matrix_free(V_ptr)
+    သုံးသပ်ချက်အရ(attn_ptr == 0) { ပြန်ပေး 0 }
+
+    တည်ဆောက် အစု proj_ptr = mmc_linear(attn_ptr, Wo_ptr, bo_ptr)
+    mmc_matrix_free(attn_ptr)
+    သုံးသပ်ချက်အရ(proj_ptr == 0) { ပြန်ပေး 0 }
+
+    // Residual 1
+    တည်ဆောက် အစု x1_ptr = mmc_matrix_copy(x_ptr)
+    သုံးသပ်ချက်အရ(x1_ptr == 0) {
+        mmc_matrix_free(proj_ptr)
+        ပြန်ပေး 0
+    }
+    mmc_matrix_add_inplace(x1_ptr, proj_ptr)
+    mmc_matrix_free(proj_ptr)
+
+    // ── FFN (pre-norm) ──
+    တည်ဆောက် အစု normed2_ptr = mmc_matrix_copy(x1_ptr)
+    သုံးသပ်ချက်အရ(normed2_ptr == 0) {
+        mmc_matrix_free(x1_ptr)
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် MMCMatrix* normed2 = normed2_ptr
+    mmc_layer_norm(normed2->data, seq_len * d, 0.00001, ln2_g_ptr, ln2_b_ptr)
+
+    တည်ဆောက် အစု ffn_ptr = mmc_ffn(normed2_ptr, W1_ptr, b1_ptr, W2_ptr, b2_ptr)
+    mmc_matrix_free(normed2_ptr)
+    သုံးသပ်ချက်အရ(ffn_ptr == 0) {
+        mmc_matrix_free(x1_ptr)
+        ပြန်ပေး 0
+    }
+
+    // Residual 2
+    mmc_matrix_add_inplace(x1_ptr, ffn_ptr)
+    mmc_matrix_free(ffn_ptr)
+
+    ပြန်ပေး x1_ptr
+}
+
+// Multi-head stack forward (all blocks share same n_heads)
+လုပ်ငန်း mmc_transformer_forward_mh(အစု x_ptr, အစု blocks_arr_ptr, ကိန်း n_blocks, ကိန်း n_heads) အစု {
+    သုံးသပ်ချက်အရ(x_ptr == 0) { ပြန်ပေး 0 }
+    သုံးသပ်ချက်အရ(n_blocks <= 0) {
+        ပြန်ပေး mmc_matrix_copy(x_ptr)
+    }
+    တည်ဆောက် အစု current = mmc_matrix_copy(x_ptr)
+    သုံးသပ်ချက်အရ(current == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n_blocks) {
+        တည်ဆောက် MMCBlockWeights* bw = mmc_array_get(blocks_arr_ptr, i)
+        သုံးသပ်ချက်အရ(bw == 0) { ပြန်ပေး current }
+        တည်ဆောက် အစု next = mmc_transformer_block_mh(current,
+            bw->Wq, bw->bq, bw->Wk, bw->bk, bw->Wv, bw->bv, bw->Wo, bw->bo,
+            bw->ln1g, bw->ln1b, bw->W1, bw->b1, bw->W2, bw->b2,
+            bw->ln2g, bw->ln2b, n_heads)
+        သုံးသပ်ချက်အရ(next == 0) { ပြန်ပေး current }
+        mmc_matrix_free(current)
+        current = next
+        i = i + 1
+    }
+    ပြန်ပေး current
+}
