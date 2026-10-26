@@ -1,0 +1,2213 @@
+// ============================================================
+// compiler_v11.mmc — MMC Self-Hosting Compiler v11.0
+// ဘယ်သူနဲ့မှ မတု တကမ္ဘာလုံးက သုံးလို့ရတဲ့ နည်းပညာ အသစ်
+// Written entirely in MMC (Myanmar Programming Language)
+// No Python, No C — Pure MMC Technology
+// (c) NyanLin AI Lab 2026
+// ============================================================
+
+// === Token Types ===
+အစုအဝေး Token {
+    type ကိန်း       // token type number
+    value စာသား      // token value string
+    line ကိန်း        // source line number
+    col ကိန်း         // source column number
+}
+
+// === AST Node ===
+အစုအဝေး ASTNode {
+    kind ကိန်း        // node kind (VAR_DECL, FUNC_DEF, IF_STMT, etc.)
+    data စာသား       // node data (variable name, function name, etc.)
+    type_str စာသား   // type string (int, char*, double, etc.)
+    children စာရင်း   // child nodes (as MMCArray of ASTNode*)
+    value_num double  // numeric value for literals
+    value_str စာသား   // string value for string literals
+}
+
+// === Compiler State ===
+အစုအဝေး CompilerState {
+    source စာသား         // input source code
+    source_len ကိန်း       // source length
+    pos ကိန်း             // current position in source
+    line ကိန်း             // current line number
+    col ကိန်း              // current column number
+    tokens စာရင်း          // list of Token*
+    token_pos ကိန်း        // current position in tokens
+    output စာသား          // generated C code output
+    struct_names စာရင်း    // list of struct name strings
+    enum_names စာရင်း      // list of enum name strings
+    fn_typedefs စာရင်း     // list of function typedef strings
+    has_main ကိန်း         // whether main() function exists
+    error_count ကိန်း      // number of errors
+}
+
+// === Constants: Token Types ===
+တည်ဆောက် ကိန်း TT_EOF = 0
+တည်ဆောက် ကိန်း TT_INT = 1
+တည်ဆောက် ကိန်း TT_FLOAT = 2
+တည်ဆောက် ကိန်း TT_STRING = 3
+တည်ဆောက် ကိန်း TT_IDENT = 4
+တည်ဆောက် ကိန်း TT_VAR = 5      // တည်ဆောက
+တည်ဆောက် ကိန်း TT_FUNC = 6      // လုပ်ငန်း
+တည်ဆောက် ကိန်း TT_IF = 7        // သုံးသပ်ချက်အရ
+တည်ဆောက် ကိန်း TT_ELSE = 8      // မဟုတ်လျှင်
+တည်ဆောက် ကိန်း TT_WHILE = 9     // ပြည့်အောင်
+တည်ဆောက် ကိန်း TT_FOR = 10      // ထပ်ကာထပ်ကာ
+တည်ဆောက် ကိန်း TT_RETURN = 11   // ပြန်ပေး
+တည်ဆောက် ကိန်း TT_PRINT = 12    // ဖော်ပြ
+တည်ဆောက် ကိန်း TT_CONTINUE = 13 // ဆက်လုပ်
+တည်ဆောက် ကိန်း TT_BREAK = 14    // ရပ်
+တည်ဆောက် ကိန်း TT_STRUCT = 15   // အစုအဝေး
+တည်ဆောက် ကိန်း TT_IMPORT = 16   // သွင်းယူ
+တည်ဆောက် ကိန်း TT_KYAN = 17     // ကိန်း (int type)
+တည်ဆောက် ကိန်း TT_STR_TYPE = 18 // စာသား (char* type)
+တည်ဆောက် ကိန်း TT_LIST = 19     // စာရင်း (MMCArray* type)
+တည်ဆောက် ကိန်း TT_OBJ = 20      // အစု (struct instance type)
+တည်ဆောက် ကိန်း TT_AND = 21       // နှင့် / &&
+တည်ဆောက် ကိန်း TT_OR = 22        // သို့မဟုတ် / ||
+တည်ဆောက် ကိန်း TT_PLUS = 23
+တည်ဆောက် ကိန်း TT_MINUS = 24
+တည်ဆောက် ကိန်း TT_STAR = 25
+တည်ဆောက် ကိန်း TT_SLASH = 26
+တည်ဆောက် ကိန်း TT_PERCENT = 27
+တည်ဆောက် ကိန်း TT_ASSIGN = 28
+တည်ဆောက် ကိန်း TT_EQ = 29       // ==
+တည်ဆောက် ကိန်း TT_NEQ = 30      // !=
+တည်ဆောက် ကိန်း TT_LT = 31
+တည်ဆောက် ကိန်း TT_GT = 32
+တည်ဆောက် ကိန်း TT_LTE = 33      // <=
+တည်ဆောက် ကိန်း TT_GTE = 34      // >=
+တည်ဆောက် ကိန်း TT_LPAREN = 35
+တည်ဆောက် ကိန်း TT_RPAREN = 36
+တည်ဆောက် ကိန်း TT_LBRACE = 37
+တည်ဆောက် ကိန်း TT_RBRACE = 38
+တည်ဆောက် ကိန်း TT_LBRACKET = 39
+တည်ဆောက် ကိန်း TT_RBRACKET = 40
+တည်ဆောက် ကိန်း TT_COMMA = 41
+တည်ဆောက် ကိန်း TT_DOT = 42
+တည်ဆောက် ကိန်း TT_ARROW = 43    // ->
+တည်ဆောက် ကိန်း TT_SEMI = 44
+တည်ဆောက် ကိန်း TT_NEWLINE = 45
+တည်ဆောက် ကိန်း TT_MYANMAR_INT = 46
+တည်ဆောက် ကိန်း TT_DOUBLE = 47    // ဒသမ (double type)
+တည်ဆောက် ကိန်း TT_SWITCH = 48    // ပြောင်း (switch)
+တည်ဆောက် ကိန်း TT_CASE = 49      // အခြေနေ (case)
+တည်ဆောက် ကိန်း TT_DEFAULT = 50   // ပုံသေ (default)
+တည်ဆောက် ကိန်း TT_ENUM = 51      // စာရင်းကောက် (enum)
+တည်ဆောက် ကိန်း TT_BIT_AND = 52   // ♩ (bitwise AND)
+တည်ဆောက် ကိန်း TT_BIT_OR = 53    // ♪ (bitwise OR)
+တည်ဆောက် ကိန်း TT_BIT_XOR = 54   // ♫ (bitwise XOR)
+တည်ဆောက် ကိန်း TT_BIT_NOT = 55   // ♬ (bitwise NOT)
+တည်ဆောက် ကိန်း TT_SHL = 56       // ♭ (left shift)
+တည်ဆောက် ကိန်း TT_SHR = 57       // ♯ (right shift)
+တည်ဆောက် ကိန်း TT_ADDR_OF = 58   // ♮ (address-of)
+တည်ဆောက် ကိန်း TT_GOTO = 59      // သွားမယ် (goto)
+တည်ဆောက် ကိန်း TT_LABEL = 60     // အမှတ် (label)
+တည်ဆောက် ကိန်း TT_CHAR = 61     // character literal
+
+// === Constants: AST Node Kinds ===
+တည်ဆောက် ကိန်း NK_PROGRAM = 100
+တည်ဆောက် ကိန်း NK_VAR_DECL = 101
+တည်ဆောက် ကိန်း NK_FUNC_DEF = 102
+တည်ဆောက် ကိန်း NK_STRUCT_DEF = 103
+တည်ဆောက် ကိန်း NK_IF_STMT = 104
+တည်ဆောက် ကိန်း NK_WHILE_STMT = 105
+တည်ဆောက် ကိန်း NK_FOR_STMT = 106
+တည်ဆောက် ကိန်း NK_RETURN_STMT = 107
+တည်ဆောက် ကိန်း NK_BREAK_STMT = 108
+တည်ဆောက် ကိန်း NK_CONTINUE_STMT = 109
+တည်ဆောက် ကိန်း NK_PRINT_STMT = 110
+တည်ဆောက် ကိန်း NK_ASSIGN = 111
+တည်ဆောက် ကိန်း NK_EXPR_STMT = 112
+တည်ဆောက် ကိန်း NK_IMPORT = 113
+တည်ဆောက် ကိန်း NK_BINARY_OP = 200
+တည်ဆောက် ကိန်း NK_UNARY_OP = 201
+တည်ဆောက် ကိန်း NK_IDENT = 202
+တည်ဆောက် ကိန်း NK_INT_LIT = 203
+တည်ဆောက် ကိန်း NK_FLOAT_LIT = 204
+တည်ဆောက် ကိန်း NK_STR_LIT = 205
+တည်ဆောက် ကိန်း NK_FUNC_CALL = 206
+တည်ဆောက် ကိန်း NK_ARRAY_ACCESS = 207
+တည်ဆောက် ကိန်း NK_FIELD_ACCESS = 208
+တည်ဆောက် ကိန်း NK_ARRAY_LITERAL = 209
+တည်ဆောက် ကိန်း NK_SWITCH_STMT = 210
+တည်ဆောက် ကိန်း NK_CASE = 211
+တည်ဆောက် ကိန်း NK_ENUM_DEF = 212
+တည်ဆောက် ကိန်း NK_GOTO_STMT = 213
+တည်ဆောက် ကိန်း NK_LABEL_STMT = 214
+တည်ဆောက် ကိန်း NK_TYPEDEF_PRELUDE = 215
+တည်ဆောက် ကိန်း NK_CHAR_LIT = 216
+
+// === Main Entry Point ===
+လုပ်ငန်း main() {
+    printf("========================================\n")
+    printf("  MMC Compiler v11.0 — Self-Hosting\n")
+    printf("  Written in MMC (Myanmar Programming Language)\n")
+    printf("  No Python, No C — Pure MMC Technology\n")
+    printf("========================================\n\n")
+
+    သုံးသပ်ချက်အရ(mmc_array_size(knowledge_base) < 2) {
+        printf("  Usage: mmc_compiler <input.mmc> <output.c>\n")
+        printf("  Error: not enough arguments\n")
+        ပြန်ပေး 1
+    }
+
+    // Read input file
+    တည်ဆောက် စာသား input_file = mmc_array_get(knowledge_base, 1)
+    တည်ဆောက် စာသား output_file = mmc_array_get(knowledge_base, 2)
+    တည်ဆောက် စာသား source = mmc_read_file(input_file)
+
+    သုံးသပ်ချက်အရ(source == NULL) {
+        printf("  Error: Cannot open file '%s'\n", input_file)
+        ပြန်ပေး 1
+    }
+
+    printf("  Input:  %s\n", input_file)
+    printf("  Output: %s\n", output_file)
+    printf("  Source: %d bytes\n", mmc_string_length(source))
+
+    // Create compiler state
+    တည်ဆောက် CompilerState* cs = mmc_malloc(sizeof(CompilerState))
+    cs->source = source
+    cs->source_len = mmc_string_length(source)
+    cs->pos = 0
+    cs->line = 1
+    cs->col = 1
+    cs->tokens = mmc_array_new()
+    cs->token_pos = 0
+    cs->output = ""
+    cs->struct_names = mmc_array_new()
+    cs->enum_names = mmc_array_new()
+    cs->fn_typedefs = mmc_array_new()
+    cs->has_main = 0
+    cs->error_count = 0
+
+    // Phase 1: Tokenize
+    printf("\n  Phase 1: Tokenizing...\n")
+    tokenize(cs)
+
+    သုံးသပ်ချက်အရ(cs->error_count > 0) {
+        printf("  ❌ Tokenization failed: %d errors\n", cs->error_count)
+        ပြန်ပေး 1
+    }
+    printf("  ✅ Tokenized: %d tokens\n", mmc_array_size(cs->tokens))
+
+    // Phase 2: Parse
+    printf("\n  Phase 2: Parsing...\n")
+    cs->token_pos = 0
+    တည်ဆောက် ASTNode* program = parse_program(cs)
+
+    သုံးသပ်ချက်အရ(cs->error_count > 0) {
+        printf("  ❌ Parsing failed: %d errors\n", cs->error_count)
+        ပြန်ပေး 1
+    }
+    printf("  ✅ Parsed: program AST built\n")
+
+    // Phase 3: Generate C code
+    printf("\n  Phase 3: Generating C code...\n")
+    တည်ဆောက် စာသား c_code = generate_c(program, cs)
+
+    သုံးသပ်ချက်အရ(cs->error_count > 0) {
+        printf("  ❌ Code generation failed: %d errors\n", cs->error_count)
+        ပြန်ပေး 1
+    }
+
+    // Write output
+    mmc_write_file(output_file, c_code)
+    printf("  ✅ Generated: %d lines of C code\n", mmc_string_length(c_code))
+
+    printf("\n========================================\n")
+    printf("  MMC Compiler v11.0 — Self-Hosting\n")
+    printf("  ✅ No Fake No Simulate — Pure MMC\n")
+    printf("========================================\n")
+
+    mmc_free(cs)
+    ပြန်ပေး 0
+}
+
+// === Lexer: Tokenize Source Code ===
+လုပ်ငန်း tokenize(အစု cs_ptr) {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+
+    ပြည့်အောင်(cs->pos < cs->source_len) {
+        // Skip whitespace
+        ပြည့်အောင်(cs->pos < cs->source_len) {
+            တည်ဆောက် ကိန်း ch = char_at(cs, cs->pos)
+            သုံးသပ်ချက်အရ(ch == 32 သို့မဟုတ် ch == 9 သို့မဟုတ် ch == 13) {
+                cs->pos = cs->pos + 1
+            } မဟုတ်လျှင် {
+                ရပ်
+            }
+        }
+
+        သုံးသပ်ချက်အရ(cs->pos >= cs->source_len) {
+            ဆက်လုပ်
+        }
+
+        တည်ဆောက် ကိန်း ch = char_at(cs, cs->pos)
+
+        // Skip comment //
+        သုံးသပ်ချက်အရ(ch == '/' နှင့် char_at(cs, cs->pos + 1) == '/') {
+            ပြည့်အောင်(cs->pos < cs->source_len နှင့် char_at(cs, cs->pos) != '\n') {
+                cs->pos = cs->pos + 1
+            }
+            ဆက်လုပ်
+        }
+
+        // String literal
+        သုံးသပ်ချက်အရ(ch == '"') {
+            တည်ဆောက် Token* tok = read_string_token(cs)
+            mmc_array_push(cs->tokens, tok)
+            ဆက်လုပ်
+        }
+
+        // Character literal
+        သုံးသပ်ချက်အရ(ch == 39) {
+            တည်ဆောက် Token* ctok = read_char_token(cs)
+            mmc_array_push(cs->tokens, ctok)
+            ဆက်လုပ်
+        }
+
+        // Number (Latin or Myanmar digits)
+        သုံးသပ်ချက်အရ(is_digit(ch) သို့မဟုတ် myanmar_digit_value(cs, cs->pos) >= 0) {
+            တည်ဆောက် Token* tok = read_number_token(cs)
+            mmc_array_push(cs->tokens, tok)
+            ဆက်လုပ်
+        }
+
+        // Music note bitwise operators (♩ ♪ ♫ ♬ ♭ ♯)
+        သုံးသပ်ချက်အရ(cs->pos + 2 < cs->source_len) {
+            တည်ဆောက် စာသား mn = mmc_string_substring(cs->source, cs->pos, cs->pos + 3)
+            သုံးသပ်ချက်အရ(mmc_string_compare(mn, "♩") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_BIT_AND, "&", cs->line, cs->col))
+                cs->pos = cs->pos + 3
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(mn, "♪") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_BIT_OR, "|", cs->line, cs->col))
+                cs->pos = cs->pos + 3
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(mn, "♫") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_BIT_XOR, "^", cs->line, cs->col))
+                cs->pos = cs->pos + 3
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(mn, "♬") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_BIT_NOT, "~", cs->line, cs->col))
+                cs->pos = cs->pos + 3
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(mn, "♭") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_SHL, "<<", cs->line, cs->col))
+                cs->pos = cs->pos + 3
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(mn, "♯") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_SHR, ">>", cs->line, cs->col))
+                cs->pos = cs->pos + 3
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(mn, "♮") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_ADDR_OF, "&", cs->line, cs->col))
+                cs->pos = cs->pos + 3
+                ဆက်လုပ်
+            }
+        }
+
+        // Myanmar text (keyword or identifier)
+        သုံးသပ်ချက်အရ(is_myanmar_char(ch)) {
+            တည်ဆောက် Token* tok = read_myanmar_token(cs)
+            mmc_array_push(cs->tokens, tok)
+            ဆက်လုပ်
+        }
+
+        // Latin identifier
+        သုံးသပ်ချက်အရ(is_alpha(ch) သို့မဟုတ် ch == '_') {
+            တည်ဆောက် Token* tok = read_ident_token(cs)
+            mmc_array_push(cs->tokens, tok)
+            ဆက်လုပ်
+        }
+
+        // Two-char operators
+        သုံးသပ်ချက်အရ(cs->pos + 1 < cs->source_len) {
+            တည်ဆောက် စာသား two = mmc_string_substring(cs->source, cs->pos, cs->pos + 2)
+            သုံးသပ်ချက်အရ(mmc_string_compare(two, "==") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_EQ, "==", cs->line, cs->col))
+                cs->pos = cs->pos + 2
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(two, "!=") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_NEQ, "!=", cs->line, cs->col))
+                cs->pos = cs->pos + 2
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(two, "<=") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_LTE, "<=", cs->line, cs->col))
+                cs->pos = cs->pos + 2
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(two, ">=") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_GTE, ">=", cs->line, cs->col))
+                cs->pos = cs->pos + 2
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(two, "&&") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_AND, "&&", cs->line, cs->col))
+                cs->pos = cs->pos + 2
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(two, "||") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_OR, "||", cs->line, cs->col))
+                cs->pos = cs->pos + 2
+                ဆက်လုပ်
+            }
+            သုံးသပ်ချက်အရ(mmc_string_compare(two, "->") == 0) {
+                mmc_array_push(cs->tokens, make_token(TT_ARROW, "->", cs->line, cs->col))
+                cs->pos = cs->pos + 2
+                ဆက်လုပ်
+            }
+        }
+
+        // Single-char operators/punctuation
+        တည်ဆောက် စာသား ch_str = mmc_string_substring(cs->source, cs->pos, cs->pos + 1)
+        သုံးသပ်ချက်အရ(ch == '+') {
+            mmc_array_push(cs->tokens, make_token(TT_PLUS, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '-') {
+            mmc_array_push(cs->tokens, make_token(TT_MINUS, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '*') {
+            mmc_array_push(cs->tokens, make_token(TT_STAR, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '/') {
+            mmc_array_push(cs->tokens, make_token(TT_SLASH, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '%') {
+            mmc_array_push(cs->tokens, make_token(TT_PERCENT, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '=') {
+            mmc_array_push(cs->tokens, make_token(TT_ASSIGN, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '<') {
+            mmc_array_push(cs->tokens, make_token(TT_LT, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '>') {
+            mmc_array_push(cs->tokens, make_token(TT_GT, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '(') {
+            mmc_array_push(cs->tokens, make_token(TT_LPAREN, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == ')') {
+            mmc_array_push(cs->tokens, make_token(TT_RPAREN, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '{') {
+            mmc_array_push(cs->tokens, make_token(TT_LBRACE, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '}') {
+            mmc_array_push(cs->tokens, make_token(TT_RBRACE, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '[') {
+            mmc_array_push(cs->tokens, make_token(TT_LBRACKET, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == ']') {
+            mmc_array_push(cs->tokens, make_token(TT_RBRACKET, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == ',') {
+            mmc_array_push(cs->tokens, make_token(TT_COMMA, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '.') {
+            mmc_array_push(cs->tokens, make_token(TT_DOT, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == ';') {
+            mmc_array_push(cs->tokens, make_token(TT_SEMI, ch_str, cs->line, cs->col))
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+        သုံးသပ်ချက်အရ(ch == 10) {
+            mmc_array_push(cs->tokens, make_token(TT_NEWLINE, "\\n", cs->line, cs->col))
+            cs->line = cs->line + 1
+            cs->col = 1
+            cs->pos = cs->pos + 1
+            ဆက်လုပ်
+        }
+
+        // Unknown character — skip
+        cs->pos = cs->pos + 1
+    }
+
+    // Add EOF token
+    mmc_array_push(cs->tokens, make_token(TT_EOF, "", cs->line, cs->col))
+}
+
+// === Helper Functions ===
+
+လုပ်ငန်း char_at(အစု cs_ptr, ကိန်း pos) ကိန်း {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    သုံးသပ်ချက်အရ(pos >= 0 နှင့် pos < cs->source_len) {
+        ပြန်ပေး mmc_string_substring(cs->source, pos, pos + 1)[0] ♩ 255
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း is_digit(ကိန်း ch) ကိန်း {
+    ပြန်ပေး ch >= '0' နှင့် ch <= '9'
+}
+
+လုပ်ငန်း is_myanmar_digit(ကိန်း ch) ကိန်း {
+    ပြန်ပေး ch >= 0x1040 နှင့် ch <= 0x1049
+}
+
+လုပ်ငန်း is_myanmar_char(ကိန်း ch) ကိန်း {
+    ပြန်ပေး ch >= 0x80
+}
+
+လုပ်ငန်း is_alpha(ကိန်း ch) ကိန်း {
+    ပြန်ပေး (ch >= 'a' နှင့် ch <= 'z') သို့မဟုတ် (ch >= 'A' နှင့် ch <= 'Z')
+}
+
+လုပ်ငန်း make_token(ကိန်း type, စာသား value, ကိန်း line, ကိန်း col) အစု {
+    တည်ဆောက် Token* tok = mmc_malloc(sizeof(Token))
+    tok->type = type
+    tok->value = value
+    tok->line = line
+    tok->col = col
+    ပြန်ပေး tok
+}
+
+// === Read String Token ===
+လုပ်ငန်း read_string_token(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    တည်ဆောက် ကိန်း start_line = cs->line
+    တည်ဆောက် ကိန်း start_col = cs->col
+    cs->pos = cs->pos + 1  // skip opening "
+
+    တည်ဆောက် စာသား result = ""
+    ပြည့်အောင်(cs->pos < cs->source_len) {
+        တည်ဆောက် ကိန်း ch = char_at(cs, cs->pos)
+        သုံးသပ်ချက်အရ(ch == '"') {
+            cs->pos = cs->pos + 1  // skip closing "
+            ရပ်
+        }
+        သုံးသပ်ချက်အရ(ch == '\\') {
+            cs->pos = cs->pos + 1
+            တည်ဆောက် ကိန်း esc = char_at(cs, cs->pos)
+            သုံးသပ်ချက်အရ(esc == 'n') {
+                result = mmc_string_concat(result, "\n")
+            } မဟုတ်လျှင် သုံးသပ်ချက်အရ(esc == 't') {
+                result = mmc_string_concat(result, "\t")
+            } မဟုတ်လျှင် သုံးသပ်ချက်အရ(esc == '\\') {
+                result = mmc_string_concat(result, "\\")
+            } မဟုတ်လျှင် သုံးသပ်ချက်အရ(esc == '"') {
+                result = mmc_string_concat(result, "\"")
+            } မဟုတ်လျှင် {
+                result = mmc_string_concat(result, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+            }
+            cs->pos = cs->pos + 1
+        } မဟုတ်လျှင် {
+            result = mmc_string_concat(result, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+            cs->pos = cs->pos + 1
+        }
+    }
+
+    ပြန်ပေး make_token(TT_STRING, result, start_line, start_col)
+}
+
+လုပ်ငန်း read_char_token(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    တည်ဆောက် ကိန်း start_line = cs->line
+    တည်ဆောက် ကိန်း start_col = cs->col
+    တည်ဆောက် စာသား result = "'"
+    cs->pos = cs->pos + 1
+    ပြည့်အောင်(cs->pos < cs->source_len) {
+        တည်ဆောက် ကိန်း ch = char_at(cs, cs->pos)
+        သုံးသပ်ချက်အရ(ch == 39) {
+            cs->pos = cs->pos + 1
+            ရပ်
+        }
+        သုံးသပ်ချက်အရ(ch == 92) {
+            result = mmc_string_concat(result, "\\")
+            cs->pos = cs->pos + 1
+            သုံးသပ်ချက်အရ(cs->pos < cs->source_len) {
+                result = mmc_string_concat(result, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+                cs->pos = cs->pos + 1
+            }
+        } မဟုတ်လျှင် {
+            result = mmc_string_concat(result, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+            cs->pos = cs->pos + 1
+        }
+    }
+    result = mmc_string_concat(result, "'")
+    ပြန်ပေး make_token(TT_CHAR, result, start_line, start_col)
+}
+
+// === Read Number Token ===
+လုပ်ငန်း myanmar_digit_value(အစု cs_ptr, ကိန်း pos) ကိန်း {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    သုံးသပ်ချက်အရ(pos + 2 >= cs->source_len) {
+        ပြန်ပေး -1
+    }
+    တည်ဆောက် ကိန်း b1 = char_at(cs, pos)
+    တည်ဆောက် ကိန်း b2 = char_at(cs, pos + 1)
+    တည်ဆောက် ကိန်း b3 = char_at(cs, pos + 2)
+    သုံးသပ်ချက်အရ(b1 == 0xE1 နှင့် b2 == 0x81 နှင့် b3 >= 0x80 နှင့် b3 <= 0x89) {
+        ပြန်ပေး b3 - 0x80
+    }
+    ပြန်ပေး -1
+}
+
+လုပ်ငန်း read_number_token(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    တည်ဆောက် ကိန်း start_line = cs->line
+    တည်ဆောက် ကိန်း start_col = cs->col
+    တည်ဆောက် စာသား num_str = ""
+    တည်ဆောက် ကိန်း has_dot = 0
+    သုံးသပ်ချက်အရ((char_at(cs, cs->pos) == 48) နှင့် ((cs->pos + 1) < cs->source_len)) {
+        တည်ဆောက် ကိန်း nx = char_at(cs, cs->pos + 1)
+        သုံးသပ်ချက်အရ((nx == 120) သို့မဟုတ် (nx == 88)) {
+            တည်ဆောက် စာသား hex = "0x"
+            cs->pos = cs->pos + 2
+            ပြည့်အောင်(cs->pos < cs->source_len) {
+                တည်ဆောက် ကိန်း hx = char_at(cs, cs->pos)
+                သုံးသပ်ချက်အရ(is_digit(hx) သို့မဟုတ် ((hx >= 97) နှင့် (hx <= 102)) သို့မဟုတ် ((hx >= 65) နှင့် (hx <= 70))) {
+                    hex = mmc_string_concat(hex, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+                    cs->pos = cs->pos + 1
+                } မဟုတ်လျှင် {
+                    ရပ်
+                }
+            }
+            ပြန်ပေး make_token(TT_INT, hex, start_line, start_col)
+        }
+    }
+
+    ပြည့်အောင်(cs->pos < cs->source_len) {
+        တည်ဆောက် ကိန်း ch = char_at(cs, cs->pos)
+        သုံးသပ်ချက်အရ(is_digit(ch)) {
+            num_str = mmc_string_concat(num_str, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+            cs->pos = cs->pos + 1
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(myanmar_digit_value(cs, cs->pos) >= 0) {
+            တည်ဆောက် ကိန်း digit = myanmar_digit_value(cs, cs->pos)
+            num_str = mmc_string_concat(num_str, mmc_int_to_string(digit))
+            cs->pos = cs->pos + 3
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(ch == '.' နှင့် has_dot == 0) {
+            num_str = mmc_string_concat(num_str, ".")
+            has_dot = 1
+            cs->pos = cs->pos + 1
+        } မဟုတ်လျှင် {
+            ရပ်
+        }
+    }
+
+    သုံးသပ်ချက်အရ(has_dot) {
+        ပြန်ပေး make_token(TT_FLOAT, num_str, start_line, start_col)
+    } မဟုတ်လျှင် {
+        ပြန်ပေး make_token(TT_INT, num_str, start_line, start_col)
+    }
+}
+
+// === Read Myanmar Keyword/Identifier Token ===
+လုပ်ငန်း read_myanmar_token(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    တည်ဆောက် ကိန်း start_line = cs->line
+    တည်ဆောက် ကိန်း start_col = cs->col
+    တည်ဆောက် စာသား buf = ""
+
+    ပြည့်အောင်(cs->pos < cs->source_len နှင့် is_myanmar_char(char_at(cs, cs->pos))) {
+        buf = mmc_string_concat(buf, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+        cs->pos = cs->pos + 1
+    }
+
+    // Try multi-word keywords (e.g., သုံးသပ်ချက်အရ = if)
+    // Check if next char is space and then more Myanmar text
+    သုံးသပ်ချက်အရ(cs->pos < cs->source_len နှင့် char_at(cs, cs->pos) == 32) {
+        တည်ဆောက် ကိန်း saved_pos = cs->pos
+        cs->pos = cs->pos + 1  // skip space
+        တည်ဆောက် စာသား next_buf = ""
+        ပြည့်အောင်(cs->pos < cs->source_len နှင့် is_myanmar_char(char_at(cs, cs->pos))) {
+            next_buf = mmc_string_concat(next_buf, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+            cs->pos = cs->pos + 1
+        }
+        တည်ဆောက် စာသား combined = mmc_string_concat(mmc_string_concat(buf, " "), next_buf)
+
+        // Check combined keyword
+        သုံးသပ်ချက်အရ(mmc_string_compare(combined, "သုံးသပ်ချက်အရ") == 0) {
+            ပြန်ပေး make_token(TT_IF, combined, start_line, start_col)
+        }
+        သုံးသပ်ချက်အရ(mmc_string_compare(combined, "မဟုတ်လျှင်") == 0) {
+            ပြန်ပေး make_token(TT_ELSE, combined, start_line, start_col)
+        }
+        သုံးသပ်ချက်အရ(mmc_string_compare(combined, "ပြည့်အောင်") == 0) {
+            ပြန်ပေး make_token(TT_WHILE, combined, start_line, start_col)
+        }
+        သုံးသပ်ချက်အရ(mmc_string_compare(combined, "အစုအဝေး") == 0) {
+            ပြန်ပေး make_token(TT_STRUCT, combined, start_line, start_col)
+        }
+        သုံးသပ်ချက်အရ(mmc_string_compare(combined, "သို့မဟုတ်") == 0) {
+            ပြန်ပေး make_token(TT_OR, "||", start_line, start_col)
+        }
+        သုံးသပ်ချက်အရ(mmc_string_compare(combined, "ထပ်ကာထပ်ကာ") == 0) {
+            ပြန်ပေး make_token(TT_FOR, combined, start_line, start_col)
+        }
+        သုံးသပ်ချက်အရ(mmc_string_compare(combined, "သွင်းယူ") == 0) {
+            ပြန်ပေး make_token(TT_IMPORT, combined, start_line, start_col)
+        }
+
+        // Not a multi-word keyword, rewind
+        cs->pos = saved_pos
+    }
+
+    // Check single-word keywords
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "တည်ဆောက်") == 0) {
+        ပြန်ပေး make_token(TT_VAR, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ထပ်ကာထပ်ကာ") == 0) {
+        ပြန်ပေး make_token(TT_FOR, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ပြည့်အောင်") == 0) {
+        ပြန်ပေး make_token(TT_WHILE, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ဒသမ") == 0) {
+        ပြန်ပေး make_token(TT_DOUBLE, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "သုံးသပ်ချက်အရ") == 0) {
+        ပြန်ပေး make_token(TT_IF, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "မဟုတ်လျှင်") == 0) {
+        ပြန်ပေး make_token(TT_ELSE, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "သို့မဟုတ်") == 0) {
+        ပြန်ပေး make_token(TT_OR, "||", start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ပြောင်း") == 0) {
+        ပြန်ပေး make_token(TT_SWITCH, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "အခြေနေ") == 0) {
+        ပြန်ပေး make_token(TT_CASE, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ပုံသေ") == 0) {
+        ပြန်ပေး make_token(TT_DEFAULT, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "စာရင်းကောက်") == 0) {
+        ပြန်ပေး make_token(TT_ENUM, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "သွားမယ်") == 0) {
+        ပြန်ပေး make_token(TT_GOTO, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "အမှတ်") == 0) {
+        ပြန်ပေး make_token(TT_LABEL, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "လုပ်ငန်း") == 0) {
+        ပြန်ပေး make_token(TT_FUNC, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ပြန်ပေး") == 0) {
+        ပြန်ပေး make_token(TT_RETURN, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ဖော်ပြ") == 0) {
+        ပြန်ပေး make_token(TT_PRINT, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ဆက်လုပ်") == 0) {
+        ပြန်ပေး make_token(TT_CONTINUE, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ရပ်") == 0) {
+        ပြန်ပေး make_token(TT_BREAK, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ကိန်း") == 0) {
+        ပြန်ပေး make_token(TT_KYAN, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "စာသား") == 0) {
+        ပြန်ပေး make_token(TT_STR_TYPE, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "စာရင်း") == 0) {
+        ပြန်ပေး make_token(TT_LIST, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "အစုအဝေး") == 0) {
+        ပြန်ပေး make_token(TT_STRUCT, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "အစု") == 0) {
+        ပြန်ပေး make_token(TT_OBJ, buf, start_line, start_col)
+    }
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "နှင့်") == 0) {
+        ပြန်ပေး make_token(TT_AND, "&&", start_line, start_col)
+    }
+
+    // Not a keyword — return as identifier
+    ပြန်ပေး make_token(TT_IDENT, buf, start_line, start_col)
+}
+
+// === Read Latin Identifier Token ===
+လုပ်ငန်း read_ident_token(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    တည်ဆောက် ကိန်း start_line = cs->line
+    တည်ဆောက် ကိန်း start_col = cs->col
+    တည်ဆောက် စာသား buf = ""
+
+    ပြည့်အောင်(cs->pos < cs->source_len) {
+        တည်ဆောက် ကိန်း ch = char_at(cs, cs->pos)
+        သုံးသပ်ချက်အရ(is_alpha(ch) သို့မဟုတ် is_digit(ch) သို့မဟုတ် ch == '_') {
+            buf = mmc_string_concat(buf, mmc_string_substring(cs->source, cs->pos, cs->pos + 1))
+            cs->pos = cs->pos + 1
+        } မဟုတ်လျှင် {
+            ရပ်
+        }
+    }
+
+    ပြန်ပေး make_token(TT_IDENT, buf, start_line, start_col)
+}
+
+// === Parser: Parse Program ===
+လုပ်ငန်း parse_program(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    တည်ဆောက် ASTNode* program = make_node(NK_PROGRAM, "", "", mmc_array_new())
+    ပြည့်အောင်(current_type(cs) != TT_EOF) {
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_EOF) {
+            ရပ်
+        }
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_IMPORT) {
+            mmc_array_push(program->children, parse_import(cs))
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_STRUCT) {
+            mmc_array_push(program->children, parse_struct(cs))
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_ENUM) {
+            mmc_array_push(program->children, parse_enum(cs))
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_FUNC) {
+            mmc_array_push(program->children, parse_func(cs))
+        } မဟုတ်လျှင် {
+            mmc_array_push(program->children, parse_statement(cs))
+        }
+        skip_newlines(cs)
+    }
+    သုံးသပ်ချက်အရ(mmc_array_size(cs->fn_typedefs) > 0) {
+        တည်ဆောက် စာသား td_all = ""
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < mmc_array_size(cs->fn_typedefs)) {
+            td_all = mmc_string_concat(td_all, mmc_array_get(cs->fn_typedefs, k))
+            td_all = mmc_string_concat(td_all, "\n")
+            k = k + 1
+        }
+        တည်ဆောက် ASTNode* prelude = make_node(NK_TYPEDEF_PRELUDE, td_all, "", mmc_array_new())
+        တည်ဆောက် စာရင်း new_children = mmc_array_new()
+        mmc_array_push(new_children, prelude)
+        k = 0
+        ပြည့်အောင်(k < mmc_array_size(program->children)) {
+            mmc_array_push(new_children, mmc_array_get(program->children, k))
+            k = k + 1
+        }
+        program->children = new_children
+    }
+    ပြန်ပေး program
+}
+
+// === Parser Helpers ===
+လုပ်ငန်း current_type(အစု cs_ptr) ကိန်း {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    သုံးသပ်ချက်အရ(cs->token_pos < mmc_array_size(cs->tokens)) {
+        တည်ဆောက် Token* tok = mmc_array_get(cs->tokens, cs->token_pos)
+        ပြန်ပေး tok->type
+    }
+    ပြန်ပေး TT_EOF
+}
+
+လုပ်ငန်း current_value(အစု cs_ptr) စာသား {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    သုံးသပ်ချက်အရ(cs->token_pos < mmc_array_size(cs->tokens)) {
+        တည်ဆောက် Token* tok = mmc_array_get(cs->tokens, cs->token_pos)
+        ပြန်ပေး tok->value
+    }
+    ပြန်ပေး ""
+}
+
+လုပ်ငန်း advance(အစု cs_ptr) {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    cs->token_pos = cs->token_pos + 1
+}
+
+လုပ်ငန်း skip_newlines(အစု cs_ptr) {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    ပြည့်အောင်(current_type(cs) == TT_NEWLINE) {
+        advance(cs)
+    }
+}
+
+လုပ်ငန်း expect(အစု cs_ptr, ကိန်း expected_type) {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    သုံးသပ်ချက်အရ(current_type(cs) != expected_type) {
+        cs->error_count = cs->error_count + 1
+        printf("Parse Error: expected type %d, got %d ('%s')\n", expected_type, current_type(cs), current_value(cs))
+    }
+    advance(cs)
+}
+
+လုပ်ငန်း make_node(ကိန်း kind, စာသား data, စာသား type_str, စာရင်း children) အစု {
+    တည်ဆောက် ASTNode* node = mmc_malloc(sizeof(ASTNode))
+    node->kind = kind
+    node->data = data
+    node->type_str = type_str
+    node->children = children
+    node->value_num = 0
+    node->value_str = ""
+    ပြန်ပေး node
+}
+
+// === Parse Import ===
+လုပ်ငန်း parse_import(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_IMPORT)
+    တည်ဆောက် စာသား module = current_value(cs)
+    advance(cs)
+    ပြန်ပေး make_node(NK_IMPORT, module, "", mmc_array_new())
+}
+
+// === Parse Struct ===
+လုပ်ငန်း parse_struct(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_STRUCT)
+    တည်ဆောက် စာသား name = current_value(cs)
+    advance(cs)  // eat struct name
+    mmc_array_push(cs->struct_names, name)  // register struct name
+    skip_newlines(cs)
+    expect(cs, TT_LBRACE)
+    skip_newlines(cs)
+
+    တည်ဆောက် စာရင်း fields = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+            ရပ်
+        }
+        တည်ဆောက် စာသား fname = current_value(cs)
+        advance(cs)
+        တည်ဆောက် စာသား ftype = "int"
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_KYAN) {
+            ftype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_DOUBLE) {
+            ftype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_STR_TYPE) {
+            ftype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_LIST) {
+            ftype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_OBJ) {
+            ftype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_IDENT) {
+            ftype = parse_type(cs)
+        }
+        mmc_array_push(fields, make_node(NK_VAR_DECL, fname, ftype, mmc_array_new()))
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_SEMI) {
+            advance(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_COMMA) {
+            advance(cs)
+        }
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RBRACE)
+    ပြန်ပေး make_node(NK_STRUCT_DEF, name, "", fields)
+}
+
+// === Parse Type ===
+လုပ်ငန်း type_code(စာသား t) စာသား {
+    သုံးသပ်ချက်အရ(mmc_string_compare(t, "int") == 0) { ပြန်ပေး "i" }
+    သုံးသပ်ချက်အရ(mmc_string_compare(t, "double") == 0) { ပြန်ပေး "d" }
+    သုံးသပ်ချက်အရ(mmc_string_compare(t, "char*") == 0) { ပြန်ပေး "s" }
+    သုံးသပ်ချက်အရ(mmc_string_compare(t, "void") == 0) { ပြန်ပေး "v" }
+    သုံးသပ်ချက်အရ(mmc_string_compare(t, "void*") == 0) { ပြန်ပေး "p" }
+    သုံးသပ်ချက်အရ(mmc_string_compare(t, "MMCArray*") == 0) { ပြန်ပေး "A" }
+    သုံးသပ်ချက်အရ(mmc_string_compare(t, "MMCMatrix*") == 0) { ပြန်ပေး "M" }
+    ပြန်ပေး "x"
+}
+
+လုပ်ငန်း parse_type(အစု cs_ptr) စာသား {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_FUNC) {
+        advance(cs)
+        expect(cs, TT_LPAREN)
+        တည်ဆောက် စာရင်း ptypes = mmc_array_new()
+        ပြည့်အောင်(current_type(cs) != TT_RPAREN) {
+            mmc_array_push(ptypes, parse_type(cs))
+            သုံးသပ်ချက်အရ(current_type(cs) == TT_COMMA) {
+                advance(cs)
+            }
+        }
+        expect(cs, TT_RPAREN)
+        တည်ဆောက် စာသား rt = "int"
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_KYAN) {
+            rt = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_DOUBLE) {
+            rt = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_STR_TYPE) {
+            rt = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_IDENT) {
+            rt = parse_type(cs)
+        }
+        တည်ဆောက် စာသား sig = "MMC_FN_"
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < mmc_array_size(ptypes)) {
+            sig = mmc_string_concat(sig, type_code(mmc_array_get(ptypes, i)))
+            i = i + 1
+        }
+        sig = mmc_string_concat(sig, "_")
+        sig = mmc_string_concat(sig, type_code(rt))
+        တည်ဆောက် စာသား tds = "typedef "
+        tds = mmc_string_concat(tds, rt)
+        tds = mmc_string_concat(tds, " (*")
+        tds = mmc_string_concat(tds, sig)
+        tds = mmc_string_concat(tds, ")(")
+        သုံးသပ်ချက်အရ(mmc_array_size(ptypes) == 0) {
+            tds = mmc_string_concat(tds, "void")
+        } မဟုတ်လျှင် {
+            တည်ဆောက် ကိန်း j = 0
+            ပြည့်အောင်(j < mmc_array_size(ptypes)) {
+                သုံးသပ်ချက်အရ(j > 0) {
+                    tds = mmc_string_concat(tds, ", ")
+                }
+                tds = mmc_string_concat(tds, mmc_array_get(ptypes, j))
+                j = j + 1
+            }
+        }
+        tds = mmc_string_concat(tds, ");")
+        mmc_array_push(cs->fn_typedefs, tds)
+        ပြန်ပေး sig
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_KYAN) {
+        advance(cs)
+        ပြန်ပေး "int"
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_DOUBLE) {
+        advance(cs)
+        ပြန်ပေး "double"
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_STR_TYPE) {
+        advance(cs)
+        ပြန်ပေး "char*"
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_LIST) {
+        advance(cs)
+        ပြန်ပေး "MMCArray*"
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_OBJ) {
+        advance(cs)
+        ပြန်ပေး "void*"
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_IDENT) {
+        တည်ဆောက် စာသား name = current_value(cs)
+        advance(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_STAR) {
+            advance(cs)
+            ပြန်ပေး mmc_string_concat(name, "*")
+        }
+        ပြန်ပေး name
+    }
+    ပြန်ပေး "int"
+}
+
+// === Parse Function ===
+လုပ်ငန်း parse_func(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_FUNC)
+    တည်ဆောက် စာသား name = current_value(cs)
+    advance(cs)
+    expect(cs, TT_LPAREN)
+
+    တည်ဆောက် စာရင်း params = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RPAREN) {
+        skip_newlines(cs)
+        // Type first (like var decl)
+        တည်ဆောက် စာသား ptype = "int"
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_KYAN) {
+            ptype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_DOUBLE) {
+            ptype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_STR_TYPE) {
+            ptype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_LIST) {
+            ptype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_OBJ) {
+            ptype = parse_type(cs)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_FUNC) {
+            ptype = parse_type(cs)
+        }
+        တည်ဆောက် စာသား pname = current_value(cs)
+        advance(cs)
+        mmc_array_push(params, make_node(NK_VAR_DECL, pname, ptype, mmc_array_new()))
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_COMMA) {
+            advance(cs)
+        }
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RPAREN)
+
+    // Return type (after params)
+    တည်ဆောက် စာသား ret_type = "int"
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_KYAN) {
+        ret_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_DOUBLE) {
+        ret_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_STR_TYPE) {
+        ret_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_LIST) {
+        ret_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_OBJ) {
+        ret_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_IDENT) {
+        ret_type = parse_type(cs)
+    }
+
+    သုံးသပ်ချက်အရ(mmc_string_compare(name, "main") == 0) {
+        cs->has_main = 1
+    }
+
+    skip_newlines(cs)
+    expect(cs, TT_LBRACE)
+    skip_newlines(cs)
+
+    တည်ဆောက် စာရင်း body = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+            ရပ်
+        }
+        mmc_array_push(body, parse_statement(cs))
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RBRACE)
+
+    တည်ဆောက် ASTNode* func = make_node(NK_FUNC_DEF, name, ret_type, params)
+    // Store body separately in a second children array via a child node
+    တည်ဆောက် ASTNode* body_node = make_node(NK_PROGRAM, "body", "", body)
+    mmc_array_push(func->children, body_node)
+    ပြန်ပေး func
+}
+
+// === Parse Statement ===
+လုပ်ငန်း parse_statement(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    skip_newlines(cs)
+
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_VAR) {
+        ပြန်ပေး parse_var_decl(cs)
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_IF) {
+        ပြန်ပေး parse_if(cs)
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_WHILE) {
+        ပြန်ပေး parse_while(cs)
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_FOR) {
+        ပြန်ပေး parse_for(cs)
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_SWITCH) {
+        ပြန်ပေး parse_switch(cs)
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_RETURN) {
+        ပြန်ပေး parse_return(cs)
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_BREAK) {
+        advance(cs)
+        ပြန်ပေး make_node(NK_BREAK_STMT, "", "", mmc_array_new())
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_CONTINUE) {
+        advance(cs)
+        ပြန်ပေး make_node(NK_CONTINUE_STMT, "", "", mmc_array_new())
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_PRINT) {
+        ပြန်ပေး parse_print(cs)
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_GOTO) {
+        advance(cs)
+        တည်ဆောက် စာသား label_name = current_value(cs)
+        advance(cs)
+        ပြန်ပေး make_node(NK_GOTO_STMT, label_name, "", mmc_array_new())
+    }
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_LABEL) {
+        advance(cs)
+        တည်ဆောက် စာသား lname = current_value(cs)
+        advance(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_DOT) {
+            advance(cs)
+        }
+        ပြန်ပေး make_node(NK_LABEL_STMT, lname, "", mmc_array_new())
+    }
+
+    // Expression statement (assignment or function call)
+    တည်ဆောက် ASTNode* expr = parse_expression(cs)
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_ASSIGN) {
+        advance(cs)
+        တည်ဆောက် ASTNode* value = parse_expression(cs)
+        ပြန်ပေး make_node(NK_ASSIGN, "", "", mmc_array_new_from(expr, value))
+    }
+    ပြန်ပေး make_node(NK_EXPR_STMT, "", "", mmc_array_new_from(expr, NULL))
+}
+
+// === Parse Enum ===
+လုပ်ငန်း parse_enum(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_ENUM)
+    တည်ဆောက် စာသား name = current_value(cs)
+    advance(cs)
+    mmc_array_push(cs->enum_names, name)
+    skip_newlines(cs)
+    expect(cs, TT_LBRACE)
+    skip_newlines(cs)
+
+    တည်ဆောက် စာရင်း members = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+            ရပ်
+        }
+        တည်ဆောက် စာသား mname = current_value(cs)
+        advance(cs)
+        mmc_array_push(members, make_node(NK_VAR_DECL, mname, "", mmc_array_new()))
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_COMMA) {
+            advance(cs)
+        }
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RBRACE)
+
+    တည်ဆောက် ASTNode* node = make_node(NK_ENUM_DEF, name, "", members)
+    ပြန်ပေး node
+}
+
+// === Parse Switch ===
+လုပ်ငန်း parse_switch(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_SWITCH)
+    expect(cs, TT_LPAREN)
+    တည်ဆောက် ASTNode* cond = parse_expression(cs)
+    expect(cs, TT_RPAREN)
+    skip_newlines(cs)
+    expect(cs, TT_LBRACE)
+    skip_newlines(cs)
+
+    တည်ဆောက် စာရင်း cases = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+            ရပ်
+        }
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_CASE) {
+            advance(cs)
+            တည်ဆောက် ASTNode* case_val = parse_expression(cs)
+            skip_newlines(cs)
+            expect(cs, TT_LBRACE)
+            skip_newlines(cs)
+            တည်ဆောက် စာရင်း body = mmc_array_new()
+            ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+                skip_newlines(cs)
+                သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+                    ရပ်
+                }
+                mmc_array_push(body, parse_statement(cs))
+                skip_newlines(cs)
+            }
+            expect(cs, TT_RBRACE)
+            mmc_array_push(cases, make_node(NK_CASE, case_val->data, "", body))
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_DEFAULT) {
+            advance(cs)
+            skip_newlines(cs)
+            expect(cs, TT_LBRACE)
+            skip_newlines(cs)
+            တည်ဆောက် စာရင်း body = mmc_array_new()
+            ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+                skip_newlines(cs)
+                သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+                    ရပ်
+                }
+                mmc_array_push(body, parse_statement(cs))
+                skip_newlines(cs)
+            }
+            expect(cs, TT_RBRACE)
+            mmc_array_push(cases, make_node(NK_CASE, "__default__", "", body))
+        } မဟုတ်လျှင် {
+            advance(cs)
+        }
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RBRACE)
+
+    တည်ဆောက် ASTNode* node = make_node(NK_SWITCH_STMT, "", "", mmc_array_new())
+    mmc_array_push(node->children, cond)
+    mmc_array_push(node->children, make_node(NK_PROGRAM, "cases", "", cases))
+    ပြန်ပေး node
+}
+
+// === Parse Var Decl ===
+လုပ်ငန်း parse_var_decl(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_VAR)
+
+    တည်ဆောက် စာသား var_type = "int"
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_KYAN) {
+        var_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_DOUBLE) {
+        var_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_STR_TYPE) {
+        var_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_LIST) {
+        var_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_OBJ) {
+        var_type = parse_type(cs)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_IDENT) {
+        var_type = parse_type(cs)
+    }
+
+    တည်ဆောက် စာသား name = current_value(cs)
+    advance(cs)
+
+    // Array size support: name[size] (constant int literal)
+    တည်ဆောက် စာသား arr_size = ""
+    ပြည့်အောင်(current_type(cs) == TT_LBRACKET) {
+        advance(cs)
+        တည်ဆောက် ASTNode* size_expr = parse_expression(cs)
+        expect(cs, TT_RBRACKET)
+        arr_size = mmc_string_concat(arr_size, mmc_string_concat("[", mmc_string_concat(size_expr->data, "]")))
+    }
+
+    တည်ဆောက် ASTNode* init = NULL
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_ASSIGN) {
+        advance(cs)
+        init = parse_expression(cs)
+    }
+
+    // enum type ကို int ဖြစ်စေ (C enum က int-compatible)
+    တည်ဆောက် ကိန်း ei = 0
+    ပြည့်အောင်(ei < mmc_array_size(cs->enum_names)) {
+        သုံးသပ်ချက်အရ(mmc_string_compare(var_type, mmc_array_get(cs->enum_names, ei)) == 0) {
+            var_type = "int"
+        }
+        ei = ei + 1
+    }
+
+    တည်ဆောက် ASTNode* node = make_node(NK_VAR_DECL, name, var_type, mmc_array_new())
+    node->value_str = arr_size
+    သုံးသပ်ချက်အရ(init != NULL) {
+        mmc_array_push(node->children, init)
+    }
+    ပြန်ပေး node
+}
+
+// === Parse If ===
+လုပ်ငန်း parse_if(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_IF)
+    expect(cs, TT_LPAREN)
+    တည်ဆောက် ASTNode* cond = parse_expression(cs)
+    expect(cs, TT_RPAREN)
+    skip_newlines(cs)
+    expect(cs, TT_LBRACE)
+    skip_newlines(cs)
+
+    တည်ဆောက် စာရင်း then_body = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+            ရပ်
+        }
+        mmc_array_push(then_body, parse_statement(cs))
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RBRACE)
+
+    တည်ဆောက် စာရင်း else_body = mmc_array_new()
+    skip_newlines(cs)
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_ELSE) {
+        advance(cs)
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_LBRACE) {
+            expect(cs, TT_LBRACE)
+            skip_newlines(cs)
+            ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+                skip_newlines(cs)
+                သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+                    ရပ်
+                }
+                mmc_array_push(else_body, parse_statement(cs))
+                skip_newlines(cs)
+            }
+            expect(cs, TT_RBRACE)
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_IF) {
+            mmc_array_push(else_body, parse_if(cs))
+        }
+    }
+
+    တည်ဆောက် ASTNode* node = make_node(NK_IF_STMT, "", "", mmc_array_new_from(cond, NULL))
+    တည်ဆောက် ASTNode* then_node = make_node(NK_PROGRAM, "then", "", then_body)
+    တည်ဆောက် ASTNode* else_node = make_node(NK_PROGRAM, "else", "", else_body)
+    mmc_array_push(node->children, then_node)
+    mmc_array_push(node->children, else_node)
+    ပြန်ပေး node
+}
+
+// === Parse While ===
+လုပ်ငန်း parse_while(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_WHILE)
+    expect(cs, TT_LPAREN)
+    တည်ဆောက် ASTNode* cond = parse_expression(cs)
+    expect(cs, TT_RPAREN)
+    skip_newlines(cs)
+    expect(cs, TT_LBRACE)
+    skip_newlines(cs)
+
+    တည်ဆောက် စာရင်း body = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+            ရပ်
+        }
+        mmc_array_push(body, parse_statement(cs))
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RBRACE)
+
+    တည်ဆောက် ASTNode* node = make_node(NK_WHILE_STMT, "", "", mmc_array_new_from(cond, NULL))
+    တည်ဆောက် ASTNode* body_node = make_node(NK_PROGRAM, "body", "", body)
+    mmc_array_push(node->children, body_node)
+    ပြန်ပေး node
+}
+
+// === Parse For ===
+လုပ်ငန်း parse_for(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_FOR)
+    expect(cs, TT_LPAREN)
+
+    တည်ဆောက် ASTNode* init = NULL
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_VAR) {
+        init = parse_var_decl(cs)
+    } မဟုတ်လျှင် {
+        တည်ဆောက် ASTNode* iexpr = parse_expression(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_ASSIGN) {
+            advance(cs)
+            တည်ဆောက် ASTNode* ival = parse_expression(cs)
+            init = make_node(NK_ASSIGN, "", "", mmc_array_new_from(iexpr, ival))
+        } မဟုတ်လျှင် {
+            init = make_node(NK_EXPR_STMT, "", "", mmc_array_new_from(iexpr, NULL))
+        }
+    }
+    expect(cs, TT_SEMI)
+
+    တည်ဆောက် ASTNode* cond = parse_expression(cs)
+    expect(cs, TT_SEMI)
+
+    တည်ဆောက် ASTNode* uexpr = parse_expression(cs)
+    တည်ဆောက် ASTNode* update = NULL
+    သုံးသပ်ချက်အရ(current_type(cs) == TT_ASSIGN) {
+        advance(cs)
+        တည်ဆောက် ASTNode* uval = parse_expression(cs)
+        update = make_node(NK_ASSIGN, "", "", mmc_array_new_from(uexpr, uval))
+    } မဟုတ်လျှင် {
+        update = make_node(NK_EXPR_STMT, "", "", mmc_array_new_from(uexpr, NULL))
+    }
+    expect(cs, TT_RPAREN)
+    skip_newlines(cs)
+    expect(cs, TT_LBRACE)
+    skip_newlines(cs)
+
+    တည်ဆောက် စာရင်း body = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RBRACE) {
+        skip_newlines(cs)
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_RBRACE) {
+            ရပ်
+        }
+        mmc_array_push(body, parse_statement(cs))
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RBRACE)
+
+    တည်ဆောက် ASTNode* node = make_node(NK_FOR_STMT, "", "", mmc_array_new_from(init, cond))
+    mmc_array_push(node->children, update)
+    တည်ဆောက် ASTNode* body_node = make_node(NK_PROGRAM, "body", "", body)
+    mmc_array_push(node->children, body_node)
+    ပြန်ပေး node
+}
+
+// === Parse Return ===
+လုပ်ငန်း parse_return(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_RETURN)
+    တည်ဆောက် ASTNode* value = NULL
+    သုံးသပ်ချက်အရ(current_type(cs) != TT_RBRACE နှင့် current_type(cs) != TT_NEWLINE နှင့် current_type(cs) != TT_EOF) {
+        value = parse_expression(cs)
+    }
+    တည်ဆောက် ASTNode* node = make_node(NK_RETURN_STMT, "", "", mmc_array_new())
+    သုံးသပ်ချက်အရ(value != NULL) {
+        mmc_array_push(node->children, value)
+    }
+    ပြန်ပေး node
+}
+
+// === Parse Print ===
+လုပ်ငန်း parse_print(အစု cs_ptr) အစု {
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    expect(cs, TT_PRINT)
+    expect(cs, TT_LPAREN)
+    တည်ဆောက် စာရင်း args = mmc_array_new()
+    ပြည့်အောင်(current_type(cs) != TT_RPAREN) {
+        skip_newlines(cs)
+        mmc_array_push(args, parse_expression(cs))
+        သုံးသပ်ချက်အရ(current_type(cs) == TT_COMMA) {
+            advance(cs)
+        }
+        skip_newlines(cs)
+    }
+    expect(cs, TT_RPAREN)
+    ပြန်ပေး make_node(NK_PRINT_STMT, "", "", args)
+}
+
+// === Parse Expression ===
+လုပ်ငန်း parse_expression(အစု cs_ptr) အစု {
+    ပြန်ပေး parse_or(cs_ptr)
+}
+
+လုပ်ငန်း parse_or(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_and(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_OR) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_and(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_and(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_bit_or(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_AND) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_bit_or(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_bit_or(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_bit_xor(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_BIT_OR) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_bit_xor(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_bit_xor(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_bit_and(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_BIT_XOR) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_bit_and(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_bit_and(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_comparison(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_BIT_AND) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_comparison(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_comparison(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_shift(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_EQ သို့မဟုတ် current_type(cs_ptr) == TT_NEQ သို့မဟုတ် current_type(cs_ptr) == TT_LT သို့မဟုတ် current_type(cs_ptr) == TT_GT သို့မဟုတ် current_type(cs_ptr) == TT_LTE သို့မဟုတ် current_type(cs_ptr) == TT_GTE) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_shift(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_shift(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_addition(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_SHL သို့မဟုတ် current_type(cs_ptr) == TT_SHR) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_addition(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_addition(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_multiplication(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_PLUS သို့မဟုတ် current_type(cs_ptr) == TT_MINUS) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_multiplication(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_multiplication(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* left = parse_unary(cs_ptr)
+    ပြည့်အောင်(current_type(cs_ptr) == TT_STAR သို့မဟုတ် current_type(cs_ptr) == TT_SLASH သို့မဟုတ် current_type(cs_ptr) == TT_PERCENT) {
+        တည်ဆောက် စာသား op = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* right = parse_unary(cs_ptr)
+        left = make_node(NK_BINARY_OP, op, "", mmc_array_new_from(left, right))
+    }
+    ပြန်ပေး left
+}
+
+လုပ်ငန်း parse_unary(အစု cs_ptr) အစု {
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_MINUS) {
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* operand = parse_unary(cs_ptr)
+        ပြန်ပေး make_node(NK_UNARY_OP, "-", "", mmc_array_new_from(operand, NULL))
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_BIT_NOT) {
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* operand = parse_unary(cs_ptr)
+        ပြန်ပေး make_node(NK_UNARY_OP, "~", "", mmc_array_new_from(operand, NULL))
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_STAR) {
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* operand = parse_unary(cs_ptr)
+        ပြန်ပေး make_node(NK_UNARY_OP, "*", "", mmc_array_new_from(operand, NULL))
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_ADDR_OF) {
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* operand = parse_unary(cs_ptr)
+        ပြန်ပေး make_node(NK_UNARY_OP, "&", "", mmc_array_new_from(operand, NULL))
+    }
+    ပြန်ပေး parse_postfix(cs_ptr)
+}
+
+လုပ်ငန်း parse_postfix(အစု cs_ptr) အစု {
+    တည်ဆောက် ASTNode* expr = parse_primary(cs_ptr)
+
+    ပြည့်အောင်(1) {
+        သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_LPAREN) {
+            // Function call
+            advance(cs_ptr)  // eat (
+            တည်ဆောက် စာရင်း args = mmc_array_new()
+            skip_newlines(cs_ptr)
+            ပြည့်အောင်(current_type(cs_ptr) != TT_RPAREN) {
+                skip_newlines(cs_ptr)
+                mmc_array_push(args, parse_expression(cs_ptr))
+                skip_newlines(cs_ptr)
+                သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_COMMA) {
+                    advance(cs_ptr)
+                }
+                skip_newlines(cs_ptr)
+            }
+            expect(cs_ptr, TT_RPAREN)
+            တည်ဆောက် ASTNode* call = make_node(NK_FUNC_CALL, expr->data, "", args)
+            expr = call
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_LBRACKET) {
+            advance(cs_ptr)  // eat [
+            တည်ဆောက် ASTNode* index = parse_expression(cs_ptr)
+            expect(cs_ptr, TT_RBRACKET)
+            တည်ဆောက် ASTNode* access = make_node(NK_ARRAY_ACCESS, "", "", mmc_array_new_from(expr, index))
+            expr = access
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_ARROW သို့မဟုတ် current_type(cs_ptr) == TT_DOT) {
+            တည်ဆောက် စာသား field_op = "->"
+            သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_DOT) {
+                field_op = "."
+            }
+            advance(cs_ptr)  // eat -> or .
+            တည်ဆောက် စာသား field = current_value(cs_ptr)
+            advance(cs_ptr)
+            တည်ဆောက် ASTNode* field_access = make_node(NK_FIELD_ACCESS, field, field_op, mmc_array_new_from(expr, NULL))
+            expr = field_access
+        } မဟုတ်လျှင် {
+            ရပ်
+        }
+    }
+    ပြန်ပေး expr
+}
+
+လုပ်ငန်း parse_primary(အစု cs_ptr) အစု {
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_INT) {
+        တည်ဆောက် စာသား val = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* node = make_node(NK_INT_LIT, val, "", mmc_array_new())
+        node->value_num = mmc_string_to_int(val)
+        ပြန်ပေး node
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_FLOAT) {
+        တည်ဆောက် စာသား val = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* node = make_node(NK_FLOAT_LIT, val, "", mmc_array_new())
+        node->value_num = mmc_string_to_float(val)
+        ပြန်ပေး node
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_STRING) {
+        တည်ဆောက် စာသား val = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* node = make_node(NK_STR_LIT, val, "", mmc_array_new())
+        node->value_str = val
+        ပြန်ပေး node
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_CHAR) {
+        တည်ဆောက် စာသား val = current_value(cs_ptr)
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* node = make_node(NK_CHAR_LIT, val, "", mmc_array_new())
+        node->value_str = val
+        ပြန်ပေး node
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_IDENT) {
+        တည်ဆောက် စာသား name = current_value(cs_ptr)
+        advance(cs_ptr)
+        ပြန်ပေး make_node(NK_IDENT, name, "", mmc_array_new())
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_LPAREN) {
+        advance(cs_ptr)
+        တည်ဆောက် ASTNode* expr = parse_expression(cs_ptr)
+        expect(cs_ptr, TT_RPAREN)
+        ပြန်ပေး expr
+    }
+    သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_LBRACE) {
+        advance(cs_ptr)
+        တည်ဆောက် စာရင်း elems = mmc_array_new()
+        skip_newlines(cs_ptr)
+        ပြည့်အောင်(current_type(cs_ptr) != TT_RBRACE နှင့် current_type(cs_ptr) != TT_EOF) {
+            mmc_array_push(elems, parse_expression(cs_ptr))
+            skip_newlines(cs_ptr)
+            သုံးသပ်ချက်အရ(current_type(cs_ptr) == TT_COMMA) {
+                advance(cs_ptr)
+                skip_newlines(cs_ptr)
+            }
+        }
+        expect(cs_ptr, TT_RBRACE)
+        ပြန်ပေး make_node(NK_ARRAY_LITERAL, "", "", elems)
+    }
+
+    // Unknown — error
+    printf("Parse Error: unexpected token type %d ('%s')\n", current_type(cs_ptr), current_value(cs_ptr))
+    advance(cs_ptr)
+    ပြန်ပေး make_node(NK_IDENT, "ERROR", "", mmc_array_new())
+}
+
+// === Helper: Create array from 1 or 2 items ===
+လုပ်ငန်း mmc_array_new_from(အစု item1, အစု item2) စာရင်း {
+    တည်ဆောက် စာရင်း arr = mmc_array_new()
+    mmc_array_push(arr, item1)
+    သုံးသပ်ချက်အရ(item2 != NULL) {
+        mmc_array_push(arr, item2)
+    }
+    ပြန်ပေး arr
+}
+
+// === Code Generator: AST → C ===
+လုပ်ငန်း generate_c(အစု program_ptr, အစု cs_ptr) စာသား {
+    တည်ဆောက် ASTNode* program = program_ptr
+    တည်ဆောက် CompilerState* cs = cs_ptr
+    တည်ဆောက် စာသား output = ""
+
+    // Header
+    output = mmc_string_concat(output, "// Auto-generated by MMC Compiler v11.0 (Self-Hosting)\n")
+    output = mmc_string_concat(output, "#include <stdio.h>\n")
+    output = mmc_string_concat(output, "#include <stdlib.h>\n")
+    output = mmc_string_concat(output, "#include <string.h>\n")
+    output = mmc_string_concat(output, "#include <math.h>\n")
+    output = mmc_string_concat(output, "#include \"runtime_v5.h\"\n\n")
+    output = mmc_string_concat(output, "#include \"runtime_glue.h\"\n")
+
+    // Forward declarations for struct types
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < mmc_array_size(cs->struct_names)) {
+        တည်ဆောက် စာသား sname = mmc_array_get(cs->struct_names, i)
+        output = mmc_string_concat(output, mmc_string_concat("typedef struct ", mmc_string_concat(sname, " ")))
+        output = mmc_string_concat(output, mmc_string_concat(sname, ";\n"))
+        i = i + 1
+    }
+    output = mmc_string_concat(output, "\n")
+
+    // Function pointer typedef prelude (must precede prototypes)
+    i = 0
+    ပြည့်အောင်(i < mmc_array_size(program->children)) {
+        တည်ဆောက် ASTNode* pre = mmc_array_get(program->children, i)
+        သုံးသပ်ချက်အရ(pre->kind == NK_TYPEDEF_PRELUDE) {
+            output = mmc_string_concat(output, pre->data)
+            output = mmc_string_concat(output, "\n")
+        }
+        i = i + 1
+    }
+
+    // Function prototypes (all except main)
+    i = 0
+    ပြည့်အောင်(i < mmc_array_size(program->children)) {
+        တည်ဆောက် ASTNode* node = mmc_array_get(program->children, i)
+        သုံးသပ်ချက်အရ((node->kind == NK_FUNC_DEF) နှင့် (mmc_string_compare(node->data, "main") != 0)) {
+            output = mmc_string_concat(output, node->type_str)
+            output = mmc_string_concat(output, " ")
+            output = mmc_string_concat(output, node->data)
+            output = mmc_string_concat(output, "(")
+            တည်ဆောက် ကိန်း pc = 0
+            သုံးသပ်ချက်အရ(mmc_array_size(node->children) > 0) {
+                pc = mmc_array_size(node->children) - 1
+            }
+            တည်ဆောက် ကိန်း pj = 0
+            ပြည့်အောင်(pj < pc) {
+                တည်ဆောက် ASTNode* prm = mmc_array_get(node->children, pj)
+                သုံးသပ်ချက်အရ(pj > 0) {
+                    output = mmc_string_concat(output, ", ")
+                }
+                output = mmc_string_concat(output, prm->type_str)
+                output = mmc_string_concat(output, " ")
+                output = mmc_string_concat(output, prm->data)
+                pj = pj + 1
+            }
+            သုံးသပ်ချက်အရ(pc == 0) {
+                output = mmc_string_concat(output, "void")
+            }
+            output = mmc_string_concat(output, ");\n")
+        }
+        i = i + 1
+    }
+
+    // File-scope definitions: functions, structs, enums, global var decls
+    i = 0
+    ပြည့်အောင်(i < mmc_array_size(program->children)) {
+        တည်ဆောက် ASTNode* node = mmc_array_get(program->children, i)
+        သုံးသပ်ချက်အရ(node->kind == NK_FUNC_DEF) {
+            သုံးသပ်ချက်အရ(mmc_string_compare(node->data, "main") != 0) {
+                output = mmc_string_concat(output, gen_node(node))
+            }
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_STRUCT_DEF) {
+            output = mmc_string_concat(output, gen_node(node))
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_ENUM_DEF) {
+            output = mmc_string_concat(output, gen_node(node))
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_VAR_DECL) {
+            output = mmc_string_concat(output, node->type_str)
+            output = mmc_string_concat(output, " ")
+            output = mmc_string_concat(output, node->data)
+            output = mmc_string_concat(output, node->value_str)
+            output = mmc_string_concat(output, ";\n")
+        }
+        i = i + 1
+    }
+
+    // Main wrap with argv wiring
+    output = mmc_string_concat(output, "int main(int argc, char** argv) {\n")
+    output = mmc_string_concat(output, "MMCArray* knowledge_base = mmc_array_new();\n")
+    output = mmc_string_concat(output, "for (int _i = 0; _i < argc; _i++) mmc_array_push(knowledge_base, argv[_i]);\n")
+
+    // Global initializers as statements inside main
+    i = 0
+    ပြည့်အောင်(i < mmc_array_size(program->children)) {
+        တည်ဆောက် ASTNode* node = mmc_array_get(program->children, i)
+        သုံးသပ်ချက်အရ(node->kind == NK_VAR_DECL) {
+            သုံးသပ်ချက်အရ(mmc_array_size(node->children) > 0) {
+                တည်ဆောက် ASTNode* init2 = mmc_array_get(node->children, 0)
+                output = mmc_string_concat(output, "    ")
+                output = mmc_string_concat(output, node->data)
+                output = mmc_string_concat(output, " = ")
+                output = mmc_string_concat(output, gen_expr(init2))
+                output = mmc_string_concat(output, ";\n")
+            }
+        }
+        i = i + 1
+    }
+
+    // Other top-level statements inside main
+    i = 0
+    ပြည့်အောင်(i < mmc_array_size(program->children)) {
+        တည်ဆောက် ASTNode* node = mmc_array_get(program->children, i)
+        သုံးသပ်ချက်အရ((node->kind != NK_FUNC_DEF) နှင့် (node->kind != NK_STRUCT_DEF) နှင့် (node->kind != NK_ENUM_DEF) နှင့် (node->kind != NK_VAR_DECL) နှင့် (node->kind != NK_TYPEDEF_PRELUDE)) {
+            output = mmc_string_concat(output, "    ")
+            output = mmc_string_concat(output, gen_node(node))
+        }
+        i = i + 1
+    }
+
+    // Inline main body last
+    i = 0
+    ပြည့်အောင်(i < mmc_array_size(program->children)) {
+        တည်ဆောက် ASTNode* node = mmc_array_get(program->children, i)
+        သုံးသပ်ချက်အရ((node->kind == NK_FUNC_DEF) နှင့် (mmc_string_compare(node->data, "main") == 0)) {
+            တည်ဆောက် ASTNode* mbody = mmc_array_get(node->children, mmc_array_size(node->children) - 1)
+            တည်ဆောက် ကိန်း mj = 0
+            ပြည့်အောင်(mj < mmc_array_size(mbody->children)) {
+                output = mmc_string_concat(output, "    ")
+                output = mmc_string_concat(output, gen_node(mmc_array_get(mbody->children, mj)))
+                mj = mj + 1
+            }
+        }
+        i = i + 1
+    }
+
+    output = mmc_string_concat(output, "    return 0;\n}\n")
+    ပြန်ပေး output
+}
+
+// === Generate a single AST node → C code ===
+လုပ်ငန်း gen_node(အစု node_ptr) စာသား {
+    တည်ဆောက် ASTNode* node = node_ptr
+    တည်ဆောက် စာသား result = ""
+
+    သုံးသပ်ချက်အရ(node->kind == NK_ENUM_DEF) {
+        result = mmc_string_concat(result, mmc_string_concat("enum ", mmc_string_concat(node->data, " {\n")))
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < mmc_array_size(node->children)) {
+            တည်ဆောက် ASTNode* m = mmc_array_get(node->children, i)
+            result = mmc_string_concat(result, mmc_string_concat("    ", m->data))
+            သုံးသပ်ချက်အရ(i < mmc_array_size(node->children) - 1) {
+                result = mmc_string_concat(result, ",")
+            }
+            result = mmc_string_concat(result, "\n")
+            i = i + 1
+        }
+        result = mmc_string_concat(result, "};\n\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_STRUCT_DEF) {
+        result = mmc_string_concat(result, mmc_string_concat("struct ", mmc_string_concat(node->data, " {\n")))
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < mmc_array_size(node->children)) {
+            တည်ဆောက် ASTNode* field = mmc_array_get(node->children, i)
+            result = mmc_string_concat(result, mmc_string_concat("    ", mmc_string_concat(field->type_str, mmc_string_concat(" ", mmc_string_concat(field->data, ";\n")))))
+            i = i + 1
+        }
+        result = mmc_string_concat(result, "};\n\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_FUNC_DEF) {
+        // Generate function definition
+        result = mmc_string_concat(result, mmc_string_concat(node->type_str, mmc_string_concat(" ", mmc_string_concat(node->data, "("))))
+        // Params
+        တည်ဆောက် စာရင်း params = node->children
+        သုံးသပ်ချက်အရ(mmc_array_size(params) > 0) {
+            တည်ဆောက် ASTNode* body_container = mmc_array_get(params, mmc_array_size(params) - 1)
+            // All items before last are params, last is body
+            တည်ဆောက် ကိန်း param_count = mmc_array_size(params) - 1
+            သုံးသပ်ချက်အရ(param_count == 0) {
+                result = mmc_string_concat(result, "void")
+            } မဟုတ်လျှင် {
+                တည်ဆောက် ကိန်း j = 0
+                ပြည့်အောင်(j < param_count) {
+                    တည်ဆောက် ASTNode* param = mmc_array_get(params, j)
+                    သုံးသပ်ချက်အရ(j > 0) {
+                        result = mmc_string_concat(result, ", ")
+                    }
+                    result = mmc_string_concat(result, mmc_string_concat(param->type_str, mmc_string_concat(" ", param->data)))
+                    j = j + 1
+                }
+            }
+        } မဟုတ်လျှင် {
+            result = mmc_string_concat(result, "void")
+        }
+        result = mmc_string_concat(result, ") {\n")
+
+        // Body (last child is body container)
+        သုံးသပ်ချက်အရ(mmc_array_size(params) > 0) {
+            တည်ဆောက် ASTNode* body_container = mmc_array_get(params, mmc_array_size(params) - 1)
+            တည်ဆောက် ကိန်း j = 0
+            ပြည့်အောင်(j < mmc_array_size(body_container->children)) {
+                တည်ဆောက် ASTNode* stmt = mmc_array_get(body_container->children, j)
+                result = mmc_string_concat(result, mmc_string_concat("    ", gen_node(stmt)))
+                j = j + 1
+            }
+        }
+        result = mmc_string_concat(result, "}\n\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_VAR_DECL) {
+        result = mmc_string_concat(result, mmc_string_concat(node->type_str, mmc_string_concat(" ", node->data)))
+        result = mmc_string_concat(result, node->value_str)
+        သုံးသပ်ချက်အရ(mmc_array_size(node->children) > 0) {
+            တည်ဆောက် ASTNode* init = mmc_array_get(node->children, 0)
+            result = mmc_string_concat(result, mmc_string_concat(" = ", gen_expr(init)))
+        } မဟုတ်လျှင် {
+            သုံးသပ်ချက်အရ(mmc_string_length(node->type_str) > 0 နှင့် node->type_str[mmc_string_length(node->type_str) - 1] == '*') {
+                result = mmc_string_concat(result, " = NULL")
+            }
+        }
+        result = mmc_string_concat(result, ";\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_TYPEDEF_PRELUDE) {
+        result = mmc_string_concat(result, node->data)
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_GOTO_STMT) {
+        result = mmc_string_concat(result, mmc_string_concat("goto ", mmc_string_concat(node->data, ";\n")))
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_LABEL_STMT) {
+        result = mmc_string_concat(result, mmc_string_concat(node->data, ":\n"))
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_SWITCH_STMT) {
+        တည်ဆောက် ASTNode* cond = mmc_array_get(node->children, 0)
+        တည်ဆောက် ASTNode* cases_node = mmc_array_get(node->children, 1)
+        result = mmc_string_concat(result, mmc_string_concat("switch (", mmc_string_concat(gen_expr(cond), ") {\n")))
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < mmc_array_size(cases_node->children)) {
+            တည်ဆောက် ASTNode* c = mmc_array_get(cases_node->children, i)
+            သုံးသပ်ချက်အရ(mmc_string_compare(c->data, "__default__") == 0) {
+                result = mmc_string_concat(result, "    default: {\n")
+            } မဟုတ်လျှင် {
+                result = mmc_string_concat(result, mmc_string_concat("    case ", mmc_string_concat(c->data, ": {\n")))
+            }
+            တည်ဆောက် ကိန်း j = 0
+            ပြည့်အောင်(j < mmc_array_size(c->children)) {
+                result = mmc_string_concat(result, mmc_string_concat("        ", gen_node(mmc_array_get(c->children, j))))
+                j = j + 1
+            }
+            result = mmc_string_concat(result, "        break;\n    }\n")
+            i = i + 1
+        }
+        result = mmc_string_concat(result, "}\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_IF_STMT) {
+        တည်ဆောက် ASTNode* cond = mmc_array_get(node->children, 0)
+        တည်ဆောက် ASTNode* then_node = mmc_array_get(node->children, 1)
+        တည်ဆောက် ASTNode* else_node = mmc_array_get(node->children, 2)
+        တည်ဆောက် စာသား cond_c = gen_expr(cond)
+        သုံးသပ်ချက်အရ(mmc_string_length(cond_c) >= 2 နှင့် cond_c[0] == 40 နှင့် cond_c[mmc_string_length(cond_c) - 1] == 41) {
+            cond_c = mmc_string_substring(cond_c, 1, mmc_string_length(cond_c) - 1)
+        }
+        result = mmc_string_concat(result, mmc_string_concat("if (", mmc_string_concat(cond_c, ") {\n")))
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < mmc_array_size(then_node->children)) {
+            result = mmc_string_concat(result, mmc_string_concat("    ", gen_node(mmc_array_get(then_node->children, j))))
+            j = j + 1
+        }
+        သုံးသပ်ချက်အရ(mmc_array_size(else_node->children) > 0) {
+            result = mmc_string_concat(result, "} else {\n")
+            j = 0
+            ပြည့်အောင်(j < mmc_array_size(else_node->children)) {
+                result = mmc_string_concat(result, mmc_string_concat("    ", gen_node(mmc_array_get(else_node->children, j))))
+                j = j + 1
+            }
+        }
+        result = mmc_string_concat(result, "}\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_WHILE_STMT) {
+        တည်ဆောက် ASTNode* cond = mmc_array_get(node->children, 0)
+        တည်ဆောက် ASTNode* body_node = mmc_array_get(node->children, 1)
+        result = mmc_string_concat(result, mmc_string_concat("while (", mmc_string_concat(gen_expr(cond), ") {\n")))
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < mmc_array_size(body_node->children)) {
+            result = mmc_string_concat(result, mmc_string_concat("    ", gen_node(mmc_array_get(body_node->children, j))))
+            j = j + 1
+        }
+        result = mmc_string_concat(result, "}\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_RETURN_STMT) {
+        result = mmc_string_concat(result, "return")
+        သုံးသပ်ချက်အရ(mmc_array_size(node->children) > 0) {
+            result = mmc_string_concat(result, mmc_string_concat(" ", gen_expr(mmc_array_get(node->children, 0))))
+        }
+        result = mmc_string_concat(result, ";\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_BREAK_STMT) {
+        result = mmc_string_concat(result, "break;\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_CONTINUE_STMT) {
+        result = mmc_string_concat(result, "continue;\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_ASSIGN) {
+        တည်ဆောက် ASTNode* target = mmc_array_get(node->children, 0)
+        တည်ဆောက် ASTNode* value = mmc_array_get(node->children, 1)
+        result = mmc_string_concat(result, mmc_string_concat(gen_expr(target), mmc_string_concat(" = ", mmc_string_concat(gen_expr(value), ";\n"))))
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_EXPR_STMT) {
+        result = mmc_string_concat(result, mmc_string_concat(gen_expr(mmc_array_get(node->children, 0)), ";\n"))
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_FOR_STMT) {
+        တည်ဆောက် ASTNode* init = mmc_array_get(node->children, 0)
+        တည်ဆောက် ASTNode* cond = mmc_array_get(node->children, 1)
+        တည်ဆောက် ASTNode* update = mmc_array_get(node->children, 2)
+        တည်ဆောက် ASTNode* body_node = mmc_array_get(node->children, 3)
+
+        တည်ဆောက် စာသား init_full = gen_node(init)
+        တည်ဆောက် ကိန်း init_len = mmc_string_length(init_full)
+        တည်ဆောက် စာသား init_c = mmc_string_substring(init_full, 0, init_len - 2)
+
+        တည်ဆောက် စာသား update_full = gen_node(update)
+        တည်ဆောက် ကိန်း update_len = mmc_string_length(update_full)
+        တည်ဆောက် စာသား update_c = mmc_string_substring(update_full, 0, update_len - 2)
+
+        တည်ဆောက် စာသား cond_c = gen_expr(cond)
+
+        result = mmc_string_concat(result, mmc_string_concat("for (", mmc_string_concat(init_c, mmc_string_concat("; ", mmc_string_concat(cond_c, mmc_string_concat("; ", mmc_string_concat(update_c, ") {\n")))))))
+
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < mmc_array_size(body_node->children)) {
+            result = mmc_string_concat(result, mmc_string_concat("    ", gen_node(mmc_array_get(body_node->children, j))))
+            j = j + 1
+        }
+        result = mmc_string_concat(result, "}\n")
+    } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_PRINT_STMT) {
+        တည်ဆောက် ကိန်း nargs = mmc_array_size(node->children)
+        သုံးသပ်ချက်အရ(nargs == 0) {
+            result = mmc_string_concat(result, "mmc_println(\"\");\n")
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(nargs == 1) {
+            တည်ဆောက် ASTNode* arg = mmc_array_get(node->children, 0)
+            သုံးသပ်ချက်အရ(arg->kind == NK_STR_LIT) {
+                တည်ဆောက် စာသား esc = escape_c_string(arg->value_str)
+                result = mmc_string_concat(result, mmc_string_concat("mmc_println(\"", mmc_string_concat(esc, "\");\n")))
+            } မဟုတ်လျှင် သုံးသပ်ချက်အရ(arg->kind == NK_IDENT) {
+                result = mmc_string_concat(result, mmc_string_concat("mmc_println(mmc_to_string(", mmc_string_concat(arg->data, "));\n")))
+            } မဟုတ်လျှင် သုံးသပ်ချက်အရ(arg->kind == NK_INT_LIT) {
+                result = mmc_string_concat(result, mmc_string_concat("mmc_print_int(", mmc_string_concat(arg->data, "); mmc_print_newline();\n")))
+            } မဟုတ်လျှင် သုံးသပ်ချက်အရ(arg->kind == NK_FLOAT_LIT) {
+                result = mmc_string_concat(result, mmc_string_concat("mmc_print_float(", mmc_string_concat(arg->data, "); mmc_print_newline();\n")))
+            } မဟုတ်လျှင် {
+                တည်ဆောက် စာသား expr_c = gen_expr(arg)
+                result = mmc_string_concat(result, mmc_string_concat("printf(\"%g\\n\", (double)(", mmc_string_concat(expr_c, "));\n")))
+            }
+        } မဟုတ်လျှင် {
+            တည်ဆောက် ASTNode* first = mmc_array_get(node->children, 0)
+            တည်ဆောက် စာသား fmt = ""
+            တည်ဆောက် စာသား arg_list = ""
+            တည်ဆောက် ကိန်း has_percent = 0
+            သုံးသပ်ချက်အရ(first->kind == NK_STR_LIT) {
+                သုံးသပ်ချက်အရ(mmc_string_contains(first->value_str, "%")) {
+                    has_percent = 1
+                }
+            }
+            သုံးသပ်ချက်အရ(has_percent == 1) {
+                fmt = escape_c_string(first->value_str)
+                တည်ဆောက် ကိန်း i = 1
+                ပြည့်အောင်(i < nargs) {
+                    တည်ဆောက် ASTNode* a = mmc_array_get(node->children, i)
+                    သုံးသပ်ချက်အရ(mmc_string_length(arg_list) > 0) {
+                        arg_list = mmc_string_concat(arg_list, ", ")
+                    }
+                    arg_list = mmc_string_concat(arg_list, gen_expr(a))
+                    i = i + 1
+                }
+            } မဟုတ်လျှင် {
+                တည်ဆောက် ကိန်း i = 0
+                ပြည့်အောင်(i < nargs) {
+                    တည်ဆောက် ASTNode* a = mmc_array_get(node->children, i)
+                    သုံးသပ်ချက်အရ(mmc_string_length(fmt) > 0) {
+                        fmt = mmc_string_concat(fmt, " ")
+                    }
+                    သုံးသပ်ချက်အရ(a->kind == NK_STR_LIT) {
+                        fmt = mmc_string_concat(fmt, escape_c_string(a->value_str))
+                    } မဟုတ်လျှင် {
+                        fmt = mmc_string_concat(fmt, "%g")
+                        သုံးသပ်ချက်အရ(mmc_string_length(arg_list) > 0) {
+                            arg_list = mmc_string_concat(arg_list, ", ")
+                        }
+                        arg_list = mmc_string_concat(arg_list, gen_expr(a))
+                    }
+                    i = i + 1
+                }
+            }
+            သုံးသပ်ချက်အရ(mmc_string_length(arg_list) > 0) {
+                result = mmc_string_concat(result, mmc_string_concat("printf(\"", mmc_string_concat(fmt, mmc_string_concat("\", ", mmc_string_concat(arg_list, ");\n")))))
+            } မဟုတ်လျှင် {
+                result = mmc_string_concat(result, mmc_string_concat("printf(\"", mmc_string_concat(fmt, "\");\n")))
+            }
+        }
+    } မဟုတ်လျှင် {
+        result = mmc_string_concat(result, "/* unknown node */;\n")
+    }
+
+    ပြန်ပေး result
+}
+
+// === Generate Expression → C code ===
+လုပ်ငန်း escape_c_string(အစု s_ptr) အစု {
+    တည်ဆောက် စာသား s = s_ptr
+    တည်ဆောက် စာသား result = ""
+    တည်ဆောက် ကိန်း i = 0
+    တည်ဆောက် ကိန်း len = mmc_string_length(s)
+    ပြည့်အောင်(i < len) {
+        တည်ဆောက် စာသား c = mmc_string_substring(s, i, i + 1)
+        သုံးသပ်ချက်အရ(mmc_string_compare(c, "\n") == 0) {
+            result = mmc_string_concat(result, "\\n")
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(mmc_string_compare(c, "\t") == 0) {
+            result = mmc_string_concat(result, "\\t")
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(mmc_string_compare(c, "\"") == 0) {
+            result = mmc_string_concat(result, "\\\"")
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(mmc_string_compare(c, "\\") == 0) {
+            result = mmc_string_concat(result, "\\\\")
+        } မဟုတ်လျှင် {
+            result = mmc_string_concat(result, c)
+        }
+        i = i + 1
+    }
+    ပြန်ပေး result
+}
+
+လုပ်ငန်း gen_expr(အစု node_ptr) စာသား {
+    တည်ဆောက် ASTNode* node = node_ptr
+
+    သုံးသပ်ချက်အရ(node->kind == NK_INT_LIT) {
+        ပြန်ပေး node->data
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_FLOAT_LIT) {
+        ပြန်ပေး node->data
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_STR_LIT) {
+        တည်ဆောက် စာသား escaped = escape_c_string(node->value_str)
+        ပြန်ပေး mmc_string_concat("\"", mmc_string_concat(escaped, "\""))
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_CHAR_LIT) {
+        ပြန်ပေး node->value_str
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_IDENT) {
+        ပြန်ပေး node->data
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_BINARY_OP) {
+        တည်ဆောက် ASTNode* left = mmc_array_get(node->children, 0)
+        တည်ဆောက် ASTNode* right = mmc_array_get(node->children, 1)
+        ပြန်ပေး mmc_string_concat("(", mmc_string_concat(gen_expr(left), mmc_string_concat(" ", mmc_string_concat(node->data, mmc_string_concat(" ", mmc_string_concat(gen_expr(right), ")"))))))
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_UNARY_OP) {
+        တည်ဆောက် ASTNode* operand = mmc_array_get(node->children, 0)
+        ပြန်ပေး mmc_string_concat(node->data, gen_expr(operand))
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_FUNC_CALL) {
+        တည်ဆောက် စာသား result = mmc_string_concat(node->data, "(")
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < mmc_array_size(node->children)) {
+            သုံးသပ်ချက်အရ(i > 0) {
+                result = mmc_string_concat(result, ", ")
+            }
+            result = mmc_string_concat(result, gen_expr(mmc_array_get(node->children, i)))
+            i = i + 1
+        }
+        result = mmc_string_concat(result, ")")
+        ပြန်ပေး result
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_ARRAY_LITERAL) {
+        တည်ဆောက် စာသား lit = "{"
+        တည်ဆောက် ကိန်း ai = 0
+        ပြည့်အောင်(ai < mmc_array_size(node->children)) {
+            သုံးသပ်ချက်အရ(ai > 0) {
+                lit = mmc_string_concat(lit, ", ")
+            }
+            lit = mmc_string_concat(lit, gen_expr(mmc_array_get(node->children, ai)))
+            ai = ai + 1
+        }
+        ပြန်ပေး mmc_string_concat(lit, "}")
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_ARRAY_ACCESS) {
+        တည်ဆောက် ASTNode* arr = mmc_array_get(node->children, 0)
+        တည်ဆောက် ASTNode* index = mmc_array_get(node->children, 1)
+        ပြန်ပေး mmc_string_concat(gen_expr(arr), mmc_string_concat("[", mmc_string_concat(gen_expr(index), "]")))
+    }
+    သုံးသပ်ချက်အရ(node->kind == NK_FIELD_ACCESS) {
+        တည်ဆောက် ASTNode* obj = mmc_array_get(node->children, 0)
+        ပြန်ပေး mmc_string_concat(gen_expr(obj), mmc_string_concat(node->type_str, node->data))
+    }
+
+    ပြန်ပေး "/* unknown expr */"
+}
