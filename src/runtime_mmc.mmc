@@ -1296,3 +1296,81 @@ extern "C" ဒသမ tanh(ဒသမ x)
     }
     ပြန်ပေး current
 }
+
+// ═══════════════════════════════════════
+// 15. Multi-Head Attention
+// ═══════════════════════════════════════
+// Q, K, V: [seq_len, d] where d = n_heads * head_dim
+// Split d into n_heads, run attention per head, concat, return [seq_len, d]
+
+လုပ်ငန်း mmc_attention_multi(အစု Q_ptr, အစု K_ptr, အစု V_ptr, ကိန်း seq_len, ကိန်း d, ကိန်း n_heads) အစု {
+    သုံးသပ်ချက်အရ(seq_len <= 0 သို့မဟုတ် d <= 0 သို့မဟုတ် n_heads <= 0) { ပြန်ပေး 0 }
+    သုံးသပ်ချက်အရ(d % n_heads != 0) { ပြန်ပေး 0 }
+    တည်ဆောက် ကိန်း head_dim = d / n_heads
+    တည်ဆောက် MMCMatrix* Q = Q_ptr
+    တည်ဆောက် MMCMatrix* K = K_ptr
+    တည်ဆောက် MMCMatrix* V = V_ptr
+    သုံးသပ်ချက်အရ(Q == 0 သို့မဟုတ် K == 0 သို့မဟုတ် V == 0) { ပြန်ပေး 0 }
+
+    // Allocate output [seq_len, d]
+    တည်ဆောက် အစု out_ptr = mmc_matrix_new(seq_len, d)
+    သုံးသပ်ချက်အရ(out_ptr == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် MMCMatrix* out = out_ptr
+
+    // Per-head: extract Q_h, K_h, V_h → attention_single → write into out
+    တည်ဆောက် ကိန်း h = 0
+    ပြည့်အောင်(h < n_heads) {
+        တည်ဆောက် အစု Qh_ptr = mmc_matrix_new(seq_len, head_dim)
+        တည်ဆောက် အစု Kh_ptr = mmc_matrix_new(seq_len, head_dim)
+        တည်ဆောက် အစု Vh_ptr = mmc_matrix_new(seq_len, head_dim)
+        သုံးသပ်ချက်အရ(Qh_ptr == 0 သို့မဟုတ် Kh_ptr == 0 သို့မဟုတ် Vh_ptr == 0) {
+            သုံးသပ်ချက်အရ(Qh_ptr != 0) { mmc_matrix_free(Qh_ptr) }
+            သုံးသပ်ချက်အရ(Kh_ptr != 0) { mmc_matrix_free(Kh_ptr) }
+            သုံးသပ်ချက်အရ(Vh_ptr != 0) { mmc_matrix_free(Vh_ptr) }
+            mmc_matrix_free(out_ptr)
+            ပြန်ပေး 0
+        }
+        တည်ဆောက် MMCMatrix* Qh = Qh_ptr
+        တည်ဆောက် MMCMatrix* Kh = Kh_ptr
+        တည်ဆောက် MMCMatrix* Vh = Vh_ptr
+
+        // Extract per-head slice
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < seq_len) {
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < head_dim) {
+                Qh->data[i * head_dim + k] = Q->data[i * d + h * head_dim + k]
+                Kh->data[i * head_dim + k] = K->data[i * d + h * head_dim + k]
+                Vh->data[i * head_dim + k] = V->data[i * d + h * head_dim + k]
+                k = k + 1
+            }
+            i = i + 1
+        }
+
+        // Attention per head
+        တည်ဆောက် အစု attn_h_ptr = mmc_attention_single(Qh_ptr, Kh_ptr, Vh_ptr, seq_len, head_dim)
+        mmc_matrix_free(Qh_ptr)
+        mmc_matrix_free(Kh_ptr)
+        mmc_matrix_free(Vh_ptr)
+        သုံးသပ်ချက်အရ(attn_h_ptr == 0) {
+            mmc_matrix_free(out_ptr)
+            ပြန်ပေး 0
+        }
+        တည်ဆောက် MMCMatrix* attn_h = attn_h_ptr
+
+        // Write back to output slice
+        i = 0
+        ပြည့်အောင်(i < seq_len) {
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < head_dim) {
+                out->data[i * d + h * head_dim + k] = attn_h->data[i * head_dim + k]
+                k = k + 1
+            }
+            i = i + 1
+        }
+        mmc_matrix_free(attn_h_ptr)
+        h = h + 1
+    }
+
+    ပြန်ပေး out_ptr
+}
