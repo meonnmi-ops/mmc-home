@@ -2523,3 +2523,327 @@ extern "C" ဒသမ tanh(ဒသမ x)
     mmc_free(row_df)
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 29. Tokenizer KV arrays (tokens / merges)
+//   tokenizer.ggml.tokens         (STRING_ARRAY)
+//   nyanlin.merges.first/second   (STRING_ARRAY)
+// ═══════════════════════════════════════
+တည်ဆောက် ကိန်း g_tok_n = 0
+တည်ဆောက် ကိန်း g_tok_off[16384]
+တည်ဆောက် ကိန်း g_tok_len[16384]
+
+တည်ဆောက် ကိန်း g_mfa_n = 0
+တည်ဆောက် ကိန်း g_mfa_off[8192]
+တည်ဆောက် ကိန်း g_mfa_len[8192]
+
+တည်ဆောက် ကိန်း g_mfb_n = 0
+တည်ဆောက် ကိန်း g_mfb_off[8192]
+တည်ဆောက် ကိန်း g_mfb_len[8192]
+
+လုပ်ငန်း mmc_bytes_eq(အစု buf, ကိန်း off, ကိန်း len, စာသား lit) ကိန်း {
+    တည်ဆောက် စာသား p = buf
+    တည်ဆောက် ကိန်း ll = mmc_string_length(lit)
+    သုံးသပ်ချက်အရ(ll != len) { ပြန်ပေး 0 }
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < len) {
+        သုံးသပ်ချက်အရ((p[off + i] ♩ 255) != (lit[i] ♩ 255)) { ပြန်ပေး 0 }
+        i = i + 1
+    }
+    ပြန်ပေး 1
+}
+
+လုပ်ငန်း mmc_gguf_parse_tokenizer(အစု buf, ကိန်း size) ကိန်း {
+    g_tok_n = 0
+    g_mfa_n = 0
+    g_mfb_n = 0
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် size < 24) { ပြန်ပေး -1 }
+    g_gguf_size = size
+    သုံးသပ်ချက်အရ(gguf_check_magic(buf) == 0) { ပြန်ပေး -2 }
+
+    တည်ဆောက် ကိန်း kcount = gguf_read_u64_lo(buf, 16)
+    သုံးသပ်ချက်အရ(kcount < 0 သို့မဟုတ် kcount > 200) { ပြန်ပေး -3 }
+
+    တည်ဆောက် ကိန်း pos = 24
+    တည်ဆောက် ကိန်း kk = 0
+
+    ပြည့်အောင်(kk < kcount) {
+        တည်ဆောက် ကိန်း klen = gguf_read_u64_lo(buf, pos)
+        သုံးသပ်ချက်အရ(klen < 0 သို့မဟုတ် klen > 500) { ပြန်ပေး -4 }
+        pos = pos + 8
+        တည်ဆောက် ကိန်း keyoff = pos
+        pos = pos + klen
+        တည်ဆောက် ကိန်း vtype = gguf_read_u32(buf, pos)
+        သုံးသပ်ချက်အရ(vtype < 0) { ပြန်ပေး -5 }
+        pos = pos + 4
+
+        သုံးသပ်ချက်အရ(vtype == 9) {
+            တည်ဆောက် ကိန်း etype = gguf_read_u32(buf, pos)
+            တည်ဆောက် ကိန်း cnt = gguf_read_u64_lo(buf, pos + 4)
+            သုံးသပ်ချက်အရ(etype < 0 သို့မဟုတ် cnt < 0) { ပြန်ပေး -6 }
+            pos = pos + 12
+
+            သုံးသပ်ချက်အရ(etype == 8) {
+                တည်ဆောက် ကိန်း kind = 0
+                သုံးသပ်ချက်အရ(mmc_bytes_eq(buf, keyoff, klen, "tokenizer.ggml.tokens") == 1) { kind = 1 }
+                သုံးသပ်ချက်အရ(mmc_bytes_eq(buf, keyoff, klen, "nyanlin.merges.first") == 1) { kind = 2 }
+                သုံးသပ်ချက်အရ(mmc_bytes_eq(buf, keyoff, klen, "nyanlin.merges.second") == 1) { kind = 3 }
+                တည်ဆောက် ကိန်း e = 0
+                ပြည့်အောင်(e < cnt) {
+                    တည်ဆောက် ကိန်း slen = gguf_read_u64_lo(buf, pos)
+                    သုံးသပ်ချက်အရ(slen < 0) { ပြန်ပေး -7 }
+                    pos = pos + 8
+                    သုံးသပ်ချက်အရ(kind == 1 နှင့် e < 16384) {
+                        g_tok_off[e] = pos
+                        g_tok_len[e] = slen
+                    }
+                    သုံးသပ်ချက်အရ(kind == 2 နှင့် e < 8192) {
+                        g_mfa_off[e] = pos
+                        g_mfa_len[e] = slen
+                    }
+                    သုံးသပ်ချက်အရ(kind == 3 နှင့် e < 8192) {
+                        g_mfb_off[e] = pos
+                        g_mfb_len[e] = slen
+                    }
+                    pos = pos + slen
+                    e = e + 1
+                }
+                သုံးသပ်ချက်အရ(kind == 1) { g_tok_n = cnt }
+                သုံးသပ်ချက်အရ(kind == 2) { g_mfa_n = cnt }
+                သုံးသပ်ချက်အရ(kind == 3) { g_mfb_n = cnt }
+            } မဟုတ်လျှင် {
+                တည်ဆောက် ကိန်း e2 = 0
+                ပြည့်အောင်(e2 < cnt) {
+                    pos = gguf_skip_value(buf, pos, etype)
+                    သုံးသပ်ချက်အရ(pos < 0) { ပြန်ပေး -8 }
+                    e2 = e2 + 1
+                }
+            }
+        } မဟုတ်လျှင် {
+            pos = gguf_skip_value(buf, pos, vtype)
+            သုံးသပ်ချက်အရ(pos < 0) { ပြန်ပေး -9 }
+        }
+        kk = kk + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း gguf_token_count() ကိန်း { ပြန်ပေး g_tok_n }
+လုပ်ငန်း gguf_token_off(ကိန်း id) ကိန်း { ပြန်ပေး g_tok_off[id] }
+လုပ်ငန်း gguf_token_len(ကိန်း id) ကိန်း { ပြန်ပေး g_tok_len[id] }
+လုပ်ငန်း gguf_merges_first_count() ကိန်း { ပြန်ပေး g_mfa_n }
+လုပ်ငန်း gguf_merges_second_count() ကိန်း { ပြန်ပေး g_mfb_n }
+လုပ်ငန်း gguf_merges_first_off(ကိန်း i) ကိန်း { ပြန်ပေး g_mfa_off[i] }
+လုပ်ငန်း gguf_merges_first_len(ကိန်း i) ကိန်း { ပြန်ပေး g_mfa_len[i] }
+လုပ်ငန်း gguf_merges_second_off(ကိန်း i) ကိန်း { ပြန်ပေး g_mfb_off[i] }
+လုပ်ငန်း gguf_merges_second_len(ကိန်း i) ကိန်း { ပြန်ပေး g_mfb_len[i] }
+
+// Decode one token → raw bytes in out. Returns length.
+လုပ်ငန်း mmc_token_decode(အစု buf, ကိန်း id, အစု out_ptr, ကိန်း cap) ကိန်း {
+    သုံးသပ်ချက်အရ(id < 0 သို့မဟုတ် id >= g_tok_n) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(out_ptr == 0) { ပြန်ပေး -2 }
+    တည်ဆောက် စာသား p = buf
+    တည်ဆောက် စာသား o = out_ptr
+    တည်ဆောက် ကိန်း off = g_tok_off[id]
+    တည်ဆောက် ကိန်း len = g_tok_len[id]
+    သုံးသပ်ချက်အရ(len > cap) { ပြန်ပေး -3 }
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < len) {
+        o[i] = p[off + i]
+        i = i + 1
+    }
+    ပြန်ပေး len
+}
+
+// ═══════════════════════════════════════
+// 31. Raw-Unicode BPE encode / decode
+// ═══════════════════════════════════════
+တည်ဆောက် ကိန်း g_bpe_err_n = 0
+တည်ဆောက် ကိန်း g_bpe_err_byte[64]
+
+လုပ်ငန်း bpe_err_len() ကိန်း { ပြန်ပေး g_bpe_err_n }
+လုပ်ငန်း bpe_err_at(ကိန်း i) ကိန်း { ပြန်ပေး g_bpe_err_byte[i] }
+
+// string → token id (linear scan)
+လုပ်ငန်း mmc_token_find(အစု buf, စာသား s, ကိန်း len) ကိန်း {
+    တည်ဆောက် စာသား p = buf
+    တည်ဆောက် ကိန်း t = 0
+    ပြည့်အောင်(t < g_tok_n) {
+        သုံးသပ်ချက်အရ(g_tok_len[t] == len) {
+            တည်ဆောက် ကိန်း ok = 1
+            တည်ဆောက် ကိန်း j = 0
+            ပြည့်အောင်(j < len) {
+                သုံးသပ်ချက်အရ((p[g_tok_off[t] + j] ♩ 255) != (s[j] ♩ 255)) {
+                    ok = 0
+                    ရပ်
+                }
+                j = j + 1
+            }
+            သုံးသပ်ချက်အရ(ok == 1) { ပြန်ပေး t }
+        }
+        t = t + 1
+    }
+    ပြန်ပေး 0 - 1
+}
+
+// (a,b) pair → merge rank, -1 if none
+လုပ်ငန်း mmc_bpe_rank(အစု buf, စာသား a, ကိန်း alen, စာသား b, ကိန်း blen) ကိန်း {
+    တည်ဆောက် စာသား p = buf
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < g_mfa_n) {
+        သုံးသပ်ချက်အရ(g_mfa_len[i] == alen နှင့် g_mfb_len[i] == blen) {
+            တည်ဆောက် ကိန်း ok = 1
+            တည်ဆောက် ကိန်း j = 0
+            ပြည့်အောင်(j < alen) {
+                သုံးသပ်ချက်အရ((p[g_mfa_off[i] + j] ♩ 255) != (a[j] ♩ 255)) {
+                    ok = 0
+                    ရပ်
+                }
+                j = j + 1
+            }
+            သုံးသပ်ချက်အရ(ok == 1) {
+                j = 0
+                ပြည့်အောင်(j < blen) {
+                    သုံးသပ်ချက်အရ((p[g_mfb_off[i] + j] ♩ 255) != (b[j] ♩ 255)) {
+                        ok = 0
+                        ရပ်
+                    }
+                    j = j + 1
+                }
+            }
+            သုံးသပ်ချက်အရ(ok == 1) { ပြန်ပေး i }
+        }
+        i = i + 1
+    }
+    ပြန်ပေး 0 - 1
+}
+
+// text → ids. Returns count, negative on error.
+လုပ်ငန်း mmc_bpe_encode(အစု buf, စာသား text, ကိန်း tlen, အစု ids_ptr, ကိန်း max_ids) ကိန်း {
+    သုံးသပ်ချက်အရ(text == 0 သို့မဟုတ် ids_ptr == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(tlen <= 0 သို့မဟုတ် tlen > 8192) { ပြန်ပေး -2 }
+    သုံးသပ်ချက်အရ(g_tok_n <= 0) { ပြန်ပေး -3 }
+
+    တည်ဆောက် စာသား w = mmc_malloc(65536)
+    သုံးသပ်ချက်အရ(w == 0) { ပြန်ပေး -4 }
+    တည်ဆောက် ကိန်း* ss = mmc_malloc(tlen * 4 + 64)
+    တည်ဆောက် ကိန်း* sl = mmc_malloc(tlen * 4 + 64)
+    သုံးသပ်ချက်အရ(ss == 0 သို့မဟုတ် sl == 0) {
+        mmc_free(w)
+        ပြန်ပေး -5
+    }
+    တည်ဆောက် ကိန်း* ids = ids_ptr
+
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < tlen) {
+        w[i] = text[i]
+        i = i + 1
+    }
+
+    // split into codepoints
+    တည်ဆောက် ကိန်း n = 0
+    တည်ဆောက် ကိန်း pos = 0
+    ပြည့်အောင်(pos < tlen နှင့် n < tlen) {
+        တည်ဆောက် ကိန်း cl = utf8_charlen(text, pos)
+        သုံးသပ်ချက်အရ(cl <= 0) { cl = 1 }
+        ss[n] = pos
+        sl[n] = cl
+        n = n + 1
+        pos = pos + cl
+    }
+
+    တည်ဆောက် ကိန်း wpos = tlen
+
+    // greedy merge (lowest rank pair, leftmost on tie)
+    ပြည့်အောင်(1) {
+        တည်ဆောက် ကိန်း best = 0 - 1
+        တည်ဆောက် ကိန်း bi = 0 - 1
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < n - 1) {
+            တည်ဆောက် ကိန်း r = mmc_bpe_rank(buf, w + ss[k], sl[k], w + ss[k + 1], sl[k + 1])
+            သုံးသပ်ချက်အရ(r >= 0) {
+                သုံးသပ်ချက်အရ(best < 0 သို့မဟုတ် r < best) {
+                    best = r
+                    bi = k
+                }
+            }
+            k = k + 1
+        }
+        သုံးသပ်ချက်အရ(bi < 0) { ရပ် }
+        တည်ဆောက် ကိန်း nl = sl[bi] + sl[bi + 1]
+        သုံးသပ်ချက်အရ(wpos + nl > 65536) { ရပ် }
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < sl[bi]) {
+            w[wpos + j] = w[ss[bi] + j]
+            j = j + 1
+        }
+        j = 0
+        ပြည့်အောင်(j < sl[bi + 1]) {
+            w[wpos + sl[bi] + j] = w[ss[bi + 1] + j]
+            j = j + 1
+        }
+        ss[bi] = wpos
+        sl[bi] = nl
+        wpos = wpos + nl
+        k = bi + 1
+        ပြည့်အောင်(k < n - 1) {
+            ss[k] = ss[k + 1]
+            sl[k] = sl[k + 1]
+            k = k + 1
+        }
+        n = n - 1
+    }
+
+    // symbol → id
+    တည်ဆောက် ကိန်း bad = 0
+    တည်ဆောက် ကိန်း m = 0
+    ပြည့်အောင်(m < n) {
+        တည်ဆောက် ကိန်း id = mmc_token_find(buf, w + ss[m], sl[m])
+        သုံးသပ်ချက်အရ(id < 0) {
+            bad = 1
+            g_bpe_err_n = sl[m]
+            သုံးသပ်ချက်အရ(g_bpe_err_n > 64) { g_bpe_err_n = 64 }
+            တည်ဆောက် ကိန်း q = 0
+            ပြည့်အောင်(q < g_bpe_err_n) {
+                g_bpe_err_byte[q] = w[ss[m] + q] ♩ 255
+                q = q + 1
+            }
+            ရပ်
+        }
+        သုံးသပ်ချက်အရ(m < max_ids) { ids[m] = id }
+        m = m + 1
+    }
+
+    mmc_free(w)
+    mmc_free(ss)
+    mmc_free(sl)
+    သုံးသပ်ချက်အရ(bad == 1) { ပြန်ပေး -6 }
+    ပြန်ပေး n
+}
+
+// ids → UTF-8 bytes (raw concat, no U+2400 substitution)
+လုပ်ငန်း mmc_decode_tokens(အစု buf, အစု ids_ptr, ကိန်း n, အစု out_ptr, ကိန်း cap) ကိန်း {
+    သုံးသပ်ချက်အရ(ids_ptr == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ကိန်း* ids = ids_ptr
+    တည်ဆောက် စာသား p = buf
+    တည်ဆောက် စာသား o = out_ptr
+    တည်ဆောက် ကိန်း total = 0
+    တည်ဆောက် ကိန်း t = 0
+    ပြည့်အောင်(t < n) {
+        တည်ဆောက် ကိန်း id = ids[t]
+        သုံးသပ်ချက်အရ(id >= 0 နှင့် id < g_tok_n) {
+            တည်ဆောက် ကိန်း off = g_tok_off[id]
+            တည်ဆောက် ကိန်း len = g_tok_len[id]
+            သုံးသပ်ချက်အရ(total + len <= cap) {
+                တည်ဆောက် ကိန်း i = 0
+                ပြည့်အောင်(i < len) {
+                    o[total + i] = p[off + i]
+                    i = i + 1
+                }
+                total = total + len
+            }
+        }
+        t = t + 1
+    }
+    ပြန်ပေး total
+}
