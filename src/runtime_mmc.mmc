@@ -2159,3 +2159,169 @@ extern "C" ဒသမ tanh(ဒသမ x)
     }
     ပြန်ပေး best
 }
+
+// ═══════════════════════════════════════
+// 26. Q6_K dequant / row / linear
+//    block_q6_K = ql[128] + qh[64] + scales[16] + d(f16) = 210 bytes
+// ═══════════════════════════════════════
+လုပ်ငန်း mmc_q6_k_block(အစု buf, ကိန်း ds, ကိန်း off, အစု out_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(ds + off + 210 > g_gguf_size) { ပြန်ပေး -2 }
+    တည်ဆောက် စာသား p = buf
+    တည်ဆောက် ကိန်း base = ds + off
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ဒသမ dsc = mmc_f16_at(buf, ds, off + 208)
+
+    တည်ဆောက် ကိန်း hh = 0
+    ပြည့်အောင်(hh < 2) {
+        တည်ဆောက် ကိန်း ql = base + hh * 64
+        တည်ဆောက် ကိန်း qh = base + 128 + hh * 32
+        တည်ဆောက် ကိန်း sc = base + 192 + hh * 8
+        တည်ဆောက် ကိန်း yb = hh * 128
+        တည်ဆောက် ကိန်း l = 0
+        ပြည့်အောင်(l < 32) {
+            တည်ဆောက် ကိန်း is = l / 16
+            တည်ဆောက် ကိန်း qlb0 = p[ql + l] ♩ 255
+            တည်ဆောက် ကိန်း qlb1 = p[ql + l + 32] ♩ 255
+            တည်ဆောက် ကိန်း qhb = p[qh + l] ♩ 255
+
+            တည်ဆောက် ကိန်း q1 = ((qlb0 ♩ 15) ♪ ((qhb ♩ 3) ♭ 4)) - 32
+            တည်ဆောက် ကိန်း q2 = ((qlb1 ♩ 15) ♪ (((qhb ♯ 2) ♩ 3) ♭ 4)) - 32
+            တည်ဆောက် ကိန်း q3 = ((qlb0 ♯ 4) ♪ (((qhb ♯ 4) ♩ 3) ♭ 4)) - 32
+            တည်ဆောက် ကိန်း q4 = ((qlb1 ♯ 4) ♪ (((qhb ♯ 6) ♩ 3) ♭ 4)) - 32
+
+            တည်ဆောက် ကိန်း s0 = p[sc + is] ♩ 255
+            တည်ဆောက် ကိန်း s1 = p[sc + is + 2] ♩ 255
+            တည်ဆောက် ကိန်း s2 = p[sc + is + 4] ♩ 255
+            တည်ဆောက် ကိန်း s3 = p[sc + is + 6] ♩ 255
+            သုံးသပ်ချက်အရ(s0 > 127) { s0 = s0 - 256 }
+            သုံးသပ်ချက်အရ(s1 > 127) { s1 = s1 - 256 }
+            သုံးသပ်ချက်အရ(s2 > 127) { s2 = s2 - 256 }
+            သုံးသပ်ချက်အရ(s3 > 127) { s3 = s3 - 256 }
+
+            out[yb + l] = dsc * s0 * q1
+            out[yb + l + 32] = dsc * s1 * q2
+            out[yb + l + 64] = dsc * s2 * q3
+            out[yb + l + 96] = dsc * s3 * q4
+            l = l + 1
+        }
+        hh = hh + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း mmc_q6_k_row(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း row, ကိန်း row_size, အစု out_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(row_size % 256 != 0) { ပြန်ပေး -2 }
+    တည်ဆောက် ကိန်း nblocks = row_size / 256
+    တည်ဆောက် ကိန်း row_start = t_off + row * nblocks * 210
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ကိန်း b = 0
+    ပြည့်အောင်(b < nblocks) {
+        တည်ဆောက် ကိန်း rc = mmc_q6_k_block(buf, ds, row_start + b * 210, out + b * 256)
+        သုံးသပ်ချက်အရ(rc != 0) { ပြန်ပေး rc }
+        b = b + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း mmc_linear_q6_k(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း rows, ကိန်း cols,
+                         အစု x_ptr, အစု b_ptr, အစု out_ptr, အစု row_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် x_ptr == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(cols % 256 != 0) { ပြန်ပေး -2 }
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ဒသမ* out = out_ptr
+    တည်ဆောက် ဒသမ* row = row_ptr
+    သုံးသပ်ချက်အရ(row == 0) { ပြန်ပေး -3 }
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < rows) {
+        တည်ဆောက် ကိန်း rc = mmc_q6_k_row(buf, ds, t_off, j, cols, row)
+        သုံးသပ်ချက်အရ(rc != 0) { ပြန်ပေး rc }
+        တည်ဆောက် ဒသမ sum = 0.0
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < cols) {
+            sum = sum + row[k] * x[k]
+            k = k + 1
+        }
+        သုံးသပ်ချက်အရ(b_ptr != 0) {
+            တည်ဆောက် ဒသမ* b = b_ptr
+            sum = sum + b[j]
+        }
+        out[j] = sum
+        j = j + 1
+    }
+    ပြန်ပေး 0
+}
+
+// Dispatch by GGML type
+လုပ်ငန်း mmc_linear_any(အစု buf, ကိန်း ds, ကိန်း t_off, ကိန်း ttype,
+                        ကိန်း rows, ကိန်း cols,
+                        အစု x_ptr, အစု b_ptr, အစု out_ptr, အစု row_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(ttype == 2) {
+        ပြန်ပေး mmc_linear_q4_0(buf, ds, t_off, rows, cols, x_ptr, b_ptr, out_ptr, row_ptr)
+    }
+    သုံးသပ်ချက်အရ(ttype == 0) {
+        ပြန်ပေး mmc_linear_f32(buf, ds, t_off, rows, cols, x_ptr, b_ptr, out_ptr, row_ptr)
+    }
+    သုံးသပ်ချက်အရ(ttype == 1) {
+        ပြန်ပေး mmc_linear_f16(buf, ds, t_off, rows, cols, x_ptr, b_ptr, out_ptr, row_ptr)
+    }
+    သုံးသပ်ချက်အရ(ttype == 14) {
+        ပြန်ပေး mmc_linear_q6_k(buf, ds, t_off, rows, cols, x_ptr, b_ptr, out_ptr, row_ptr)
+    }
+    ပြန်ပေး -9
+}
+
+// ═══════════════════════════════════════
+// 27. Full forward — LM head type-aware
+// ═══════════════════════════════════════
+လုပ်ငန်း mmc_forward_1tok_lm(အစု buf, ကိန်း ds, ကိန်း d, ကိန်း d_ff,
+                            ကိန်း n_layers, ကိန်း vocab,
+                            ကိန်း out_norm_g, ကိန်း out_norm_b,
+                            ကိန်း lm_head, ကိန်း lm_type,
+                            အစု x_ptr, အစု logits_ptr) ကိန်း {
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် x_ptr == 0 သို့မဟုတ် logits_ptr == 0) { ပြန်ပေး -1 }
+
+    တည်ဆောက် ဒသမ* x = x_ptr
+    တည်ဆောက် ဒသမ* logits = logits_ptr
+    တည်ဆောက် ဒသမ* x2 = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* xnorm = mmc_malloc(d * 8)
+    တည်ဆောက် ဒသမ* row_d = mmc_malloc(d * 8)
+    သုံးသပ်ချက်အရ(x2 == 0 သို့မဟုတ် xnorm == 0 သို့မဟုတ် row_d == 0) { ပြန်ပေး -2 }
+
+    တည်ဆောက် ကိန်း L = 0
+    တည်ဆောက် ကိန်း base = 0
+    တည်ဆောက် ကိန်း i = 0
+
+    ပြည့်အောင်(L < n_layers) {
+        base = 5 + L * 12
+        mmc_block_1tok(buf, ds, d, d_ff,
+            gguf_tensor_offset(base + 1), gguf_tensor_offset(base + 0),
+            gguf_tensor_offset(base + 5), gguf_tensor_offset(base + 4),
+            gguf_tensor_offset(base + 3), gguf_tensor_offset(base + 2),
+            gguf_tensor_offset(base + 9), gguf_tensor_offset(base + 8),
+            gguf_tensor_offset(base + 11), gguf_tensor_offset(base + 10),
+            gguf_tensor_offset(base + 7), gguf_tensor_offset(base + 6),
+            x, x2)
+        i = 0
+        ပြည့်အောင်(i < d) {
+            x[i] = x2[i]
+            i = i + 1
+        }
+        L = L + 1
+    }
+
+    i = 0
+    ပြည့်အောင်(i < d) {
+        xnorm[i] = x[i]
+        i = i + 1
+    }
+    mmc_layernorm_gguf(buf, ds, out_norm_g, out_norm_b, xnorm, d, 0.00001)
+
+    mmc_linear_any(buf, ds, lm_head, lm_type, vocab, d, xnorm, 0, logits, row_d)
+
+    mmc_free(x2)
+    mmc_free(xnorm)
+    mmc_free(row_d)
+    ပြန်ပေး 0
+}
