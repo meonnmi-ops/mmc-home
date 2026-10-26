@@ -389,3 +389,78 @@ extern "C" ဒသမ exp(ဒသမ x)
     fclose(fp)
     ပြန်ပေး 1
 }
+
+// ═══════════════════════════════════════
+// 7. Trigram (n-gram) — ML functions
+// ═══════════════════════════════════════
+extern "C" ကိန်း rand()
+extern "C" void srand(ကိန်း seed)
+extern "C" void putchar(ကိန်း c)
+
+တည်ဆောက် ကိန်း g_trigram[16777216]
+
+လုပ်ငန်း mmc_trigram_clear() ကိန်း {
+    တည်ဆောက် ကိန်း k = 0
+    ပြည့်အောင်(k < 16777216) {
+        g_trigram[k] = 0
+        k = k + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း mmc_trigram_train(စာသား text) ကိန်း {
+    mmc_trigram_clear()
+    တည်ဆောက် ကိန်း len = mmc_string_length(text)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < len - 2) {
+        တည်ဆောက် ကိန်း c1 = text[i] ♩ 255
+        တည်ဆောက် ကိန်း c2 = text[i + 1] ♩ 255
+        တည်ဆောက် ကိန်း c3 = text[i + 2] ♩ 255
+        တည်ဆောက် ကိန်း idx = c1 * 65536 + c2 * 256 + c3
+        g_trigram[idx] = g_trigram[idx] + 1
+        i = i + 1
+    }
+    ပြန်ပေး len
+}
+
+လုပ်ငန်း mmc_trigram_generate(စာသား seed, ကိန်း max_len) ကိန်း {
+    srand(42)
+    တည်ဆောက် ကိန်း slen = mmc_string_length(seed)
+    သုံးသပ်ချက်အရ(slen < 2) {
+        ပြန်ပေး -1
+    }
+    တည်ဆောက် ကိန်း c1 = seed[slen - 2] ♩ 255
+    တည်ဆောက် ကိန်း c2 = seed[slen - 1] ♩ 255
+    mmc_print(seed)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < max_len) {
+        တည်ဆောက် ကိန်း base = c1 * 65536 + c2 * 256
+        တည်ဆောက် ကိန်း total = 0
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < 256) {
+            total = total + g_trigram[base + j]
+            j = j + 1
+        }
+        သုံးသပ်ချက်အရ(total == 0) {
+            ရပ်
+        }
+        တည်ဆောက် ကိန်း r = rand() % total
+        တည်ဆောက် ကိန်း cum = 0
+        တည်ဆောက် ကိန်း c3 = 0
+        j = 0
+        ပြည့်အောင်(j < 256) {
+            cum = cum + g_trigram[base + j]
+            သုံးသပ်ချက်အရ(cum > r) {
+                c3 = j
+                ရပ်
+            }
+            j = j + 1
+        }
+        putchar(c3)
+        c1 = c2
+        c2 = c3
+        i = i + 1
+    }
+    mmc_println("")
+    ပြန်ပေး 0
+}
