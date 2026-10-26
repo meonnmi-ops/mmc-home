@@ -996,3 +996,77 @@ extern "C" ဒသမ tanh(ဒသမ x)
     }
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 12. Single-head Attention
+// ═══════════════════════════════════════
+// Q, K, V: [seq_len, d] matrices
+// out = softmax(Q·K^T / √d) · V
+// Returns: new matrix [seq_len, d]
+
+လုပ်ငန်း mmc_attention_single(အစု Q_ptr, အစု K_ptr, အစု V_ptr, ကိန်း seq_len, ကိန်း d) အစု {
+    သုံးသပ်ချက်အရ(seq_len <= 0 သို့မဟုတ် d <= 0) {
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် MMCMatrix* Q = Q_ptr
+    တည်ဆောက် MMCMatrix* K = K_ptr
+    တည်ဆောက် MMCMatrix* V = V_ptr
+    
+    // 1. scores = Q·K^T / √d
+    တည်ဆောက် အစု scores_ptr = mmc_matrix_new(seq_len, seq_len)
+    သုံးသပ်ချက်အရ(scores_ptr == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် MMCMatrix* scores = scores_ptr
+    တည်ဆောက် ဒသမ scale = 1.0 / sqrt(d * 1.0)
+    
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < seq_len) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < seq_len) {
+            တည်ဆောက် ဒသမ dot = 0.0
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < d) {
+                dot = dot + Q->data[i * d + k] * K->data[j * d + k]
+                k = k + 1
+            }
+            scores->data[i * seq_len + j] = dot * scale
+            j = j + 1
+        }
+        i = i + 1
+    }
+    
+    // 2. softmax over rows (returns new matrix, not in-place)
+    တည်ဆောက် အစု softmaxed_ptr = mmc_matrix_softmax(scores_ptr)
+    mmc_matrix_free(scores_ptr)
+    သုံးသပ်ချက်အရ(softmaxed_ptr == 0) {
+        ပြန်ပေး 0
+    }
+    scores_ptr = softmaxed_ptr
+    scores = softmaxed_ptr
+    
+    // 3. out = scores · V
+    တည်ဆောက် အစု out_ptr = mmc_matrix_new(seq_len, d)
+    သုံးသပ်ချက်အရ(out_ptr == 0) {
+        mmc_matrix_free(scores_ptr)
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် MMCMatrix* out = out_ptr
+    
+    i = 0
+    ပြည့်အောင်(i < seq_len) {
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < d) {
+            တည်ဆောက် ဒသမ sum = 0.0
+            တည်ဆောက် ကိန်း j = 0
+            ပြည့်အောင်(j < seq_len) {
+                sum = sum + scores->data[i * seq_len + j] * V->data[j * d + k]
+                j = j + 1
+            }
+            out->data[i * d + k] = sum
+            k = k + 1
+        }
+        i = i + 1
+    }
+    
+    mmc_matrix_free(scores_ptr)
+    ပြန်ပေး out_ptr
+}
