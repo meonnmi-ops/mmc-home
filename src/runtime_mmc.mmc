@@ -2847,3 +2847,269 @@ extern "C" ဒသမ tanh(ဒသမ x)
     }
     ပြန်ပေး total
 }
+
+// ═══════════════════════════════════════
+// ═══════════════════════════════════════
+// 32a. Sampling (top-k + temperature)
+// ═══════════════════════════════════════
+တည်ဆောက် ဒသမ g_temp = 1.0
+တည်ဆောက် ကိန်း g_top_k = 1
+တည်ဆောက် ကိန်း g_seed = 42
+
+// decode history + policy (shared with mmc_generate)
+တည်ဆောက် ကိန်း g_gen_n = 0
+တည်ဆောက် ကိန်း g_gen_ids[64]
+တည်ဆောက် ဒသမ g_rep = 1.15
+တည်ဆောက် ကိန်း g_norep = 6
+
+လုပ်ငန်း decode_set(ဒသမ rep, ကိန်း norep) ကိန်း {
+    သုံးသပ်ချက်အရ(rep <= 0.0) { rep = 1.0 }
+    သုံးသပ်ချက်အရ(norep < 0) { norep = 0 }
+    g_rep = rep
+    g_norep = norep
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း sampling_set(ဒသမ t, ကိန်း k, ကိန်း seed) ကိန်း {
+    သုံးသပ်ချက်အရ(t <= 0.0) { t = 0.0001 }
+    သုံးသပ်ချက်အရ(k < 1) { k = 1 }
+    g_temp = t
+    g_top_k = k
+    g_seed = seed
+    srand(seed)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း mmc_sample(အစု logits_ptr, ကိန်း n) ကိန်း {
+    သုံးသပ်ချက်အရ(logits_ptr == 0 သို့မဟုတ် n <= 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ဒသမ* lg = logits_ptr
+    // ── repetition penalty (skip stop tokens 0,1,2,13) ──
+    တည်ဆောက် ကိန်း hz = 0
+    ပြည့်အောင်(hz < g_gen_n) {
+        တည်ဆောက် ကိန်း tid = g_gen_ids[hz]
+        သုံးသပ်ချက်အရ(tid > 2 နှင့် tid != 13 နှင့် tid < n) {
+            သုံးသပ်ချက်အရ(lg[tid] > 0.0) {
+                lg[tid] = lg[tid] / g_rep
+            } မဟုတ်လျှင် {
+                lg[tid] = lg[tid] * g_rep
+            }
+        }
+        hz = hz + 1
+    }
+
+    // ── no-repeat n-gram ban ──
+    သုံးသပ်ချက်အရ(g_norep >= 2 နှင့် g_gen_n >= g_norep) {
+        တည်ဆောက် ကိန်း wln = g_norep - 1
+        တည်ဆောက် ကိန်း bpos = g_gen_n - wln
+        တည်ဆောက် ကိန်း jj = 0
+        ပြည့်အောင်(jj < bpos) {
+            တည်ဆောက် ကိန်း okm = 1
+            တည်ဆောက် ကိန်း qq = 0
+            ပြည့်အောင်(qq < wln) {
+                သုံးသပ်ချက်အရ(g_gen_ids[jj + qq] != g_gen_ids[bpos + qq]) {
+                    okm = 0
+                    ရပ်
+                }
+                qq = qq + 1
+            }
+            သုံးသပ်ချက်အရ(okm == 1) {
+                တည်ဆောက် ကိန်း bant = g_gen_ids[jj + wln]
+                သုံးသပ်ချက်အရ(bant > 2 နှင့် bant != 13 နှင့် bant < n) {
+                    lg[bant] = 0.0 - 1000000000.0
+                }
+            }
+            jj = jj + 1
+        }
+    }
+
+    တည်ဆောက် ကိန်း k = g_top_k
+    သုံးသပ်ချက်အရ(k > n) { k = n }
+    သုံးသပ်ချက်အရ(k <= 1) { ပြန်ပေး mmc_argmax(logits_ptr, n) }
+
+    တည်ဆောက် ကိန်း* used = mmc_malloc(n * 4)
+    တည်ဆောက် ကိန်း* idxs = mmc_malloc(k * 4)
+    တည်ဆောက် ဒသမ* scs = mmc_malloc(k * 8)
+    သုံးသပ်ချက်အရ(used == 0 သို့မဟုတ် idxs == 0 သို့မဟုတ် scs == 0) { ပြန်ပေး -2 }
+
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        used[i] = 0
+        i = i + 1
+    }
+
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < k) {
+        တည်ဆောက် ကိန်း bi = 0 - 1
+        တည်ဆောက် ဒသမ bv = 0.0 - 1000000000.0
+        i = 0
+        ပြည့်အောင်(i < n) {
+            သုံးသပ်ချက်အရ(used[i] == 0) {
+                သုံးသပ်ချက်အရ(lg[i] > bv) {
+                    bv = lg[i]
+                    bi = i
+                }
+            }
+            i = i + 1
+        }
+        သုံးသပ်ချက်အရ(bi < 0) { ရပ် }
+        used[bi] = 1
+        idxs[j] = bi
+        scs[j] = bv
+        j = j + 1
+    }
+    တည်ဆောက် ကိန်း kk = j
+
+    သုံးသပ်ချက်အရ(kk <= 0) {
+        mmc_free(used)
+        mmc_free(idxs)
+        mmc_free(scs)
+        ပြန်ပေး mmc_argmax(logits_ptr, n)
+    }
+
+    တည်ဆောက် ဒသမ mx = scs[0]
+    j = 1
+    ပြည့်အောင်(j < kk) {
+        သုံးသပ်ချက်အရ(scs[j] > mx) { mx = scs[j] }
+        j = j + 1
+    }
+    တည်ဆောက် ဒသမ sum = 0.0
+    j = 0
+    ပြည့်အောင်(j < kk) {
+        scs[j] = exp((scs[j] - mx) / g_temp)
+        sum = sum + scs[j]
+        j = j + 1
+    }
+    တည်ဆောက် ဒသမ r = rand() / 2147483647.0
+    တည်ဆောက် ဒသမ target = r * sum
+    တည်ဆောက် ဒသမ cum = 0.0
+    တည်ဆောက် ကိန်း pick = idxs[kk - 1]
+    j = 0
+    ပြည့်အောင်(j < kk) {
+        cum = cum + scs[j]
+        သုံးသပ်ချက်အရ(cum >= target) {
+            pick = idxs[j]
+            ရပ်
+        }
+        j = j + 1
+    }
+
+    mmc_free(used)
+    mmc_free(idxs)
+    mmc_free(scs)
+    ပြန်ပေး pick
+}
+
+// ═══════════════════════════════════════
+// 32b. Stop sequence
+// ═══════════════════════════════════════
+တည်ဆောက် စာသား g_stop = 0
+တည်ဆောက် ကိန်း g_stop_len = 0
+တည်ဆောက် ကိန်း g_stop_hit = 0
+
+လုပ်ငန်း stop_hit() ကိန်း { ပြန်ပေး g_stop_hit }
+
+လုပ်ငန်း stop_set(စာသား s) ကိန်း {
+    g_stop = s
+    g_stop_len = 0
+    သုံးသပ်ချက်အရ(s != 0) {
+        g_stop_len = mmc_string_length(s)
+    }
+    ပြန်ပေး 0
+}
+
+// 32. Greedy generation (prefill + argmax loop)
+// ═══════════════════════════════════════
+
+လုပ်ငန်း gen_count() ကိန်း { ပြန်ပေး g_gen_n }
+လုပ်ငန်း gen_id(ကိန်း i) ကိန်း { ပြန်ပေး g_gen_ids[i] }
+
+လုပ်ငန်း mmc_generate(အစု buf, ကိန်း ds, ကိန်း d, ကိန်း d_ff,
+                     ကိန်း n_layers, ကိန်း n_heads, ကိန်း vocab,
+                     ကိန်း ong, ကိန်း onb, ကိန်း lm_head, ကိန်း lm_type,
+                     ကိန်း max_seq, ကိန်း tok_off, ကိန်း pos_off,
+                     စာသား prompt, ကိန်း prompt_len,
+                     ကိန်း max_new, ကိန်း eos_id,
+                     အစု out_ptr, ကိန်း out_cap,
+                     အစု kc_ptr, အစု vc_ptr, အစု logits_ptr) ကိန်း {
+
+    g_gen_n = 0
+    g_stop_hit = 0
+    သုံးသပ်ချက်အရ(buf == 0 သို့မဟုတ် prompt == 0 သို့မဟုတ် out_ptr == 0) { ပြန်ပေး -1 }
+    သုံးသပ်ချက်အရ(max_seq <= 2 သို့မဟုတ် max_seq > 512) { ပြန်ပေး -2 }
+
+    တည်ဆောက် ကိန်း* ids = mmc_malloc(max_seq * 4)
+    တည်ဆောက် စာသား out = out_ptr
+    သုံးသပ်ချက်အရ(ids == 0) { ပြန်ပေး -3 }
+
+    တည်ဆောက် ကိန်း n = mmc_bpe_encode(buf, prompt, prompt_len, ids, max_seq)
+    သုံးသပ်ချက်အရ(n <= 0) {
+        mmc_free(ids)
+        ပြန်ပေး -4
+    }
+    သုံးသပ်ချက်အရ(n > max_seq - 2) { n = max_seq - 2 }
+
+    // prefill
+    တည်ဆောက် ကိန်း pos = 0
+    တည်ဆောက် ကိန်း rc = 0
+    ပြည့်အောင်(pos < n) {
+        rc = mmc_step(buf, ds, d, d_ff, n_layers, n_heads, vocab,
+                      ong, onb, lm_head, lm_type,
+                      max_seq, pos, ids[pos], tok_off, pos_off,
+                      kc_ptr, vc_ptr, logits_ptr, 0)
+        သုံးသပ်ချက်အရ(rc != 0) {
+            mmc_free(ids)
+            ပြန်ပေး -5
+        }
+        pos = pos + 1
+    }
+
+    // decode loop
+    တည်ဆောက် ကိန်း outs = 0
+    တည်ဆောက် ကိန်း gen = 0
+    ပြည့်အောင်(gen < max_new နှင့် pos < max_seq) {
+        တည်ဆောက် ကိန်း nxt = mmc_sample(logits_ptr, vocab)
+        သုံးသပ်ချက်အရ(nxt == eos_id) {
+            g_stop_hit = 2
+            ရပ်
+        }
+        သုံးသပ်ချက်အရ(nxt != 0 နှင့် nxt != 1) {
+            တည်ဆောက် ကိန်း tlen = mmc_token_decode(buf, nxt, out + outs, out_cap - outs)
+            သုံးသပ်ချက်အရ(tlen > 0) { outs = outs + tlen }
+        }
+        // ── stop sequence ──
+        သုံးသပ်ချက်အရ(g_stop_len > 0 နှင့် outs >= g_stop_len) {
+            တည်ဆောက် ကိန်း seq_ok = 1
+            တည်ဆောက် ကိန်း seq_q = 0
+            ပြည့်အောင်(seq_q < g_stop_len) {
+                သုံးသပ်ချက်အရ(out[outs - g_stop_len + seq_q] != g_stop[seq_q]) {
+                    seq_ok = 0
+                    ရပ်
+                }
+                seq_q = seq_q + 1
+            }
+            သုံးသပ်ချက်အရ(seq_ok == 1) {
+                g_stop_hit = 1
+                outs = outs - g_stop_len
+                ရပ်
+            }
+        }
+        သုံးသပ်ချက်အရ(gen < 64) {
+            g_gen_ids[gen] = nxt
+            g_gen_n = gen + 1
+        }
+        ids[pos] = nxt
+        rc = mmc_step(buf, ds, d, d_ff, n_layers, n_heads, vocab,
+                      ong, onb, lm_head, lm_type,
+                      max_seq, pos, nxt, tok_off, pos_off,
+                      kc_ptr, vc_ptr, logits_ptr, 0)
+        သုံးသပ်ချက်အရ(rc != 0) {
+            g_stop_hit = 3
+            ရပ်
+        }
+        pos = pos + 1
+        gen = gen + 1
+    }
+
+    mmc_free(ids)
+    ပြန်ပေး outs
+}
