@@ -1222,3 +1222,77 @@ extern "C" ဒသမ tanh(ဒသမ x)
 
     ပြန်ပေး x1_ptr
 }
+
+// ═══════════════════════════════════════
+// 14. N-Block Stack (multi-layer transformer)
+// ═══════════════════════════════════════
+
+// Block weights bundle (16 pointers = 128 bytes)
+အစုအဝေး MMCBlockWeights {
+    Wq အစု
+    bq အစု
+    Wk အစု
+    bk အစု
+    Wv အစု
+    bv အစု
+    Wo အစု
+    bo အစု
+    ln1g အစု
+    ln1b အစု
+    W1 အစု
+    b1 အစု
+    W2 အစု
+    b2 အစု
+    ln2g အစု
+    ln2b အစု
+}
+
+// Allocate + fill one block's weights (16 void* = 128 bytes)
+လုပ်ငန်း mmc_block_weights_new(အစု Wq, အစု bq, အစု Wk, အစု bk,
+    အစု Wv, အစု bv, အစု Wo, အစု bo,
+    အစု ln1g, အစု ln1b, အစု W1, အစု b1, အစု W2, အစု b2,
+    အစု ln2g, အစု ln2b) အစု {
+    တည်ဆောက် MMCBlockWeights* bw = mmc_malloc(128)
+    သုံးသပ်ချက်အရ(bw == 0) { ပြန်ပေး 0 }
+    bw->Wq = Wq
+    bw->bq = bq
+    bw->Wk = Wk
+    bw->bk = bk
+    bw->Wv = Wv
+    bw->bv = bv
+    bw->Wo = Wo
+    bw->bo = bo
+    bw->ln1g = ln1g
+    bw->ln1b = ln1b
+    bw->W1 = W1
+    bw->b1 = b1
+    bw->W2 = W2
+    bw->b2 = b2
+    bw->ln2g = ln2g
+    bw->ln2b = ln2b
+    ပြန်ပေး bw
+}
+
+// Forward through N blocks. Input x NOT freed. Returns NEW matrix.
+လုပ်ငန်း mmc_transformer_forward(အစု x_ptr, အစု blocks_arr_ptr, ကိန်း n_blocks) အစု {
+    သုံးသပ်ချက်အရ(x_ptr == 0) { ပြန်ပေး 0 }
+    သုံးသပ်ချက်အရ(n_blocks <= 0) {
+        ပြန်ပေး mmc_matrix_copy(x_ptr)
+    }
+    တည်ဆောက် အစု current = mmc_matrix_copy(x_ptr)
+    သုံးသပ်ချက်အရ(current == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n_blocks) {
+        တည်ဆောက် MMCBlockWeights* bw = mmc_array_get(blocks_arr_ptr, i)
+        သုံးသပ်ချက်အရ(bw == 0) { ပြန်ပေး current }
+        တည်ဆောက် အစု next = mmc_transformer_block(current,
+            bw->Wq, bw->bq, bw->Wk, bw->bk, bw->Wv, bw->bv, bw->Wo, bw->bo,
+            bw->ln1g, bw->ln1b, bw->W1, bw->b1, bw->W2, bw->b2,
+            bw->ln2g, bw->ln2b)
+        သုံးသပ်ချက်အရ(next == 0) { ပြန်ပေး current }
+        mmc_matrix_free(current)
+        current = next
+        i = i + 1
+    }
+    ပြန်ပေး current
+}
