@@ -585,3 +585,176 @@ extern "C" void putchar(ကိန်း c)
     mmc_println("")
     ပြန်ပေး 0
 }
+
+// ═══════════════════════════════════════
+// 9. Word-level Markov — ML functions
+// ═══════════════════════════════════════
+တည်ဆောက် ကိန်း g_word_chars[640000]
+တည်ဆောက် ကိန်း g_word_start[10000]
+တည်ဆောက် ကိန်း g_word_len[10000]
+တည်ဆောက် ကိန်း g_wm_n = 0
+
+တည်ဆောက် ကိန်း g_wm_next_ids[640000]
+တည်ဆောက် ကိန်း g_wm_next_counts[640000]
+တည်ဆောက် ကိန်း g_wm_next_n[10000]
+တည်ဆောက် ကိန်း g_wm_total[10000]
+
+လုပ်ငန်း wm_find_or_insert(ကိန်း src_start, ကိန်း src_len, စာသား text) ကိန်း {
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < g_wm_n) {
+        သုံးသပ်ချက်အရ(g_word_len[i] == src_len) {
+            တည်ဆောက် ကိန်း j = 0
+            တည်ဆောက် ကိန်း match = 1
+            ပြည့်အောင်(j < src_len) {
+                သုံးသပ်ချက်အရ(g_word_chars[g_word_start[i] + j] != (text[src_start + j] ♩ 255)) {
+                    match = 0
+                    ရပ်
+                }
+                j = j + 1
+            }
+            သုံးသပ်ချက်အရ(match == 1) {
+                ပြန်ပေး i
+            }
+        }
+        i = i + 1
+    }
+    သုံးသပ်ချက်အရ(g_wm_n >= 10000) {
+        ပြန်ပေး -1
+    }
+    တည်ဆောက် ကိန်း new_id = g_wm_n
+    တည်ဆောက် ကိန်း cstart = new_id * 64
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < src_len နှင့် j < 63) {
+        g_word_chars[cstart + j] = text[src_start + j] ♩ 255
+        j = j + 1
+    }
+    g_word_chars[cstart + j] = 0
+    g_word_start[new_id] = cstart
+    g_word_len[new_id] = j
+    g_wm_n = g_wm_n + 1
+    ပြန်ပေး new_id
+}
+
+လုပ်ငန်း mmc_word_clear() ကိန်း {
+    g_wm_n = 0
+    တည်ဆောက် ကိန်း k = 0
+    ပြည့်အောင်(k < 10000) {
+        g_wm_next_n[k] = 0
+        g_wm_total[k] = 0
+        k = k + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း mmc_word_train(စာသား text) ကိန်း {
+    mmc_word_clear()
+    တည်ဆောက် ကိန်း tlen = mmc_string_length(text)
+    တည်ဆောက် ကိန်း i = 0
+    တည်ဆောက် ကိန်း cur_start = -1
+    တည်ဆောက် ကိန်း prev_id = -1
+    ပြည့်အောင်(i <= tlen) {
+        တည်ဆောက် ကိန်း is_space = 1
+        သုံးသပ်ချက်အရ(i < tlen) {
+            သုံးသပ်ချက်အရ(text[i] != 32) {
+                is_space = 0
+            }
+        }
+        သုံးသပ်ချက်အရ(is_space == 0) {
+            သုံးသပ်ချက်အရ(cur_start < 0) {
+                cur_start = i
+            }
+        } မဟုတ်လျှင် {
+            သုံးသပ်ချက်အရ(cur_start >= 0) {
+                တည်ဆောက် ကိန်း wlen = i - cur_start
+                တည်ဆောက် ကိန်း wid = wm_find_or_insert(cur_start, wlen, text)
+                သုံးသပ်ချက်အရ(wid >= 0 နှင့် prev_id >= 0) {
+                    တည်ဆောက် ကိန်း j = 0
+                    တည်ဆောက် ကိန်း found = 0
+                    ပြည့်အောင်(j < g_wm_next_n[prev_id]) {
+                        သုံးသပ်ချက်အရ(g_wm_next_ids[prev_id * 64 + j] == wid) {
+                            g_wm_next_counts[prev_id * 64 + j] = g_wm_next_counts[prev_id * 64 + j] + 1
+                            g_wm_total[prev_id] = g_wm_total[prev_id] + 1
+                            found = 1
+                            ရပ်
+                        }
+                        j = j + 1
+                    }
+                    သုံးသပ်ချက်အရ(found == 0 နှင့် g_wm_next_n[prev_id] < 64) {
+                        တည်ဆောက် ကိန်း idx = prev_id * 64 + g_wm_next_n[prev_id]
+                        g_wm_next_ids[idx] = wid
+                        g_wm_next_counts[idx] = 1
+                        g_wm_next_n[prev_id] = g_wm_next_n[prev_id] + 1
+                        g_wm_total[prev_id] = g_wm_total[prev_id] + 1
+                    }
+                }
+                prev_id = wid
+                cur_start = -1
+            }
+        }
+        i = i + 1
+    }
+    ပြန်ပေး g_wm_n
+}
+
+လုပ်ငန်း mmc_word_generate(စာသား seed_word, ကိန်း max_words) ကိန်း {
+    တည်ဆောက် ကိန်း slen = mmc_string_length(seed_word)
+    တည်ဆောက် ကိန်း cur_id = -1
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < g_wm_n) {
+        သုံးသပ်ချက်အရ(g_word_len[i] == slen) {
+            တည်ဆောက် ကိန်း j = 0
+            တည်ဆောက် ကိန်း match = 1
+            ပြည့်အောင်(j < slen) {
+                သုံးသပ်ချက်အရ(g_word_chars[g_word_start[i] + j] != (seed_word[j] ♩ 255)) {
+                    match = 0
+                    ရပ်
+                }
+                j = j + 1
+            }
+            သုံးသပ်ချက်အရ(match == 1) {
+                cur_id = i
+                ရပ်
+            }
+        }
+        i = i + 1
+    }
+    သုံးသပ်ချက်အရ(cur_id < 0) {
+        mmc_println("Seed not found")
+        ပြန်ပေး -1
+    }
+    srand(42)
+    mmc_print(seed_word)
+    တည်ဆောက် ကိန်း n = 0
+    ပြည့်အောင်(n < max_words) {
+        သုံးသပ်ချက်အရ(g_wm_total[cur_id] == 0) {
+            ရပ်
+        }
+        တည်ဆောက် ကိန်း r = rand() % g_wm_total[cur_id]
+        တည်ဆောက် ကိန်း cum = 0
+        တည်ဆောက် ကိန်း chosen = -1
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < g_wm_next_n[cur_id]) {
+            cum = cum + g_wm_next_counts[cur_id * 64 + j]
+            သုံးသပ်ချက်အရ(cum > r) {
+                chosen = g_wm_next_ids[cur_id * 64 + j]
+                ရပ်
+            }
+            j = j + 1
+        }
+        သုံးသပ်ချက်အရ(chosen < 0) {
+            ရပ်
+        }
+        cur_id = chosen
+        mmc_print(" ")
+        တည်ဆောက် ကိန်း wlen = g_word_len[cur_id]
+        တည်ဆောက် ကိန်း wstart = g_word_start[cur_id]
+        တည်ဆောက် ကိန်း wj = 0
+        ပြည့်အောင်(wj < wlen) {
+            putchar(g_word_chars[wstart + wj])
+            wj = wj + 1
+        }
+        n = n + 1
+    }
+    mmc_println("")
+    ပြန်ပေး 0
+}
