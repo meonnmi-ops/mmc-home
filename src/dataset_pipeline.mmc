@@ -1,0 +1,85 @@
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း size, ကိန်း nmemb, အစု stream)
+extern "C" ကိန်း fseek(အစု stream, ကိန်း offset, ကိန်း whence)
+extern "C" ကိန်း ftell(အစု stream)
+extern "C" void fclose(အစု stream)
+extern "C" void* malloc(ကိန်း size)
+extern "C" void free(အစု ptr)
+extern "C" ကိန်း json_extract_text(အစု line_ptr, ကိန်း len, စာသား out_buf, ကိန်း cap)
+
+
+
+လုပ်ငန်း pipe_zg_is(အစု text_ptr, ကိန်း len) ကိန်း {
+    သုံးသပ်ချက်အရ(text_ptr == 0 သို့မဟုတ် len < 9) { ပြန်ပေး 0 }
+    တည်ဆောက် စာသား p = text_ptr
+    တည်ဆောက် ကိန်း virama = 0
+    တည်ဆောက် ကိန်း myan = 0
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i + 2 < len) {
+        သုံးသပ်ချက်အရ((p[i] ♩ 255) == 225 နှင့် (p[i+1] ♩ 255) == 128) {
+            myan = myan + 1
+            သုံးသပ်ချက်အရ((p[i+2] ♩ 255) == 185) { virama = virama + 1 }
+        }
+        i = i + 1
+    }
+    သုံးသပ်ချက်အရ(myan < 10) { ပြန်ပေး 0 }
+    သုံးသပ်ချက်အရ(virama * 1000 / myan >= 100) { ပြန်ပေး 1 }
+    ပြန်ပေး 0
+}
+
+// stats[0]=lines  [1]=texts  [2]=total_chars  [3]=zg_reject  [4]=accepted
+လုပ်ငန်း mmc_analyze_jsonl(စာသား in_path, ကိန်း max_lines, ကိန်း max_bytes, အစု stats_out) ကိန်း {
+    သုံးသပ်ချက်အရ(stats_out == 0) { ပြန်ပေး -1 }
+    တည်ဆောက် ကိန်း* st = stats_out
+    st[0] = 0
+    st[1] = 0
+    st[2] = 0
+    st[3] = 0
+    st[4] = 0
+
+    တည်ဆောက် အစု f = fopen(in_path, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { ပြန်ပေး -2 }
+    fseek(f, 0, 2)
+    တည်ဆောက် ကိန်း sz = ftell(f)
+    သုံးသပ်ချက်အရ(sz <= 0) {
+        fclose(f)
+        ပြန်ပေး -3
+    }
+    သုံးသပ်ချက်အရ(sz > max_bytes) { sz = max_bytes }
+    fseek(f, 0, 0)
+    တည်ဆောက် အစု bp = malloc(sz + 1)
+    သုံးသပ်ချက်အရ(bp == 0) {
+        fclose(f)
+        ပြန်ပေး -4
+    }
+    fread(bp, 1, sz, f)
+    fclose(f)
+    တည်ဆောက် စာသား p = bp
+    p[sz] = 0
+
+    တည်ဆောက် ကိန်း pos = 0
+    ပြည့်အောင်(pos < sz နှင့် st[0] < max_lines) {
+        တည်ဆောက် ကိန်း e = pos
+        ပြည့်အောင်(e < sz နှင့် p[e] != 10) { e = e + 1 }
+        တည်ဆောက် ကိန်း ln = e - pos
+        သုံးသပ်ချက်အရ(ln > 0) {
+            တည်ဆောက် စာသား tbuf = malloc(65536)
+            သုံးသပ်ချက်အရ(tbuf == 0) { ရပ် }
+            တည်ဆောက် ကိန်း tl = json_extract_text(p + pos, ln, tbuf, 65536)
+            သုံးသပ်ချက်အရ(tl >= 20) {
+                st[1] = st[1] + 1
+                st[2] = st[2] + tl
+                သုံးသပ်ချက်အရ(pipe_zg_is(tbuf, tl) == 0) {
+                    st[4] = st[4] + 1
+                } မဟုတ်လျှင် {
+                    st[3] = st[3] + 1
+                }
+            }
+            free(tbuf)
+        }
+        pos = e + 1
+        st[0] = st[0] + 1
+    }
+    free(bp)
+    ပြန်ပေး 0
+}
