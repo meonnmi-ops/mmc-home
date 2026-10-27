@@ -4,3 +4,6 @@ build/
 *.a
 *.tmp
 .DS_Store
+out/
+*.bak
+*.mmc.bak
