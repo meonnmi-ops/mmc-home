@@ -1,0 +1,56 @@
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း size, ကိန်း nmemb, အစု stream)
+extern "C" ကိန်း fseek(အစု stream, ကိန်း offset, ကိန်း whence)
+extern "C" ကိန်း ftell(အစု stream)
+extern "C" void fclose(အစု stream)
+
+လုပ်ငန်း mmc_file_read(စာသား path, အစု size_ptr) အစု {
+    တည်ဆောက် အစု f = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { ပြန်ပေး 0 }
+    fseek(f, 0, 2)
+    တည်ဆောက် ကိန်း sz = ftell(f)
+    သုံးသပ်ချက်အရ(sz <= 0) {
+        fclose(f)
+        ပြန်ပေး 0
+    }
+    fseek(f, 0, 0)
+    တည်ဆောက် အစု buf = malloc(sz + 1)
+    သုံးသပ်ချက်အရ(buf == 0) {
+        fclose(f)
+        ပြန်ပေး 0
+    }
+    fread(buf, 1, sz, f)
+    fclose(f)
+    တည်ဆောက် စာသား p = buf
+    p[sz] = 0
+    တည်ဆောက် ကိန်း* sp = size_ptr
+    sp[0] = sz
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း mmc_json_text(အစု line_ptr, ကိန်း len, အစု out_len) စာသား {
+    တည်ဆောက် စာသား s = line_ptr
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i + 7 < len) {
+        သုံးသပ်ချက်အရ(s[i] == 34 နှင့် s[i+1] == 116 နှင့် s[i+2] == 101 နှင့် s[i+3] == 120 နှင့် s[i+4] == 116 နှင့် s[i+5] == 34) {
+            တည်ဆောက် ကိန်း j = i + 6
+            ပြည့်အောင်(j < len နှင့် s[j] != 58) { j = j + 1 }
+            သုံးသပ်ချက်အရ(j >= len) { ပြန်ပေး 0 }
+            j = j + 1
+            ပြည့်အောင်(j < len နှင့် s[j] != 34) { j = j + 1 }
+            သုံးသပ်ချက်အရ(j >= len) { ပြန်ပေး 0 }
+            j = j + 1
+            တည်ဆောက် ကိန်း vs = j
+            ပြည့်အောင်(j < len) {
+                သုံးသပ်ချက်အရ(s[j] == 92) { j = j + 2 }
+                မဟုတ်လျှင် သုံးသပ်ချက်အရ(s[j] == 34) { ရပ် }
+                မဟုတ်လျှင် { j = j + 1 }
+            }
+            တည်ဆောက် ကိန်း* op = out_len
+            op[0] = j - vs
+            ပြန်ပေး s + vs
+        }
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}

@@ -1,0 +1,60 @@
+// JSONL → decode → BPE encode → .bin (uint16)
+// mmc_bpe_encode(buf, text, tlen, ids_ptr, max_ids) → int
+
+extern "C" အစု malloc(ကိန်း size)
+extern "C" void free(အစု ptr)
+extern "C" အစု fopen(စာသား path, စာသား mode)
+extern "C" void fclose(အစု fp)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု fp)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု fp)
+extern "C" ကိန်း json_extract_text(အစု lp, ကိန်း len, စာသား ob, ကိန်း cap)
+extern "C" ကိန်း mmc_bpe_encode(အစု buf, စာသား text, ကိန်း tlen, အစု ids_ptr, ကိန်း max_ids)
+extern "C" ကိန်း printf(စာသား fmt, ကိန်း a, ကိန်း b, ကိန်း c)
+
+လုပ်ငန်း main() ကိန်း {
+    တည်ဆောက် ကိန်း MAX_LINES = 100
+    တည်ဆောက် ကိန်း BUF_SIZE  = 1048576
+    တည်ဆောက် ကိန်း TEXT_CAP  = 65536
+    တည်ဆောက် ကိန်း TOKEN_CAP = 32768
+
+    တည်ဆောက် အစု fin  = fopen("/data/data/com.termux/files/home/mm_output/train.jsonl", "rb")
+    တည်ဆောက် အစု fout = fopen("/data/data/com.termux/files/home/mmc_publish/out/train.bin", "wb")
+    သုံးသပ်ချက်အရ(fin == 0) { ပြန်ပေး 1 }
+    သုံးသပ်ချက်အရ(fout == 0) { ပြန်ပေး 2 }
+
+    တည်ဆောက် စာသား lbuf  = malloc(BUF_SIZE)
+    တည်ဆောက် စာသား tbuf  = malloc(TEXT_CAP)
+    တည်ဆောက် အစု   ibuf  = malloc(TOKEN_CAP * 2)
+
+    တည်ဆောက် ကိန်း nread = fread(lbuf, 1, BUF_SIZE, fin)
+    တည်ဆောက် ကိန်း pos   = 0
+    တည်ဆောက် ကိန်း lines = 0
+    တည်ဆောက် ကိန်း total = 0
+
+    ပြည့်အောင်(lines < MAX_LINES) {
+        သုံးသပ်ချက်အရ(pos >= nread) { ရပ် }
+        တည်ဆောက် ကိန်း nl = pos
+        ပြည့်အောင်(nl < nread) {
+            သုံးသပ်ချက်အရ(lbuf[nl] == 10) { ရပ် }
+            nl = nl + 1
+        }
+        တည်ဆောက် ကိန်း ln = nl - pos
+        သုံးသပ်ချက်အရ(ln > 10) {
+            တည်ဆောက် ကိန်း tl = json_extract_text(lbuf + pos, ln, tbuf, TEXT_CAP)
+            သုံးသပ်ချက်အရ(tl >= 20) {
+                တည်ဆောက် ကိန်း tc = mmc_bpe_encode(0, tbuf, tl, ibuf, TOKEN_CAP)
+                သုံးသပ်ချက်အရ(tc > 0) {
+                    fwrite(ibuf, 2, tc, fout)
+                    total = total + tc
+                }
+            }
+        }
+        pos = nl + 1
+        lines = lines + 1
+    }
+
+    printf("lines=%d total_tokens=%d\n", lines, total, 0)
+    fclose(fin)
+    fclose(fout)
+    ပြန်ပေး 0
+}

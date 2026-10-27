@@ -1,0 +1,31 @@
+// U+1039 (virama) = E1 80 B9
+// density = virama_count * 1000 / myanmar_char_count
+// < 5 → Unicode (သို့) mixed
+// >= 5 → Zawgyi
+
+လုပ်ငန်း mmc_zawgyi_detect(အစု text_ptr, ကိန်း len) ကိန်း {
+    သုံးသပ်ချက်အရ(text_ptr == 0 သို့မဟုတ် len < 9) { ပြန်ပေး -1 }
+    တည်ဆောက် စာသား p = text_ptr
+    တည်ဆောက် ကိန်း virama = 0
+    တည်ဆောက် ကိန်း myan = 0
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i + 2 < len) {
+        သုံးသပ်ချက်အရ((p[i] ♩ 255) == 225 နှင့် (p[i+1] ♩ 255) == 128) {
+            myan = myan + 1
+            သုံးသပ်ချက်အရ((p[i+2] ♩ 255) == 185) {
+                virama = virama + 1
+            }
+        }
+        i = i + 1
+    }
+    သုံးသပ်ချက်အရ(myan < 10) { ပြန်ပေး -2 }
+    // density × 1000
+    ပြန်ပေး virama * 1000 / myan
+}
+
+လုပ်ငန်း mmc_zawgyi_is_zg(အစု text_ptr, ကိန်း len) ကိန်း {
+    တည်ဆောက် ကိန်း d = mmc_zawgyi_detect(text_ptr, len)
+    သုံးသပ်ချက်အရ(d < 0) { ပြန်ပေး 0 }
+    သုံးသပ်ချက်အရ(d >= 100) { ပြန်ပေး 1 }
+    ပြန်ပေး 0
+}
