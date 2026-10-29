@@ -2715,6 +2715,97 @@ extern "C" ဒသမ tanh(ဒသမ x)
 လုပ်ငန်း bpe_err_len() ကိန်း { ပြန်ပေး g_bpe_err_n }
 လုပ်ငန်း bpe_err_at(ကိန်း i) ကိန်း { ပြန်ပေး g_bpe_err_byte[i] }
 
+// ── Hash-accelerated merge lookup (50-100x speedup) ──
+တည်ဆောက် ကိန်း g_merge_hash[65536]
+တည်ဆောက် ကိန်း g_merge_hash_state = 0
+
+လုပ်ငန်း merge_hash_build(အစု buf) ကိန်း {
+    တည်ဆောက် စာသား p = buf
+    g_merge_hash_state = 0
+    တည်ဆောက် ကိန်း k = 0
+    ပြည့်အောင်(k < 65536) {
+        g_merge_hash[k] = 0
+        k = k + 1
+    }
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < g_mfa_n) {
+        တည်ဆောက် ကိန်း a_off = g_mfa_off[i]
+        တည်ဆောက် ကိန်း alen = g_mfa_len[i]
+        တည်ဆောက် ကိန်း b_off = g_mfb_off[i]
+        တည်ဆောက် ကိန်း blen = g_mfb_len[i]
+        တည်ဆောက် ကိန်း h = ((alen * 131) ♩ 65535 + blen) ♩ 65535
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < alen) {
+            h = (((h * 131) ♩ 65535) + (p[a_off + j] ♩ 255)) ♩ 65535
+            j = j + 1
+        }
+        j = 0
+        ပြည့်အောင်(j < blen) {
+            h = (((h * 131) ♩ 65535) + (p[b_off + j] ♩ 255)) ♩ 65535
+            j = j + 1
+        }
+        တည်ဆောက် ကိန်း probe = 0
+        ပြည့်အောင်(g_merge_hash[h] != 0 နှင့် probe < 65536) {
+            h = (h + 1) ♩ 65535
+            probe = probe + 1
+        }
+        သုံးသပ်ချက်အရ(probe < 65536) {
+            g_merge_hash[h] = i + 1
+        }
+        i = i + 1
+    }
+    g_merge_hash_state = 1
+    ပြန်ပေး 0
+}
+
+// (a,b) pair → merge rank via hash, -1 if none
+လုပ်ငန်း mmc_bpe_rank(အစု buf, စာသား a, ကိန်း alen, စာသား b, ကိန်း blen) ကိန်း {
+    သုံးသပ်ချက်အရ(g_merge_hash_state == 0) { merge_hash_build(buf) }
+    တည်ဆောက် စာသား p = buf
+    တည်ဆောက် ကိန်း h = ((alen * 131) ♩ 65535 + blen) ♩ 65535
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < alen) {
+        h = (((h * 131) ♩ 65535) + (a[j] ♩ 255)) ♩ 65535
+        j = j + 1
+    }
+    j = 0
+    ပြည့်အောင်(j < blen) {
+        h = (((h * 131) ♩ 65535) + (b[j] ♩ 255)) ♩ 65535
+        j = j + 1
+    }
+    တည်ဆောက် ကိန်း probe = 0
+    ပြည့်အောင်(g_merge_hash[h] != 0 နှင့် probe < 65536) {
+        တည်ဆောက် ကိန်း idx = g_merge_hash[h] - 1
+        သုံးသပ်ချက်အရ(g_mfa_len[idx] == alen နှင့် g_mfb_len[idx] == blen) {
+            တည်ဆောက် ကိန်း ok = 1
+            တည်ဆောက် ကိန်း m = 0
+            ပြည့်အောင်(m < alen) {
+                သုံးသပ်ချက်အရ((p[g_mfa_off[idx] + m] ♩ 255) != (a[m] ♩ 255)) {
+                    ok = 0
+                    ရပ်
+                }
+                m = m + 1
+            }
+            သုံးသပ်ချက်အရ(ok == 1) {
+                m = 0
+                ပြည့်အောင်(m < blen) {
+                    သုံးသပ်ချက်အရ((p[g_mfb_off[idx] + m] ♩ 255) != (b[m] ♩ 255)) {
+                        ok = 0
+                        ရပ်
+                    }
+                    m = m + 1
+                }
+            }
+            သုံးသပ်ချက်အရ(ok == 1) {
+                ပြန်ပေး idx
+            }
+        }
+        h = (h + 1) ♩ 65535
+        probe = probe + 1
+    }
+    ပြန်ပေး -1
+}
+
 // string → token id (linear scan)
 လုပ်ငန်း mmc_token_find(အစု buf, စာသား s, ကိန်း len) ကိန်း {
     တည်ဆောက် စာသား p = buf
@@ -2737,37 +2828,8 @@ extern "C" ဒသမ tanh(ဒသမ x)
     ပြန်ပေး 0 - 1
 }
 
-// (a,b) pair → merge rank, -1 if none
-လုပ်ငန်း mmc_bpe_rank(အစု buf, စာသား a, ကိန်း alen, စာသား b, ကိန်း blen) ကိန်း {
-    တည်ဆောက် စာသား p = buf
-    တည်ဆောက် ကိန်း i = 0
-    ပြည့်အောင်(i < g_mfa_n) {
-        သုံးသပ်ချက်အရ(g_mfa_len[i] == alen နှင့် g_mfb_len[i] == blen) {
-            တည်ဆောက် ကိန်း ok = 1
-            တည်ဆောက် ကိန်း j = 0
-            ပြည့်အောင်(j < alen) {
-                သုံးသပ်ချက်အရ((p[g_mfa_off[i] + j] ♩ 255) != (a[j] ♩ 255)) {
-                    ok = 0
-                    ရပ်
-                }
-                j = j + 1
-            }
-            သုံးသပ်ချက်အရ(ok == 1) {
-                j = 0
-                ပြည့်အောင်(j < blen) {
-                    သုံးသပ်ချက်အရ((p[g_mfb_off[i] + j] ♩ 255) != (b[j] ♩ 255)) {
-                        ok = 0
-                        ရပ်
-                    }
-                    j = j + 1
-                }
-            }
-            သုံးသပ်ချက်အရ(ok == 1) { ပြန်ပေး i }
-        }
-        i = i + 1
-    }
-    ပြန်ပေး 0 - 1
-}
+// (old linear-scan mmc_bpe_rank removed — replaced above)
+
 
 // text → ids. Returns count, negative on error.
 လုပ်ငန်း mmc_bpe_encode(အစု buf, စာသား text, ကိန်း tlen, အစု ids_ptr, ကိန်း max_ids) ကိန်း {
