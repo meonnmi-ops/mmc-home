@@ -7,8 +7,8 @@ extern int mmc_bpe_encode(void*, char*, int, void*, int);
 extern int mmc_gguf_parse_tensors(void*, int);
 extern int mmc_gguf_parse_tokenizer(void*, int);
 
-#define TEXT_CAP  8192
-#define TOKEN_CAP 4096
+#define TEXT_CAP  131072
+#define TOKEN_CAP 32768
 
 int main(int argc, char** argv) {
     if (argc < 3) {
@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
     FILE* fout = fopen(argv[2], "wb");
     if (!fout) { perror("out"); return 1; }
 
-    char lbuf[32768], tbuf[TEXT_CAP];
+    char lbuf[262144], tbuf[TEXT_CAP];
     unsigned short ibuf[TOKEN_CAP];
     int lines = 0, total = 0, enc_fail = 0;
 
@@ -45,7 +45,16 @@ int main(int argc, char** argv) {
         int tl = json_extract_text(lbuf, ln, tbuf, TEXT_CAP);
         if (tl < 20) continue;
         int tc = mmc_bpe_encode(buf, tbuf, tl, ibuf, TOKEN_CAP);
-        if (tc <= 0) { enc_fail++; continue; }
+        if (tc <= 0) {
+            enc_fail++;
+            /* Debug: log first 5 failures */
+            if (enc_fail <= 5) {
+                int ll = (int)strlen(lbuf);
+                fprintf(stderr, "FAIL[%d] code=%d lbuflen=%d head=%.80s\n",
+                        enc_fail, tc, ll, lbuf);
+            }
+            continue;
+        }
         fwrite(ibuf, 2, tc, fout);
         total += tc;
         lines++; if (lines % 1000 == 0) fprintf(stderr, "progress: %d lines, %d tokens\n", lines, total);
