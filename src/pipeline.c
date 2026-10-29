@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         if (tc <= 0) { enc_fail++; continue; }
         fwrite(ibuf, 2, tc, fout);
         total += tc;
-        lines++;
+        lines++; if (lines % 1000 == 0) fprintf(stderr, "progress: %d lines, %d tokens\n", lines, total);
     }
     fclose(fout);
     fprintf(stderr, "lines=%d total_tokens=%d enc_fail=%d\n", lines, total, enc_fail);
