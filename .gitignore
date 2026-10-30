@@ -7,3 +7,11 @@ build/
 out/
 *.bak
 *.mmc.bak
+mmc_v14
+test_v14/
+src/chat.c
+build/chat_v14
+build/chat_v14.c
+*.o
+*.bak_*
+tmp/

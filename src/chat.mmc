@@ -24,6 +24,35 @@ extern "C" ကိန်း mmc_load_binary_size()
 extern "C" အစု mmc_malloc(ကိန်း n)
 extern "C" void mmc_free(အစု p)
 
+// === Rule-based Q&A for common questions ===
+လုပ်ငန်း try_rule(စာသား input) ကိန်း {
+    သုံးသပ်ချက်အရ(strcmp(input, "hello") == 0 သို့မဟုတ် strcmp(input, "Hello") == 0 သို့မဟုတ် strcmp(input, "hi") == 0) {
+        printf("Nyanlin: မင်္ဂလာပါ။ ဘာကူညီပေးရမလဲ?\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "မင်္ဂလာပါ") == 0) {
+        printf("Nyanlin: မင်္ဂလာပါ။ ကျွန်တော် နျန်လင်း ပါ။\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "နာမည်ဘယ်သူလဲ") == 0 သို့မဟုတ် strcmp(input, "Who are you?") == 0) {
+        printf("Nyanlin: ကျွန်တော့်နာမည် နျန်လင်း ပါ။ 100%% Pure MMC AI ပါ။\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "ဘာလုပ်နိုင်လဲ") == 0) {
+        printf("Nyanlin: ကျွန်တော် မြန်မာစာ ဆက်ရေးနိုင်တယ်၊ မေးခွန်းတွေ ဖြေနိုင်တယ်။\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "thanks") == 0 သို့မဟုတ် strcmp(input, "ကျေးဇူးတင်ပါတယ်") == 0) {
+        printf("Nyanlin: ရပါတယ်။ နောက်ထပ် မေးချင်တာ ရှိရင် မေးပါ။\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "bye") == 0 သို့မဟုတ် strcmp(input, "Goodbye") == 0) {
+        printf("Nyanlin: တာ့တာ။ နောက်မှ တွေ့ကြရအောင်။\n\n")
+        ပြန်ပေး 1
+    }
+    ပြန်ပေး 0
+}
+
 လုပ်ငန်း main() {
     သုံးသပ်ချက်အရ(mmc_array_size(knowledge_base) < 2) {
         printf("Usage: %s model.gguf\n", "chat")
@@ -82,11 +111,12 @@ extern "C" void mmc_free(အစု p)
         
         သုံးသပ်ချက်အရ(strcmp(input, "exit") == 0) { ရပ် }
         သုံးသပ်ချက်အရ(mmc_string_length(input) == 0) { ဆက်လုပ် }
+        သုံးသပ်ချက်အရ(try_rule(input) == 1) { ဆက်လုပ် }
 
-        snprintf(prompt, 4200, "<user> %s\n<nyanlin>", input)
+        snprintf(prompt, 4200, "မေး: မင်္ဂလာပါ\nဖြေ: မင်္ဂလာပါ။ ဘာကူညီပေးရမလဲ?\n\nမေး: နာမည်ဘယ်သူလဲ\nဖြေ: ကျွန်တော့်နာမည် နျန်လင်း ပါ။\n\nမေး: %s\nဖြေ:", input)
         out[0] = 0
 
-        mmc_generate(buf, ds, D, D_FF, NL, NH, vocab, ong, onb, lmo, lmt, MAXS, tok_o, pos_o, prompt, mmc_string_length(prompt), 100, 2, out, 4096, kc, vc, logits)
+        mmc_generate(buf, ds, D, D_FF, NL, NH, vocab, ong, onb, lmo, lmt, MAXS, tok_o, pos_o, prompt, mmc_string_length(prompt), 40, 2, out, 4096, kc, vc, logits)
 
         printf("Nyanlin: %s\n\n", out)
     }
