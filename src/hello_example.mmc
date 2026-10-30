@@ -1,0 +1,7 @@
+extern "C" ကိန်း printf(စာသား fmt, ...)
+
+လုပ်ငန်း main() {
+    printf("Hello from MMC v14\n")
+    printf("Compiler works!\n")
+    printf("Syntax: လုပ်ငန်း + printf + no semicolon\n")
+}
