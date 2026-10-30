@@ -1,0 +1,100 @@
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" char* fgets(စာသား str, ကိန်း size, void* stream)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" ကိန်း fflush(အစု stream)
+extern "C" ကိန်း strcmp(စာသား s1, စာသား s2)
+extern "C" ကိန်း snprintf(စာသား str, ကိန်း size, စာသား fmt, ...)
+extern "C" ကိန်း mmc_string_length(စာသား s)
+extern "C" ကိန်း mmc_array_size(အစု arr)
+extern "C" အစု mmc_array_get(အစု arr, ကိန်း idx)
+
+extern "C" ကိန်း mmc_gguf_parse_tensors(အစု buf, ကိန်း size)
+extern "C" ကိန်း mmc_gguf_parse_tokenizer(အစု buf, ကိန်း size)
+extern "C" ကိန်း gguf_data_start()
+extern "C" ကိန်း gguf_tensor_offset(ကိန်း i)
+extern "C" ကိန်း gguf_tensor_type(ကိန်း i)
+extern "C" ကိန်း gguf_tensor_dim(ကိန်း i, ကိန်း d)
+extern "C" ကိန်း sampling_set(ဒသမ t, ကိန်း k, ကိန်း seed)
+extern "C" ကိန်း decode_set(ဒသမ rep, ကိန်း norep)
+extern "C" ကိန်း stop_set(စာသား s)
+extern "C" ကိန်း mmc_generate(အစု buf, ကိန်း ds, ကိန်း d, ကိန်း d_ff, ကိန်း n_layers, ကိန်း n_heads, ကိန်း vocab, ကိန်း ong, ကိန်း onb, ကိန်း lm_head, ကိန်း lm_type, ကိန်း max_seq, ကိန်း tok_off, ကိန်း pos_off, စာသား prompt, ကိန်း prompt_len, ကိန်း max_new, ကိန်း eos_id, အစု out_ptr, ကိန်း out_cap, အစု kc_ptr, အစု vc_ptr, အစု logits_ptr)
+extern "C" အစု mmc_load_binary(စာသား path)
+extern "C" ကိန်း mmc_load_binary_size()
+extern "C" အစု mmc_malloc(ကိန်း n)
+extern "C" void mmc_free(အစု p)
+
+လုပ်ငန်း main() {
+    သုံးသပ်ချက်အရ(mmc_array_size(knowledge_base) < 2) {
+        printf("Usage: %s model.gguf\n", "chat")
+        ပြန်ပေး 1
+    }
+    
+    တည်ဆောက် စာသား path = mmc_array_get(knowledge_base, 1)
+    တည်ဆောက် အစု buf = mmc_load_binary(path)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 1 }
+    တည်ဆောက် ကိန်း sz = mmc_load_binary_size()
+
+    mmc_gguf_parse_tensors(buf, sz)
+    mmc_gguf_parse_tokenizer(buf, sz)
+    တည်ဆောက် ကိန်း ds = gguf_data_start()
+
+    တည်ဆောက် ကိန်း tok_o = gguf_tensor_offset(4)
+    တည်ဆောက် ကိန်း pos_o = gguf_tensor_offset(3)
+    တည်ဆောက် ကိန်း onb = gguf_tensor_offset(1)
+    တည်ဆောက် ကိန်း ong = gguf_tensor_offset(2)
+    တည်ဆောက် ကိန်း lmo = gguf_tensor_offset(0)
+    တည်ဆောက် ကိန်း lmt = gguf_tensor_type(0)
+    တည်ဆောက် ကိန်း vocab = gguf_tensor_dim(4, 1)
+
+    တည်ဆောက် ကိန်း D = 1024
+    တည်ဆောက် ကိန်း D_FF = 4096
+    တည်ဆောက် ကိန်း NL = 24
+    တည်ဆောက် ကိန်း NH = 16
+    တည်ဆောက် ကိန်း MAXS = 128
+
+    တည်ဆောက် အစု kc = mmc_malloc(NL * MAXS * D * 8)
+    တည်ဆောက် အစု vc = mmc_malloc(NL * MAXS * D * 8)
+    တည်ဆောက် အစု logits = mmc_malloc(vocab * 8)
+
+    sampling_set(1.0, 1, 42)
+    decode_set(1.15, 6)
+    stop_set("\n")
+
+    printf("\n╔════════════════════════════════════════════╗\n")
+    printf("║  Nyanlin Chat — 100%% Pure MMC              ║\n")
+    printf("║  Type 'exit' to stop.                      ║\n")
+    printf("╚════════════════════════════════════════════╝\n\n")
+
+    တည်ဆောက် စာသား input = mmc_malloc(4096)
+    တည်ဆောက် စာသား prompt = mmc_malloc(4200)
+    တည်ဆောက် စာသား out = mmc_malloc(4096)
+
+    ပြည့်အောင်(1) {
+        printf("You: ")
+        fflush(0)
+        သုံးသပ်ချက်အရ(fgets(input, 4096, 0) == 0) { ရပ် }
+        
+        တည်ဆောက် ကိန်း ln = mmc_string_length(input)
+        သုံးသပ်ချက်အရ(ln > 0) {
+            သုံးသပ်ချက်အရ(input[ln-1] == 10) { input[ln-1] = 0 }
+        }
+        
+        သုံးသပ်ချက်အရ(strcmp(input, "exit") == 0) { ရပ် }
+        သုံးသပ်ချက်အရ(mmc_string_length(input) == 0) { ဆက် }
+
+        snprintf(prompt, 4200, "<user> %s\n<nyanlin>", input)
+        out[0] = 0
+
+        mmc_generate(buf, ds, D, D_FF, NL, NH, vocab, ong, onb, lmo, lmt, MAXS, tok_o, pos_o, prompt, mmc_string_length(prompt), 100, 2, out, 4096, kc, vc, logits)
+
+        printf("Nyanlin: %s\n\n", out)
+    }
+
+    mmc_free(kc)
+    mmc_free(vc)
+    mmc_free(logits)
+    mmc_free(input)
+    mmc_free(prompt)
+    mmc_free(out)
+    ပြန်ပေး 0
+}
