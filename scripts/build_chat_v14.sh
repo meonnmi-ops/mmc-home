@@ -14,6 +14,7 @@ echo ""
 echo "[2/3] Patching headers..."
 sed -i '/#include "runtime_glue.h"/d' build/chat_v14.c
 sed -i '/#include "runtime_v5.h"/a #include "chat_decls.h"' build/chat_v14.c
+sed -i "s/fgets(input, 4096, 0)/fgets(input, 4096, stdin)/" build/chat_v14.c
 
 # Step 3: Compile + link
 echo ""
