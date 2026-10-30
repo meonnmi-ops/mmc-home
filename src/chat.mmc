@@ -1,6 +1,7 @@
 extern "C" void* fopen(စာသား path, စာသား mode)
 extern "C" char* fgets(စာသား str, ကိန်း size, void* stream)
 extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* stdin
 extern "C" ကိန်း fflush(အစု stream)
 extern "C" ကိန်း strcmp(စာသား s1, စာသား s2)
 extern "C" ကိန်း snprintf(စာသား str, ကိန်း size, စာသား fmt, ...)
@@ -72,7 +73,7 @@ extern "C" void mmc_free(အစု p)
     ပြည့်အောင်(1) {
         printf("You: ")
         fflush(0)
-        သုံးသပ်ချက်အရ(fgets(input, 4096, 0) == 0) { ရပ် }
+        သုံးသပ်ချက်အရ(fgets(input, 4096, stdin) == 0) { ရပ် }
         
         တည်ဆောက် ကိန်း ln = mmc_string_length(input)
         သုံးသပ်ချက်အရ(ln > 0) {
