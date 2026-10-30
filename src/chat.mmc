@@ -25,31 +25,70 @@ extern "C" အစု mmc_malloc(ကိန်း n)
 extern "C" void mmc_free(အစု p)
 
 // === Rule-based Q&A for common questions ===
+// === Rule-based Q&A for common questions ===
 လုပ်ငန်း try_rule(စာသား input) ကိန်း {
+    // ── Greetings ──
     သုံးသပ်ချက်အရ(strcmp(input, "hello") == 0 သို့မဟုတ် strcmp(input, "Hello") == 0 သို့မဟုတ် strcmp(input, "hi") == 0) {
         printf("Nyanlin: မင်္ဂလာပါ။ ဘာကူညီပေးရမလဲ?\n\n")
         ပြန်ပေး 1
     }
     သုံးသပ်ချက်အရ(strcmp(input, "မင်္ဂလာပါ") == 0) {
-        printf("Nyanlin: မင်္ဂလာပါ။ ကျွန်တော် နျန်လင်း ပါ။\n\n")
+        printf("Nyanlin: မင်္ဂလာပါ။ ကျွန်တော် ဉာဏ်လင်း ပါ။\n\n")
         ပြန်ပေး 1
     }
-    သုံးသပ်ချက်အရ(strcmp(input, "နာမည်ဘယ်သူလဲ") == 0 သို့မဟုတ် strcmp(input, "Who are you?") == 0) {
-        printf("Nyanlin: ကျွန်တော့်နာမည် နျန်လင်း ပါ။ 100%% Pure MMC AI ပါ။\n\n")
+    သုံးသပ်ချက်အရ(strcmp(input, "good morning") == 0 သို့မဟုတ် strcmp(input, "မင်္ဂလာနံနက်ခင်း") == 0) {
+        printf("Nyanlin: နံနက်ခင်း မင်္ဂလာပါ။ ဒီနေ့ ဘာလုပ်ဖို့ ရှိလဲ?\n\n")
         ပြန်ပေး 1
     }
-    သုံးသပ်ချက်အရ(strcmp(input, "ဘာလုပ်နိုင်လဲ") == 0) {
-        printf("Nyanlin: ကျွန်တော် မြန်မာစာ ဆက်ရေးနိုင်တယ်၊ မေးခွန်းတွေ ဖြေနိုင်တယ်။\n\n")
+    သုံးသပ်ချက်အရ(strcmp(input, "good night") == 0 သို့မဟုတ် strcmp(input, "ညံ့သော") == 0) {
+        printf("Nyanlin: အိပ်ရေးဝဝ အိပ်ပါ။ မနက်ဖန် တွေ့မယ်။\n\n")
         ပြန်ပေး 1
     }
+
+    // ── Identity ──
+    သုံးသပ်ချက်အရ(strcmp(input, "နာမည်ဘယ်သူလဲ") == 0 သို့မဟုတ် strcmp(input, "Who are you?") == 0 သို့မဟုတ် strcmp(input, "ဘယ်သူလဲ") == 0) {
+        printf("Nyanlin: ကျွန်တော့်နာမည် ဉာဏ်လင်း ပါ။ 100%% Pure MMC AI ပါ။\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "ဘာလုပ်နိုင်လဲ") == 0 သို့မဟုတ် strcmp(input, "what can you do?") == 0) {
+        printf("Nyanlin: ကျွန်တော် မြန်မာစာ ဆက်ရေးနိုင်တယ်၊ မေးခွန်းတွေ ဖြေနိုင်တယ်၊ စကားပြောနိုင်တယ်။\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "အသက်ဘယ်လောက်လဲ") == 0 သို့မဟုတ် strcmp(input, "how old are you?") == 0) {
+        printf("Nyanlin: ကျွန်တော်က AI ပါ။ အသက် ဆိုတာ မရှိဘူး။ ဒါပေမယ့် 2026 မှာ ဖန်တီးခဲ့တယ်။\n\n")
+        ပြန်ပေး 1
+    }
+
+    // ── MMC / Technical ──
+    သုံးသပ်ချက်အရ(strcmp(input, "MMC ဆိုတာ ဘာလဲ") == 0 သို့မဟုတ် strcmp(input, "what is MMC?") == 0) {
+        printf("Nyanlin: MMC (Myanmar Programming Language) က မြန်မာစာနဲ့ ရေးတဲ့ programming language ပါ။\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "v14 ဆိုတာ") == 0 သို့မဟုတ် strcmp(input, "v14") == 0) {
+        printf("Nyanlin: v14 က MMC compiler ရဲ့ နောက်ဆုံး version ပါ။ သူ့ကို v13 ကနေ ဆက်ခံထားတယ်။\n\n")
+        ပြန်ပေး 1
+    }
+    သုံးသပ်ချက်အရ(strcmp(input, "ဘယ်လို ရေးထားလဲ") == 0 သို့မဟုတ် strcmp(input, "how are you built?") == 0) {
+        printf("Nyanlin: ကျွန်တော်ကို 100%% Pure MMC နဲ့ ရေးထားတယ်။ Python မပါ၊ C မပါ။\n\n")
+        ပြန်ပေး 1
+    }
+
+    // ── Country / General ──
+    သုံးသပ်ချက်အရ(strcmp(input, "မြန်မာနိုင်ငံ") == 0 သို့မဟုတ် strcmp(input, "Myanmar") == 0) {
+        printf("Nyanlin: မြန်မာနိုင်ငံ က အရှေ့တောင်အာရှ မှာ ရှိတဲ့ နိုင်ငံ ပါ။ မြို့တော် က နေပြည်တော် ။\n\n")
+        ပြန်ပေး 1
+    }
+
+    // ── Politeness ──
     သုံးသပ်ချက်အရ(strcmp(input, "thanks") == 0 သို့မဟုတ် strcmp(input, "ကျေးဇူးတင်ပါတယ်") == 0) {
         printf("Nyanlin: ရပါတယ်။ နောက်ထပ် မေးချင်တာ ရှိရင် မေးပါ။\n\n")
         ပြန်ပေး 1
     }
-    သုံးသပ်ချက်အရ(strcmp(input, "bye") == 0 သို့မဟုတ် strcmp(input, "Goodbye") == 0) {
+    သုံးသပ်ချက်အရ(strcmp(input, "bye") == 0 သို့မဟုတ် strcmp(input, "Goodbye") == 0 သို့မဟုတ် strcmp(input, "တာ့တာ") == 0) {
         printf("Nyanlin: တာ့တာ။ နောက်မှ တွေ့ကြရအောင်။\n\n")
         ပြန်ပေး 1
     }
+
     ပြန်ပေး 0
 }
 
@@ -113,7 +152,7 @@ extern "C" void mmc_free(အစု p)
         သုံးသပ်ချက်အရ(mmc_string_length(input) == 0) { ဆက်လုပ် }
         သုံးသပ်ချက်အရ(try_rule(input) == 1) { ဆက်လုပ် }
 
-        snprintf(prompt, 4200, "မေး: မင်္ဂလာပါ\nဖြေ: မင်္ဂလာပါ။ ဘာကူညီပေးရမလဲ?\n\nမေး: နာမည်ဘယ်သူလဲ\nဖြေ: ကျွန်တော့်နာမည် နျန်လင်း ပါ။\n\nမေး: %s\nဖြေ:", input)
+        snprintf(prompt, 4200, "မေး: မင်္ဂလာပါ\nဖြေ: မင်္ဂလာပါ။ ဘာကူညီပေးရမလဲ?\n\nမေး: နာမည်ဘယ်သူလဲ\nဖြေ: ကျွန်တော့်နာမည် ဉာဏ်လင်း ပါ။\n\nမေး: %s\nဖြေ:", input)
         out[0] = 0
 
         mmc_generate(buf, ds, D, D_FF, NL, NH, vocab, ong, onb, lmo, lmt, MAXS, tok_o, pos_o, prompt, mmc_string_length(prompt), 40, 2, out, 4096, kc, vc, logits)
