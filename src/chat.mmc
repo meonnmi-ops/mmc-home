@@ -80,7 +80,7 @@ extern "C" void mmc_free(အစု p)
         }
         
         သုံးသပ်ချက်အရ(strcmp(input, "exit") == 0) { ရပ် }
-        သုံးသပ်ချက်အရ(mmc_string_length(input) == 0) { ဆက် }
+        သုံးသပ်ချက်အရ(mmc_string_length(input) == 0) { ဆက်လုပ် }
 
         snprintf(prompt, 4200, "<user> %s\n<nyanlin>", input)
         out[0] = 0
