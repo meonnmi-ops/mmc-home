@@ -44,7 +44,18 @@ int main(int argc, char** argv) {
         if (ln < 10) continue;
         int tl = json_extract_text(lbuf, ln, tbuf, TEXT_CAP);
         if (tl < 20) continue;
-        int tc = mmc_bpe_encode(buf, tbuf, tl, ibuf, TOKEN_CAP);
+        int tc = 0;
+        int toff2 = 0;
+        while (toff2 < tl && tc < TOKEN_CAP - 100) {
+            int chunk = tl - toff2;
+            if (chunk > 8000) chunk = 8000;
+            while (chunk > 0 && toff2 + chunk < tl &&
+                   ((unsigned char)tbuf[toff2 + chunk] & 0xC0) == 0x80) chunk--;
+            if (chunk <= 0) break;
+            int rc2 = mmc_bpe_encode(buf, tbuf + toff2, chunk, ibuf + tc, TOKEN_CAP - tc);
+            if (rc2 > 0) tc += rc2;
+            toff2 += chunk;
+        }
         if (tc <= 0) {
             enc_fail++;
             /* Debug: log first 5 failures */
