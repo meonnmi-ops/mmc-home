@@ -271,3 +271,35 @@ python3 ref/OP_bwd_test.py
 ```
 
 Pattern: 2 files per op (MMC + Py test).
+
+## 21. TRAINING PIPELINE VERIFIED (2026-10-31 → 11-01)
+
+### Numerical accuracy — MMC vs PyTorch float64
+
+| Component | Match | Tolerance |
+|-----------|-------|-----------|
+| Forward (6-block, 4.84M) | 2.6e-12 | 1e-6 ✓ |
+| LN bwd | 8.9e-16 | 1e-10 ✓ |
+| GELU bwd | 2.6e-12 | 1e-10 ✓ |
+| matmul_t bwd | 0.0 exact | 1e-10 ✓ |
+| CE + softmax bwd | 6.9e-18 | 1e-10 ✓ |
+| Attention bwd | 1.7e-14 | 1e-10 ✓ |
+| Full block bwd | 2.2e-11 | 1e-10 ✓ |
+| Tied head + emb + LN_f | 2.2e-16 | 1e-10 ✓ |
+| AdamW step (1 block) | 8.4e-14 | 1e-10 ✓ |
+| L=2 multi-block | 3.47e-12 | 1e-10 ✓ |
+| D=20→100 scale | 1e-10 to 4e-9 rel | 1e-8 rel ✓ |
+
+### Functional proofs
+
+- **Training loop**: loss 1.66 → 0.000000 on synthetic pattern (200 steps)
+- **Data loader**: byte corpus reads + LCG shuffle → exact batch match with Python
+- **Multi-block chain**: L=2 forward+backward+AdamW matches PyTorch
+- **Scale test**: D=20,40,60,80,100 all PASS (relative tol 1e-8)
+
+### Interpretation
+
+**MMC is functionally equivalent to PyTorch for training** — differences
+are pure float64 roundoff. Real training weight updates (~lr=1e-3) are
+10^6× larger than numerical noise (~1e-9).
+
