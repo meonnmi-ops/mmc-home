@@ -1,0 +1,133 @@
+// ln_backward_test.mmc — verify layer_norm backward against PyTorch autograd
+
+extern "C" void* malloc(ကိန်း n)
+extern "C" void free(အစု p)
+extern "C" ဒသမ sqrt(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+// ln_backward: compute dx, dgamma, dbeta from dout, x, gamma
+လုပ်ငန်း ln_backward(ဒသမ* dx, ဒသမ* dgamma, ဒသမ* dbeta,
+                      ဒသမ* dout, ဒသမ* x, ဒသမ* gamma,
+                      ကိန်း T, ကိန်း D) ကိန်း {
+    တည်ဆောက် ကိန်း t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ဒသမ sum = 0.0
+        တည်ဆောက် ကိန်း d = 0
+        ပြည့်အောင်(d < D) {
+            sum = sum + x[t * D + d]
+            d = d + 1
+        }
+        တည်ဆောက် ဒသမ mean = sum / D
+        တည်ဆောက် ဒသမ var = 0.0
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ dv = x[t * D + d] - mean
+            var = var + dv * dv
+            d = d + 1
+        }
+        var = var / D
+        တည်ဆောက် ဒသမ inv = 1.0 / sqrt(var + 0.00001)
+
+        တည်ဆောက် ဒသမ sa = 0.0
+        တည်ဆောက် ဒသမ saz = 0.0
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ a = dout[t * D + d] * gamma[d]
+            တည်ဆောက် ဒသမ z = (x[t * D + d] - mean) * inv
+            sa = sa + a
+            saz = saz + a * z
+            d = d + 1
+        }
+        တည်ဆောက် ဒသမ ma = sa / D
+        တည်ဆောက် ဒသမ maz = saz / D
+
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ a = dout[t * D + d] * gamma[d]
+            တည်ဆောက် ဒသမ z = (x[t * D + d] - mean) * inv
+            dx[t * D + d] = inv * (a - ma - z * maz)
+            dgamma[d] = dgamma[d] + dout[t * D + d] * z
+            dbeta[d] = dbeta[d] + dout[t * D + d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း load_f64(စာသား path, ကိန်း n) အစု {
+    တည်ဆောက် အစု buf = malloc(8 * n)
+    သုံးသပ်ချက်အရ(buf == 0) {
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        printf("ERROR: %s\n", path)
+        free(buf)
+        ပြန်ပေး 0
+    }
+    fread(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း save_f64(စာသား path, အစု buf, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု fp = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        ပြန်ပေး -1
+    }
+    fwrite(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း T = 8
+    တည်ဆောက် ကိန်း D = 16
+    တည်ဆောက် စာသား dir = "/data/data/com.termux/files/home/mmc_publish/ref/bwd_test"
+
+    တည်ဆောက် အစု xp     = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/x.bin", T * D)
+    တည်ဆောက် အစု gp     = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/gamma.bin", D)
+    တည်ဆောက် အစု bp     = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/beta.bin", D)
+    တည်ဆောက် အစု dop    = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/dout.bin", T * D)
+    သုံးသပ်ချက်အရ(xp == 0 သို့မဟုတ် gp == 0 သို့မဟုတ် bp == 0 သို့မဟုတ် dop == 0) {
+        ပြန်ပေး 1
+    }
+
+    တည်ဆောက် ဒသမ* x = xp
+    တည်ဆောက် ဒသမ* gamma = gp
+    တည်ဆောက် ဒသမ* beta = bp
+    တည်ဆောက် ဒသမ* dout = dop
+
+    တည်ဆောက် ဒသမ* dx     = malloc(8 * T * D)
+    တည်ဆောက် ဒသမ* dgamma = malloc(8 * D)
+    တည်ဆောက် ဒသမ* dbeta  = malloc(8 * D)
+
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < D) {
+        dgamma[i] = 0.0
+        dbeta[i] = 0.0
+        i = i + 1
+    }
+
+    ln_backward(dx, dgamma, dbeta, dout, x, gamma, T, D)
+
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/dx.bin", dx, T * D)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/dgamma.bin", dgamma, D)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/dbeta.bin", dbeta, D)
+
+    free(xp)
+    free(gp)
+    free(bp)
+    free(dop)
+    free(dx)
+    free(dgamma)
+    free(dbeta)
+
+    printf("=== ln_backward test DONE ===\n")
+    ပြန်ပေး 0
+}

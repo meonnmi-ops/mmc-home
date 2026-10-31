@@ -1,0 +1,127 @@
+// ce_backward_test.mmc — verify cross-entropy (softmax) backward vs PyTorch
+
+extern "C" void* malloc(ကိန်း n)
+extern "C" void free(အစု p)
+extern "C" ဒသမ exp(ဒသမ x)
+extern "C" ဒသမ log(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+// CE forward + backward
+// logits:[T,V]  targets:[T] (int32)
+// Outputs: loss (scalar), dlogits:[T,V]
+လုပ်ငန်း ce_forward_backward(ဒသမ* loss_out, ဒသမ* dlogits, ဒသမ* logits,
+                               ကိန်း* targets, ကိန်း T, ကိန်း V) ကိန်း {
+    တည်ဆောက် ဒသမ total = 0.0
+
+    တည်ဆောက် ကိန်း t = 0
+    ပြည့်အောင်(t < T) {
+        // 1. find max for stability
+        တည်ဆောက် ဒသမ mx = -1000000000.0
+        တည်ဆောက် ကိန်း v = 0
+        ပြည့်အောင်(v < V) {
+            သုံးသပ်ချက်အရ(logits[t * V + v] > mx) {
+                mx = logits[t * V + v]
+            }
+            v = v + 1
+        }
+
+        // 2. sum exp
+        တည်ဆောက် ဒသမ se = 0.0
+        v = 0
+        ပြည့်အောင်(v < V) {
+            se = se + exp(logits[t * V + v] - mx)
+            v = v + 1
+        }
+
+        // 3. log_softmax at target = (logits[t][target] - mx) - log(se)
+        တည်ဆောက် ကိန်း tg = targets[t]
+        တည်ဆောက် ဒသမ logp = (logits[t * V + tg] - mx) - log(se)
+        total = total - logp
+
+        // 4. dlogits[t][v] = (exp(logits-mx)/se) - onehot(v==tg)
+        //    divided by T later
+        v = 0
+        ပြည့်အောင်(v < V) {
+            တည်ဆောက် ဒသမ p = exp(logits[t * V + v] - mx) / se
+            သုံးသပ်ချက်အရ(v == tg) {
+                dlogits[t * V + v] = (p - 1.0) / T
+            }
+            သုံးသပ်ချက်အရ(v != tg) {
+                dlogits[t * V + v] = p / T
+            }
+            v = v + 1
+        }
+        t = t + 1
+    }
+    loss_out[0] = total / T
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း load_f64(စာသား path, ကိန်း n) အစု {
+    တည်ဆောက် အစု buf = malloc(8 * n)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        printf("ERROR: %s\n", path)
+        free(buf)
+        ပြန်ပေး 0
+    }
+    fread(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း load_i32(စာသား path, ကိန်း n) အစု {
+    တည်ဆောက် အစု buf = malloc(4 * n)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        free(buf)
+        ပြန်ပေး 0
+    }
+    fread(buf, 4, n, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း save_f64(စာသား path, အစု buf, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု fp = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(fp == 0) { ပြန်ပေး -1 }
+    fwrite(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း T = 16
+    တည်ဆောက် ကိန်း V = 32
+
+    တည်ဆောက် အစု Lp = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/ceL.bin", T * V)
+    တည်ဆောက် အစု Tp = load_i32("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/ceT.bin", T)
+    သုံးသပ်ချက်အရ(Lp == 0 သို့မဟုတ် Tp == 0) { ပြန်ပေး 1 }
+
+    တည်ဆောက် ဒသမ* logits = Lp
+    တည်ဆောက် ကိန်း* targets = Tp
+
+    တည်ဆောက် ဒသမ* dlogits = malloc(8 * T * V)
+    တည်ဆောက် ဒသမ* loss_arr = malloc(8)
+
+    ce_forward_backward(loss_arr, dlogits, logits, targets, T, V)
+
+    printf("loss = %.10f\n", loss_arr[0])
+
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/ceLOSS.bin", loss_arr, 1)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/cedL.bin", dlogits, T * V)
+
+    free(Lp)
+    free(Tp)
+    free(dlogits)
+    free(loss_arr)
+
+    printf("=== CE backward test DONE ===\n")
+    ပြန်ပေး 0
+}

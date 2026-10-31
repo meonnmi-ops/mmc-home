@@ -6,7 +6,7 @@ SRC = Path(__file__).parent / "phase1"
 DST = Path(__file__).parent / "phase1" / "bin"
 DST.mkdir(exist_ok=True)
 
-def save_raw(name, arr, dtype=np.float32):
+def save_raw(name, arr, dtype=np.float64):
     a = np.ascontiguousarray(arr, dtype=dtype)
     a.tofile(DST / f"{name}.bin")
     print(f"  {name}.bin: shape={a.shape} dtype={a.dtype} bytes={a.nbytes}")

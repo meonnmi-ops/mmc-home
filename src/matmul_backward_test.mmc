@@ -1,0 +1,126 @@
+// matmul_backward_test.mmc — verify matmul_t backward vs PyTorch
+
+extern "C" void* malloc(ကိန်း n)
+extern "C" void free(အစု p)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+// Y = X @ W.T + b    X:[T,K]  W:[J,K]  b:[J]  Y:[T,J]
+// dY:[T,J]  →  dX:[T,K]  dW:[J,K]  db:[J]
+လုပ်ငန်း matmul_t_backward(ဒသမ* dX, ဒသမ* dW, ဒသမ* db,
+                             ဒသမ* dY, ဒသမ* X, ဒသမ* W,
+                             ကိန်း T, ကိန်း J, ကိန်း K) ကိန်း {
+    // init dW=0, db=0
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < J) {
+        db[j] = 0.0
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < K) {
+            dW[j * K + k] = 0.0
+            k = k + 1
+        }
+        j = j + 1
+    }
+
+    // For each t: 
+    //   dX[t,k] = Σ_j dY[t,j]*W[j,k]
+    //   dW[j,k] += dY[t,j]*X[t,k]
+    //   db[j]   += dY[t,j]
+    တည်ဆောက် ကိန်း t = 0
+    ပြည့်အောင်(t < T) {
+        j = 0
+        ပြည့်အောင်(j < J) {
+            တည်ဆောက် ဒသမ dy = dY[t * J + j]
+            db[j] = db[j] + dy
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < K) {
+                dW[j * K + k] = dW[j * K + k] + dy * X[t * K + k]
+                k = k + 1
+            }
+            j = j + 1
+        }
+        t = t + 1
+    }
+
+    // dX[t,k] = Σ_j dY[t,j]*W[j,k]
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < K) {
+            တည်ဆောက် ဒသမ acc = 0.0
+            j = 0
+            ပြည့်အောင်(j < J) {
+                acc = acc + dY[t * J + j] * W[j * K + k]
+                j = j + 1
+            }
+            dX[t * K + k] = acc
+            k = k + 1
+        }
+        t = t + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း load_f64(စာသား path, ကိန်း n) အစု {
+    တည်ဆောက် အစု buf = malloc(8 * n)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        printf("ERROR: %s\n", path)
+        free(buf)
+        ပြန်ပေး 0
+    }
+    fread(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း save_f64(စာသား path, အစု buf, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု fp = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(fp == 0) { ပြန်ပေး -1 }
+    fwrite(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း T = 8
+    တည်ဆောက် ကိန်း J = 16
+    တည်ဆောက် ကိန်း K = 32
+
+    တည်ဆောက် စာသား B = "/data/data/com.termux/files/home/mmc_publish/ref/bwd_test"
+
+    တည်ဆောက် အစု Xp  = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/mX.bin", T * K)
+    တည်ဆောက် အစု Wp  = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/mW.bin", J * K)
+    တည်ဆောက် အစု dYp = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/mdY.bin", T * J)
+    သုံးသပ်ချက်အရ(Xp == 0 သို့မဟုတ် Wp == 0 သို့မဟုတ် dYp == 0) {
+        ပြန်ပေး 1
+    }
+
+    တည်ဆောက် ဒသမ* X = Xp
+    တည်ဆောက် ဒသမ* W = Wp
+    တည်ဆောက် ဒသမ* dY = dYp
+
+    တည်ဆောက် ဒသမ* dX = malloc(8 * T * K)
+    တည်ဆောက် ဒသမ* dW = malloc(8 * J * K)
+    တည်ဆောက် ဒသမ* db = malloc(8 * J)
+
+    matmul_t_backward(dX, dW, db, dY, X, W, T, J, K)
+
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/mdX.bin", dX, T * K)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/mdW.bin", dW, J * K)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/mdb.bin", db, J)
+
+    free(Xp)
+    free(Wp)
+    free(dYp)
+    free(dX)
+    free(dW)
+    free(db)
+
+    printf("=== matmul_t backward test DONE ===\n")
+    ပြန်ပေး 0
+}

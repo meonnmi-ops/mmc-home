@@ -1,0 +1,72 @@
+// gelu_backward_test.mmc — verify GELU(tanh-approx) backward vs PyTorch
+
+extern "C" void* malloc(ကိန်း n)
+extern "C" void free(အစု p)
+extern "C" ဒသမ tanh(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+// gelu'(x) * dout — elementwise, n elements
+လုပ်ငန်း gelu_backward(ဒသမ* dx, ဒသမ* dout, ဒသမ* x, ကိန်း n) ကိန်း {
+    တည်ဆောက် ဒသမ c = 0.7978845608
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        တည်ဆောက် ဒသမ xv = x[i]
+        တည်ဆောက် ဒသမ x2 = xv * xv
+        တည်ဆောက် ဒသမ u = c * (xv + 0.044715 * xv * x2)
+        တည်ဆောက် ဒသမ t = tanh(u)
+        တည်ဆောက် ဒသမ dgelu = 0.5 * (1.0 + t) + 0.5 * xv * (1.0 - t * t) * c * (1.0 + 0.134145 * x2)
+        dx[i] = dout[i] * dgelu
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း load_f64(စာသား path, ကိန်း n) အစု {
+    တည်ဆောက် အစု buf = malloc(8 * n)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        printf("ERROR: %s\n", path)
+        free(buf)
+        ပြန်ပေး 0
+    }
+    fread(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း save_f64(စာသား path, အစု buf, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု fp = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(fp == 0) { ပြန်ပေး -1 }
+    fwrite(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း n = 128
+
+    တည်ဆောက် အစု xp  = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/gx.bin", n)
+    တည်ဆောက် အစု dop = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/gdout.bin", n)
+    သုံးသပ်ချက်အရ(xp == 0 သို့မဟုတ် dop == 0) { ပြန်ပေး 1 }
+
+    တည်ဆောက် ဒသမ* x = xp
+    တည်ဆောက် ဒသမ* dout = dop
+
+    တည်ဆောက် ဒသမ* dx = malloc(8 * n)
+
+    gelu_backward(dx, dout, x, n)
+
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/bwd_test/gdx.bin", dx, n)
+
+    free(xp)
+    free(dop)
+    free(dx)
+
+    printf("=== gelu_backward test DONE ===\n")
+    ပြန်ပေး 0
+}
