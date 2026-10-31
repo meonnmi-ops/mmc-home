@@ -18,3 +18,4 @@ tmp/
 ref/phase1/
 ref/*/*.npz
 ref/*/*.npy
+ref/logs/
