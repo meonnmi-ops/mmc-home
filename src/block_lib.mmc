@@ -467,3 +467,106 @@ extern "C" ကိန်း fclose(အစု stream)
     fclose(fp)
     ပြန်ပေး 0
 }
+
+
+လုပ်ငန်း block_forward(ဒသမ* x2_out,
+    ဒသမ* X, ဒသမ* Wqkv, ဒသမ* bqkv, ဒသမ* Wo, ဒသမ* bo,
+    ဒသမ* W1, ဒသမ* b1, ဒသမ* W2, ဒသမ* b2,
+    ဒသမ* ln1w, ဒသမ* ln1b, ဒသမ* ln2w, ဒသမ* ln2b,
+    ကိန်း T, ကိန်း D, ကိန်း DFF, ကိန်း H) ကိန်း {
+
+    တည်ဆောက် ကိန်း HD = D / H
+    တည်ဆောက် ဒသမ scale = 1.0 / sqrt(HD * 1.0)
+    တည်ဆောက် ကိန်း t = 0
+    တည်ဆောက် ကိန်း h = 0
+    တည်ဆောက် ကိန်း i = 0
+    တည်ဆောက် ကိန်း j = 0
+    တည်ဆောက် ကိန်း k = 0
+    တည်ဆောက် ကိန်း hd = 0
+    တည်ဆောက် ကိန်း dd = 0
+
+    တည်ဆောက် ဒသမ* xn1 = calloc(T * D, 8)
+    t = 0
+    တည်ဆောက် ဒသမ* dm1 = calloc(1, 8)
+    တည်ဆောက် ဒသမ* di1 = calloc(1, 8)
+    ပြည့်အောင်(t < T) { ln_fwd_row(xn1 + t*D, X + t*D, ln1w, ln1b, D, dm1, di1)  t = t + 1 }
+    တည်ဆောက် ဒသမ* qkv = calloc(T * 3 * D, 8)
+    mm_fwd(qkv, xn1, Wqkv, bqkv, T, 3*D, D)
+    တည်ဆောက် ဒသမ* Q = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* K = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* V = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        dd = 0
+        ပြည့်အောင်(dd < D) {
+            Q[t*D + dd] = qkv[t*3*D + dd]
+            K[t*D + dd] = qkv[t*3*D + D + dd]
+            V[t*D + dd] = qkv[t*3*D + 2*D + dd]
+            dd = dd + 1
+        }
+        t = t + 1
+    }
+
+    တည်ဆောက် ဒသမ* O = calloc(T * D, 8)
+    h = 0
+    ပြည့်အောင်(h < H) {
+        i = 0
+        ပြည့်အောင်(i < T) {
+            တည်ဆောက် ဒသမ* scores = calloc(T, 8)
+            တည်ဆောက် ဒသမ mx = -1000000000.0
+            j = 0
+            ပြည့်အောင်(j <= i) {
+                တည်ဆောက် ဒသမ s = 0.0
+                k = 0
+                ပြည့်အောင်(k < HD) { s = s + Q[i*D + h*HD + k] * K[j*D + h*HD + k]  k = k + 1 }
+                scores[j] = s * scale
+                သုံးသပ်ချက်အရ(scores[j] > mx) { mx = scores[j] }
+                j = j + 1
+            }
+            တည်ဆောက် ဒသမ se = 0.0
+            j = 0
+            ပြည့်အောင်(j <= i) { scores[j] = exp(scores[j] - mx)  se = se + scores[j]  j = j + 1 }
+            j = 0
+            ပြည့်အောင်(j <= i) { scores[j] = scores[j] / se  j = j + 1 }
+            hd = 0
+            ပြည့်အောင်(hd < HD) {
+                တည်ဆောက် ဒသမ s = 0.0
+                j = 0
+                ပြည့်အောင်(j <= i) { s = s + scores[j] * V[j*D + h*HD + hd]  j = j + 1 }
+                O[i*D + h*HD + hd] = s
+                hd = hd + 1
+            }
+            free(scores)
+            i = i + 1
+        }
+        h = h + 1
+    }
+
+    တည်ဆောက် ဒသမ* proj = calloc(T * D, 8)
+    mm_fwd(proj, O, Wo, bo, T, D, D)
+    တည်ဆောက် ဒသမ* x1 = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T*D) { x1[t] = X[t] + proj[t]  t = t + 1 }
+    တည်ဆောက် ဒသမ* xn2 = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) { ln_fwd_row(xn2 + t*D, x1 + t*D, ln2w, ln2b, D, dm1, di1)  t = t + 1 }
+    တည်ဆောက် ဒသမ* fc1 = calloc(T * DFF, 8)
+    mm_fwd(fc1, xn2, W1, b1, T, DFF, D)
+    တည်ဆောက် ဒသမ* g = calloc(T * DFF, 8)
+    t = 0
+    ပြည့်အောင်(t < T*DFF) {
+        တည်ဆောက် ဒသမ xv = fc1[t]
+        တည်ဆောက် ဒသမ c = 0.7978845608
+        g[t] = 0.5 * xv * (1.0 + tanh(c * (xv + 0.044715 * xv * xv * xv)))
+        t = t + 1
+    }
+    တည်ဆောက် ဒသမ* fc2 = calloc(T * D, 8)
+    mm_fwd(fc2, g, W2, b2, T, D, DFF)
+    t = 0
+    ပြည့်အောင်(t < T*D) { x2_out[t] = x1[t] + fc2[t]  t = t + 1 }
+    free(dm1) free(di1)
+    free(xn1) free(qkv) free(Q) free(K) free(V) free(O) free(proj)
+    free(x1) free(xn2) free(fc1) free(g) free(fc2)
+    ပြန်ပေး 0
+}
+
