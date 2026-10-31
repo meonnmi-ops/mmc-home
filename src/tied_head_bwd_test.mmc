@@ -1,0 +1,274 @@
+// tied_head_bwd_test.mmc — emb + LN_f + tied head + CE backward
+
+extern "C" void* malloc(ကိန်း n)
+extern "C" void* calloc(ကိန်း n, ကိန်း sz)
+extern "C" void free(အစု p)
+extern "C" ဒသမ sqrt(ဒသမ x)
+extern "C" ဒသမ exp(ဒသမ x)
+extern "C" ဒသမ log(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+လုပ်ငန်း load_f64(စာသား path, ကိန်း n) အစု {
+    တည်ဆောက် အစု buf = malloc(8 * n)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) { free(buf) ပြန်ပေး 0 }
+    fread(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း load_i32(စာသား path, ကိန်း n) အစု {
+    တည်ဆောက် အစု buf = malloc(4 * n)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) { free(buf) ပြန်ပေး 0 }
+    fread(buf, 4, n, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း save_f64(စာသား path, အစု buf, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု fp = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(fp == 0) { ပြန်ပေး -1 }
+    fwrite(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း T = 3
+    တည်ဆောက် ကိန်း D = 6
+    တည်ဆောက် ကိန်း V = 4
+    တည်ဆောက် စာသား B = "/data/data/com.termux/files/home/mmc_publish/ref/tied_test"
+
+    တည်ဆောက် အစု idsp  = load_i32("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/ids.bin", T)
+    တည်ဆောက် အစု wtep  = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/wte.bin", V*D)
+    တည်ဆောက် အစု wpep  = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/wpe.bin", T*D)
+    တည်ဆောက် အစု lnfwp = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/lnfw.bin", D)
+    တည်ဆောက် အစု lnfbp = load_f64("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/lnfb.bin", D)
+    တည်ဆောက် အစု tgp   = load_i32("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/targets.bin", T)
+
+    သုံးသပ်ချက်အရ(idsp == 0 သို့မဟုတ် wtep == 0) { ပြန်ပေး 1 }
+
+    တည်ဆောက် ကိန်း* ids = idsp
+    တည်ဆောက် ဒသမ* wte = wtep
+    တည်ဆောက် ဒသမ* wpe = wpep
+    တည်ဆောက် ဒသမ* lnfw = lnfwp
+    တည်ဆောက် ဒသမ* lnfb = lnfbp
+    တည်ဆောက် ကိန်း* targets = tgp
+
+    တည်ဆောက် ကိန်း t = 0
+    တည်ဆောက် ကိန်း d = 0
+    တည်ဆောက် ကိန်း v = 0
+
+    // === Forward: x = wte[ids] + wpe ===
+    တည်ဆောက် ဒသမ* x = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            x[t*D + d] = wte[ids[t]*D + d] + wpe[t*D + d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+
+    // === LN_f: xn = LN(x) ===
+    တည်ဆောက် ဒသမ* xn = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ဒသမ s = 0.0
+        d = 0
+        ပြည့်အောင်(d < D) { s = s + x[t*D+d]  d = d + 1 }
+        တည်ဆောက် ဒသမ mean = s / D
+        တည်ဆောက် ဒသမ var = 0.0
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ dv = x[t*D+d] - mean
+            var = var + dv * dv
+            d = d + 1
+        }
+        var = var / D
+        တည်ဆောက် ဒသမ inv = 1.0 / sqrt(var + 0.00001)
+        d = 0
+        ပြည့်အောင်(d < D) {
+            xn[t*D+d] = (x[t*D+d] - mean) * inv * lnfw[d] + lnfb[d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+
+    // === logits = xn @ wte.T ===
+    တည်ဆောက် ဒသမ* logits = calloc(T * V, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        v = 0
+        ပြည့်အောင်(v < V) {
+            တည်ဆောက် ဒသမ s = 0.0
+            d = 0
+            ပြည့်အောင်(d < D) {
+                s = s + xn[t*D+d] * wte[v*D+d]
+                d = d + 1
+            }
+            logits[t*V + v] = s
+            v = v + 1
+        }
+        t = t + 1
+    }
+
+    // === CE forward + dlogits ===
+    တည်ဆောက် ဒသမ total_loss = 0.0
+    တည်ဆောက် ဒသမ* dlogits = calloc(T * V, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ဒသမ mx = -1000000000.0
+        v = 0
+        ပြည့်အောင်(v < V) {
+            သုံးသပ်ချက်အရ(logits[t*V+v] > mx) { mx = logits[t*V+v] }
+            v = v + 1
+        }
+        တည်ဆောက် ဒသမ se = 0.0
+        v = 0
+        ပြည့်အောင်(v < V) {
+            se = se + exp(logits[t*V+v] - mx)
+            v = v + 1
+        }
+        တည်ဆောက် ကိန်း tg = targets[t]
+        total_loss = total_loss - ((logits[t*V+tg] - mx) - log(se))
+        v = 0
+        ပြည့်အောင်(v < V) {
+            တည်ဆောက် ဒသမ p = exp(logits[t*V+v] - mx) / se
+            သုံးသပ်ချက်အရ(v == tg) {
+                dlogits[t*V+v] = (p - 1.0) / T
+            }
+            သုံးသပ်ချက်အရ(v != tg) {
+                dlogits[t*V+v] = p / T
+            }
+            v = v + 1
+        }
+        t = t + 1
+    }
+    တည်ဆောက် ဒသမ loss = total_loss / T
+    printf("loss = %.10f\n", loss)
+
+    // === Bwd: dxn = dlogits @ wte ===
+    တည်ဆောက် ဒသမ* dxn = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ s = 0.0
+            v = 0
+            ပြည့်အောင်(v < V) {
+                s = s + dlogits[t*V+v] * wte[v*D+d]
+                v = v + 1
+            }
+            dxn[t*D+d] = s
+            d = d + 1
+        }
+        t = t + 1
+    }
+
+    // === d_wte_head = dlogits.T @ xn ===
+    တည်ဆောက် ဒသမ* d_wte_head = calloc(V * D, 8)
+    v = 0
+    ပြည့်အောင်(v < V) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ s = 0.0
+            t = 0
+            ပြည့်အောင်(t < T) {
+                s = s + dlogits[t*V+v] * xn[t*D+d]
+                t = t + 1
+            }
+            d_wte_head[v*D+d] = s
+            d = d + 1
+        }
+        v = v + 1
+    }
+
+    // === LN_f bwd → d_x, d_lnfw, d_lnfb ===
+    တည်ဆောက် ဒသမ* d_x = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* d_lnfw = calloc(D, 8)
+    တည်ဆောက် ဒသမ* d_lnfb = calloc(D, 8)
+
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ဒသမ s = 0.0
+        d = 0
+        ပြည့်အောင်(d < D) { s = s + x[t*D+d]  d = d + 1 }
+        တည်ဆောက် ဒသမ mean = s / D
+        တည်ဆောက် ဒသမ var = 0.0
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ dv = x[t*D+d] - mean
+            var = var + dv * dv
+            d = d + 1
+        }
+        var = var / D
+        တည်ဆောက် ဒသမ inv = 1.0 / sqrt(var + 0.00001)
+        တည်ဆောက် ဒသမ sa = 0.0
+        တည်ဆောက် ဒသမ saz = 0.0
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ a = dxn[t*D+d] * lnfw[d]
+            တည်ဆောက် ဒသမ z = (x[t*D+d] - mean) * inv
+            sa = sa + a
+            saz = saz + a * z
+            d = d + 1
+        }
+        တည်ဆောက် ဒသမ ma = sa / D
+        တည်ဆောက် ဒသမ maz = saz / D
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ a = dxn[t*D+d] * lnfw[d]
+            တည်ဆောက် ဒသမ z = (x[t*D+d] - mean) * inv
+            d_x[t*D+d] = inv * (a - ma - z * maz)
+            d_lnfw[d] = d_lnfw[d] + dxn[t*D+d] * z
+            d_lnfb[d] = d_lnfb[d] + dxn[t*D+d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+
+    // === Embedding bwd: d_wte_emb (scatter-add) + d_wpe ===
+    တည်ဆောက် ဒသမ* d_wte_emb = calloc(V * D, 8)
+    တည်ဆောက် ဒသမ* d_wpe = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ကိန်း id = ids[t]
+        d = 0
+        ပြည့်အောင်(d < D) {
+            d_wte_emb[id*D+d] = d_wte_emb[id*D+d] + d_x[t*D+d]
+            d_wpe[t*D+d] = d_x[t*D+d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+
+    // === Combine d_wte = head + emb ===
+    တည်ဆောက် ဒသမ* d_wte_total = calloc(V * D, 8)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < V*D) {
+        d_wte_total[i] = d_wte_head[i] + d_wte_emb[i]
+        i = i + 1
+    }
+
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/d_wte.bin", d_wte_total, V*D)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/d_wpe.bin", d_wpe, T*D)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/d_lnfw.bin", d_lnfw, D)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/tied_test/d_lnfb.bin", d_lnfb, D)
+
+    free(idsp) free(wtep) free(wpep) free(lnfwp) free(lnfbp) free(tgp)
+    free(x) free(xn) free(logits) free(dlogits)
+    free(dxn) free(d_wte_head) free(d_x) free(d_lnfw) free(d_lnfb)
+    free(d_wte_emb) free(d_wpe) free(d_wte_total)
+
+    printf("=== tied head backward test DONE ===\n")
+    ပြန်ပေး 0
+}
