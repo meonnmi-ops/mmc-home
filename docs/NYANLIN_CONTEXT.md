@@ -173,105 +173,6 @@ Target: 10M (or keep 4.84M) model with loss < 2.0 on byte-level data
 
 Use existing SFT dataset (56,116 pairs, byte-level)
 
-## 14. PHASE 1 MMC FORWARD — PASS (2026-10-31)
-
-### Achievement
-MMC forward matches PyTorch float64 reference to **2.6e-12**
-(Target was 1e-6 — exceeded by 4 orders of magnitude)
-
-### Stage-by-stage verification
-| Stage  | max_diff   | Notes                          |
-|--------|------------|--------------------------------|
-| emb    | 0.0        | exact                          |
-| ln1    | 2.2e-15    | machine epsilon                |
-| qkv    | 1.7e-15    | machine epsilon                |
-| attn   | 6.1e-16    | machine epsilon                |
-| gelu   | 9.1e-13    | tanh approx diff               |
-| logits | 2.6e-12    | PASS                           |
-
-### Bug journey (2 bugs found + fixed)
-1. **`မဟုတ်ရင်` (else)** — MMC compiler NOT supported
-   → workaround: two separate `သုံးသပ်ချက်အရ` with negated condition
-2. **`CFG_EPS` global** — MMC wraps main as auto-main; objcopy rename
-   skips global initializers → CFG_EPS = 0 instead of 1e-5
-   → workaround: use literal 0.00001 inside ln_row call
-
-### Also fixed
-- `malloc(4 * rows * cols)` → `malloc(8 * rows * cols)` (double = 8 bytes)
-- `fread/fwrite` size 4 → 8 (float64 binary files)
-- `tn_copy` missing from model_runtime_lib.mmc → added in build/stubs.c
-
-### Files
-- `src/model_runtime.mmc`       — full runtime (lib + main)
-- `src/model_runtime_lib.mmc`   — runtime lib only (no main)
-- `src/model_forward.mmc`       — forward + load + save
-- `build/model_runtime_lib.h`   — C header for forward.c
-- `build/stubs.c`               — tn_copy + mmc_array_* stubs
-- `build/model_forward`         — final binary (21K)
-
-### Build recipe
-```bash
-./mmc_v14 src/model_runtime_lib.mmc build/model_runtime_lib.c
-gcc -O2 -c -I build -I runtime build/model_runtime_lib.c -o build/model_runtime_lib.o
-objcopy --redefine-sym main=mmc_runtime_auto_main build/model_runtime_lib.o
-./mmc_v14 src/model_forward.mmc build/model_forward.c
-sed -i '1i #include "model_runtime_lib.h"' build/model_forward.c
-gcc -O2 -c -I build -I runtime build/model_forward.c -o build/model_forward.o
-gcc -O2 build/model_forward.o build/model_runtime_lib.o build/stubs.o -o build/model_forward -lm
-./build/model_forward
-Next: Phase 1 Training
-Target: 10M (or keep 4.84M) model with loss < 2.0 on byte-level data
-
-Use existing SFT dataset (56,116 pairs, byte-level)
-
-### 16. MMC SCOPING (critical for backward code)
-
-- `တည်ဆောက် ကိန်း j = 0` inside `{ }` = block-scoped only
-- Sibling block မှာ ပြန်သုံးလို့ မရ → undeclared error
-- Fix: loop vars အားလုံးကို function top မှာ hoist
-
-### 17. MMC NUMERIC LIMITS
-
-- Scientific notation မရ: `-1e30` → `e30` identifier
-- Use plain: `-1000000000.0`, `0.00001`
-- Semicolon မရ: `free(a); free(b)` → တစ်လိုင်းချင်း
-
-### 18. VERIFIED BACKWARD OPS (2026-10-31)
-
-| Op | Test | Result |
-|----|------|--------|
-| layer_norm | ln_backward_test.mmc | 8.9e-16 |
-| gelu (tanh) | gelu_backward_test.mmc | 2.6e-12 |
-| matmul_t | matmul_backward_test.mmc | 0.0 |
-| cross_entropy | ce_backward_test.mmc | 6.9e-18 |
-| attention block | attn_backward_test.mmc | 1.7e-14 |
-
-All PASS at tol 1e-10 vs PyTorch float64.
-
-### 18. VERIFIED BACKWARD OPS (2026-10-31)
-
-| Op | Test | Result |
-|----|------|--------|
-| layer_norm | ln_backward_test.mmc | 8.9e-16 |
-| gelu (tanh) | gelu_backward_test.mmc | 2.6e-12 |
-| matmul_t | matmul_backward_test.mmc | 0.0 |
-| cross_entropy | ce_backward_test.mmc | 6.9e-18 |
-| attention block | attn_backward_test.mmc | 1.7e-14 |
-
-All PASS at tol 1e-10 vs PyTorch float64.
-
-### 19. BACKWARD TEST BUILD RECIPE
-
-```bash
-./mmc_v14 src/OP_backward_test.mmc build/OP_backward_test.c
-gcc -O2 -I runtime -c build/OP_backward_test.c -o build/OP_backward_test.o
-gcc -O2 build/OP_backward_test.o build/stubs.o -o build/OP_backward_test -lm
-./build/OP_backward_test
-python3 ref/OP_bwd_test.py
-```
-
-Pattern: 2 files per op (MMC + Py test).
-
 ## 21. TRAINING PIPELINE VERIFIED (2026-10-31 → 11-01)
 
 ### Numerical accuracy — MMC vs PyTorch float64
@@ -302,7 +203,6 @@ Pattern: 2 files per op (MMC + Py test).
 **MMC is functionally equivalent to PyTorch for training** — differences
 are pure float64 roundoff. Real training weight updates (~lr=1e-3) are
 10^6× larger than numerical noise (~1e-9).
-
 
 ## 22. TRAINING FILES (2026-11-01)
 
@@ -379,4 +279,58 @@ A buffer read via fread(buf, 1, n, f) MUST be declared as စာသား
 (char*) not ကိန်း* (int*). Otherwise int* arithmetic walks 4 bytes
 per element and reads out of bounds.
 Fix: စာသား buf = read_bytes(...).
+
+## 24. BUG HISTORY — 2026-10-31 / 11-01
+
+### Forward path
+1. `mmc_matrix_new` allocated 4 bytes/element but `ဒသမ` = 8 bytes
+   (double) → segfault. **Fix**: `malloc(8 * rows * cols)`.
+2. Binary I/O wrote/read 4-byte floats but ref is double → reshape errors.
+   **Fix**: all `.bin` are float64, `fread`/`fwrite` size 8.
+3. `tn_copy` was missing from model_runtime_lib.mmc → undefined symbol.
+   **Fix**: added to `build/stubs.c`.
+
+### Backward path
+4. `mm_bwd` wrote `dX = dy*W` inside the j-loop instead of accumulating
+   `dX += dy*W` → last j overwrote all. **Fix**: `+=` only.
+
+### AdamW path
+5. **Near-threshold eps amplification**: when gradient ≈ eps (1e-8),
+   `sqrt(vh)+eps` diverges slightly between PyTorch and MMC due to
+   accumulated float error. Produces ~1e-9 absolute diff on bqkv/Wqkv
+   only. **Not a bug** — expected AdamW behavior. Use relative
+   tolerance 1e-8 in tests (per-tensor).
+
+### Tooling
+6. `/tmp` is NOT writable in Termux → use `$HOME/tmp`.
+7. `bytes.tofile()` doesn't exist in numpy → `np.frombuffer(...).tofile()`.
+8. `b"..."` with non-ASCII → use `"text".encode('utf-8')`.
+9. `sed -i 's|...` with `!` (in `!build/*.h`) triggers bash history
+   expansion → use single quotes or escape.
+10. `.gitignore` with `!build/*.h` needs `git add -f` for first add.
+
+## 25. NEXT: REAL MODEL TRAINING (Phase 1 final)
+
+### Target config
+- VOCAB=256 (byte-level), SEQ=128
+- D=256, L=6, H=8, DFF=1024
+- Params: 4,837,376 (4.84M)
+- Optimizer: AdamW (lr=1e-3 to 3e-4, wd=0.01, betas=0.9/0.999)
+
+### Files to build
+1. `src/train_full.mmc` — D=256, L=6, V=256, SEQ=128, flat weight
+   arrays (L× per-block layout, same as train_multi_step.mmc).
+2. Data prep (Windows → Termux): SFT `train_clean.jsonl` → byte stream.
+3. `ref/run_full_train.py` — orchestrator with checkpointing every N
+   steps, loss log, gradient norm log, and warmup+cosine LR schedule.
+
+### Estimated runtime on Termux CPU
+- ~500 ms/step (4.84M model, 128 seq)
+- 1 epoch (14K steps @ batch=4) ≈ 2 hours
+- 5 epochs ≈ 10 hours (loss should drop below 2.0)
+
+### Realistic targets
+- Loss 5.5 (init) → 2.0–2.5 after 1 epoch on byte-level SFT
+- Loss → 1.5 after 5 epochs
+- Assistant-level fluency: **needs ~100M params + GPU** (Phase 2/3)
 
