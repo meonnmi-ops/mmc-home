@@ -464,3 +464,51 @@ build/block_lib.h declares extern "C" prototypes for ln_fwd_row, ln_bwd_row, mm_
 - Loss → 1.5 after 5 epochs
 - Assistant-level fluency: **needs ~100M params + GPU** (Phase 2/3)
 
+
+## 23. MMC COMPILER LIMITS — FULL LIST (2026-11-01)
+
+### Confirmed unsupported
+
+1. မဟုတ်ရင် (else) — NOT SUPPORTED.
+   Workaround: two separate သုံးသပ်ချက်အရ blocks.
+
+2. Semicolon — NOT allowed in loop bodies.
+   One statement per line.
+
+3. Scientific notation — 1e30 parses as identifier e30 and errors.
+   Use 1000000000.0 (plain decimal).
+
+4. Loop var scoping (C-style) — တည်ဆောက် ကိန်း j = 0 inside a block
+   is scoped to that block only.
+   Fix: hoist all loop vars to function top.
+
+5. Multi-line extern "C" declaration — must be a single line.
+
+6. ဒသမ* in extern "C" params — NOT supported.
+   Use အစု (void*) instead.
+
+7. MMC-generated main — always emitted as auto-main (does argv wrapping
+   via mmc_array_*). When using MMC files as a library:
+   objcopy --redefine-sym main=mmc_X_auto_main build/X.o
+   BUT this loses global variable initializers (e.g., CFG_EPS = 1e-5
+   would stay 0). Workaround: use literals inside functions.
+
+### Confirmed supported
+
+- Type declarations: ကိန်း / ဒသမ / အစု / စာသား / char*
+- Single-line extern "C" prototypes
+- Structs via အစုအဝေး with pointer params and -> access
+- သုံးသပ်ချက်အရ(cond) { ... } — if
+- ပြည့်အောင်(cond) { ... } — while
+- ပြန်ပေး — return (works inside if blocks)
+- Function calls with အစု parameters (void*)
+- sizeof, malloc, calloc, free
+- Math: sqrt, exp, log, tanh (via extern "C" to libm)
+
+### Byte array pitfall
+
+A buffer read via fread(buf, 1, n, f) MUST be declared as စာသား
+(char*) not ကိန်း* (int*). Otherwise int* arithmetic walks 4 bytes
+per element and reads out of bounds.
+Fix: စာသား buf = read_bytes(...).
+
