@@ -303,3 +303,70 @@ Pattern: 2 files per op (MMC + Py test).
 are pure float64 roundoff. Real training weight updates (~lr=1e-3) are
 10^6× larger than numerical noise (~1e-9).
 
+
+## 22. TRAINING FILES (2026-11-01)
+
+### Core MMC source
+- `src/block_lib.mmc` — verified helpers (LN, GELU, matmul, attention,
+  block_forward, block_fwd_bwd). Compiles to block_lib.o (24K).
+- `src/train_step_test.mmc` — 1-block AdamW step (reference: train_step)
+- `src/train_multi_step.mmc` — L-block AdamW step (parameterized D, DFF, H)
+- `src/data_loader_test.mmc` — byte corpus → batch with LCG shuffle
+- `src/model_runtime_lib.mmc` — tensor + matmul + LN + attn forward
+- `src/model_forward.mmc` — full 6-block forward, saves logits
+
+### Python refs (oracle)
+- `ref/train_test_gen.py` — 1-block AdamW ref
+- `ref/train_multi_gen.py` — L-block AdamW ref
+- `ref/train_scale_gen.py` — parameterized by env (D, DFF, H)
+- `ref/run_scale.py` — orchestrator (D=20→100)
+- `ref/data_loader_test.py` — byte-level batch ref
+- `ref/ln_bwd_test.py`, `gelu_bwd_test.py`, `matmul_bwd_test.py`,
+  `ce_bwd_test.py`, `attn_bwd_test.py`, `block_bwd_test.py`,
+  `tied_bwd_test.py` — per-op refs
+
+### Build recipe (block_lib → .o)
+```bash
+./mmc_v14 src/block_lib.mmc build/block_lib.c
+gcc -O2 -I runtime -c build/block_lib.c -o build/block_lib.o
+objcopy --redefine-sym main=mmc_block_lib_auto_main build/block_lib.o
+cd ~/mmc_publish
+cat >> docs/NYANLIN_CONTEXT.md << 'EOF'
+
+## 22. TRAINING FILES (2026-11-01)
+
+### Core MMC source
+
+- src/block_lib.mmc — verified helpers (LN, GELU, matmul, attention, block_forward, block_fwd_bwd). Compiles to block_lib.o (24K).
+- src/train_step_test.mmc — 1-block AdamW step (reference: train_step)
+- src/train_multi_step.mmc — L-block AdamW step (parameterized D, DFF, H)
+- src/data_loader_test.mmc — byte corpus to batch with LCG shuffle
+- src/model_runtime_lib.mmc — tensor + matmul + LN + attn forward
+- src/model_forward.mmc — full 6-block forward, saves logits
+
+### Python refs (oracle)
+
+- ref/train_test_gen.py — 1-block AdamW ref
+- ref/train_multi_gen.py — L-block AdamW ref
+- ref/train_scale_gen.py — parameterized by env (D, DFF, H)
+- ref/run_scale.py — orchestrator (D=20 to 100)
+- ref/data_loader_test.py — byte-level batch ref
+- ref/ln_bwd_test.py, gelu_bwd_test.py, matmul_bwd_test.py, ce_bwd_test.py, attn_bwd_test.py, block_bwd_test.py, tied_bwd_test.py — per-op refs
+
+### Build block_lib.o
+
+Step 1: ./mmc_v14 src/block_lib.mmc build/block_lib.c
+Step 2: gcc -O2 -I runtime -c build/block_lib.c -o build/block_lib.o
+Step 3: objcopy --redefine-sym main=mmc_block_lib_auto_main build/block_lib.o
+
+### Build test binary
+
+Step 1: ./mmc_v14 src/train_multi_step.mmc build/train_multi_step.c
+Step 2: sed -i '1i #include "block_lib.h"' build/train_multi_step.c
+Step 3: gcc -O2 -I runtime -I build -c build/train_multi_step.c -o build/train_multi_step.o
+Step 4: gcc -O2 build/train_multi_step.o build/block_lib.o build/stubs.o -o build/train_multi_step -lm
+
+### Required header
+
+build/block_lib.h declares extern "C" prototypes for ln_fwd_row, ln_bwd_row, mm_fwd, mm_bwd, gelu_bwd, block_forward, block_fwd_bwd.
+
