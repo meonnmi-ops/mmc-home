@@ -113,3 +113,11 @@ pick up from last state.
 3. PyTorch ONLY for ref_model.py + gradient check
 4. Check weights before blaming MMC code
 5. Byte-level vocab = permanent mismatch fix
+
+## 13. MMC COMPILER LIMITATIONS (Phase 1 findings)
+- `မဟုတ်ရင်` (else) — NOT SUPPORTED by mmc_v14
+  → workaround: `သုံးသပ်ချက်အရ(cond) { ... }` ပြီးမှ
+    နောက်တစ်ခု `သုံးသပ်ချက်အရ(negated_cond) { ... }` သုံး
+- `runtime_mmc.mmc` (3228 lines) မှာ `မဟုတ်ရင်` လုံးဝ မသုံးထားဘူး → ဒါက အထောက်အထား
+- `;` semicolon — loop body ထဲမှာ `{ a; b }` မရ။ တစ်လိုင်းချင်း ရေး
+- `ဒသမ` = C `double` (float64), `ကိန်း` = int
