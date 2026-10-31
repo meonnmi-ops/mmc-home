@@ -1,0 +1,426 @@
+// train_step_test.mmc — one AdamW step, tiny model
+extern "C" void* malloc(ကိန်း n)
+extern "C" void* calloc(ကိန်း n, ကိန်း sz)
+extern "C" void free(အစု p)
+extern "C" ဒသမ sqrt(ဒသမ x)
+extern "C" ဒသမ exp(ဒသမ x)
+extern "C" ဒသမ log(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+extern "C" ကိန်း block_fwd_bwd(အစု dx, အစု dWqkv, အစု dbqkv, အစု dWo, အစု dbo, အစု dW1, အစု db1, အစု dW2, အစု db2, အစု dln1w, အစု dln1b, အစု dln2w, အစု dln2b, အစု X, အစု Wqkv, အစု bqkv, အစု Wo, အစု bo, အစု W1, အစု b1, အစု W2, အစု b2, အစု ln1w, အစု ln1b, အစု ln2w, အစု ln2b, အစု dOut, ကိန်း T, ကိန်း D, ကိန်း DFF, ကိန်း H)
+extern "C" ကိန်း ln_fwd_row(အစု xn, အစု x, အစု g, အစု b, ကိန်း D, အစု mo, အစု io)
+extern "C" ကိန်း ln_bwd_row(အစု dx, အစု dg, အစု db, အစု dout, အစု x, အစု g, ကိန်း D, ကိန်း add)
+
+လုပ်ငန်း powi(ဒသမ b, ကိန်း e) ဒသမ {
+    တည်ဆောက် ဒသမ r = 1.0
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < e) { r = r * b  i = i + 1 }
+    ပြန်ပေး r
+}
+
+လုပ်ငန်း adamw(ဒသမ* w, ဒသမ* g, ဒသမ* m, ဒသမ* v, ကိန်း n, ကိန်း step,
+                ဒသမ lr, ဒသမ b1, ဒသမ b2, ဒသမ eps, ဒသမ wd) ကိန်း {
+    တည်ဆောက် ဒသမ bc1 = 1.0 - powi(b1, step)
+    တည်ဆောက် ဒသမ bc2 = 1.0 - powi(b2, step)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        m[i] = b1 * m[i] + (1.0 - b1) * g[i]
+        v[i] = b2 * v[i] + (1.0 - b2) * g[i] * g[i]
+        တည်ဆောက် ဒသမ mh = m[i] / bc1
+        တည်ဆောက် ဒသမ vh = v[i] / bc2
+        w[i] = w[i] * (1.0 - lr * wd) - lr * mh / (sqrt(vh) + eps)
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း ld64(စာသား p, ကိန်း n) အစု {
+    တည်ဆောက် အစု b = calloc(n, 8)
+    တည်ဆောက် အစု f = fopen(p, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { free(b) ပြန်ပေး 0 }
+    fread(b, 8, n, f)  fclose(f)
+    ပြန်ပေး b
+}
+
+လုပ်ငန်း ld32(စာသား p, ကိန်း n) အစု {
+    တည်ဆောက် အစု b = calloc(n, 4)
+    တည်ဆောက် အစု f = fopen(p, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { free(b) ပြန်ပေး 0 }
+    fread(b, 4, n, f)  fclose(f)
+    ပြန်ပေး b
+}
+
+လုပ်ငန်း sv64(စာသား p, အစု b, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု f = fopen(p, "wb")
+    သုံးသပ်ချက်အရ(f == 0) { ပြန်ပေး -1 }
+    fwrite(b, 8, n, f)  fclose(f)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း T = 4
+    တည်ဆောက် ကိန်း D = 8
+    တည်ဆောက် ကိန်း DFF = 16
+    တည်ဆောက် ကိန်း H = 2
+    တည်ဆောက် ကိန်း V = 4
+    တည်ဆောက် ကိန်း TMAX = 4
+
+    တည်ဆောက် စာသား P = "/data/data/com.termux/files/home/mmc_publish/ref/train_test/"
+
+    // Load weights
+    တည်ဆောက် ဒသမ* wte  = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/wte.bin", V*D)
+    တည်ဆောက် ဒသမ* wpe  = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/wpe.bin", TMAX*D)
+    တည်ဆောက် ဒသမ* Wqkv = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/Wqkv.bin", 3*D*D)
+    တည်ဆောက် ဒသမ* bqkv = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/bqkv.bin", 3*D)
+    တည်ဆောက် ဒသမ* Wo   = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/Wo.bin", D*D)
+    တည်ဆောက် ဒသမ* bo   = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/bo.bin", D)
+    တည်ဆောက် ဒသမ* W1   = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/W1.bin", DFF*D)
+    တည်ဆောက် ဒသမ* b1   = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/b1.bin", DFF)
+    တည်ဆောက် ဒသမ* W2   = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/W2.bin", D*DFF)
+    တည်ဆောက် ဒသမ* b2   = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/b2.bin", D)
+    တည်ဆောက် ဒသမ* ln1w = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/ln1w.bin", D)
+    တည်ဆောက် ဒသမ* ln1b = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/ln1b.bin", D)
+    တည်ဆောက် ဒသမ* ln2w = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/ln2w.bin", D)
+    တည်ဆောက် ဒသမ* ln2b = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/ln2b.bin", D)
+    တည်ဆောက် ဒသမ* lnfw = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/lnfw.bin", D)
+    တည်ဆောက် ဒသမ* lnfb = ld64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/lnfb.bin", D)
+    တည်ဆောက် ကိန်း* ids  = ld32("/data/data/com.termux/files/home/mmc_publish/ref/train_test/ids.bin", T)
+    တည်ဆောက် ကိန်း* tg   = ld32("/data/data/com.termux/files/home/mmc_publish/ref/train_test/tg.bin", T)
+
+    သုံးသပ်ချက်အရ(wte == 0 သို့မဟုတ် ids == 0) { ပြန်ပေး 1 }
+
+    // Grads (calloc = 0)
+    တည်ဆောက် ဒသမ* g_wte  = calloc(V*D, 8)
+    တည်ဆောက် ဒသမ* g_wpe  = calloc(TMAX*D, 8)
+    တည်ဆောက် ဒသမ* g_Wqkv = calloc(3*D*D, 8)
+    တည်ဆောက် ဒသမ* g_bqkv = calloc(3*D, 8)
+    တည်ဆောက် ဒသမ* g_Wo   = calloc(D*D, 8)
+    တည်ဆောက် ဒသမ* g_bo   = calloc(D, 8)
+    တည်ဆောက် ဒသမ* g_W1   = calloc(DFF*D, 8)
+    တည်ဆောက် ဒသမ* g_b1   = calloc(DFF, 8)
+    တည်ဆောက် ဒသမ* g_W2   = calloc(D*DFF, 8)
+    တည်ဆောက် ဒသမ* g_b2   = calloc(D, 8)
+    တည်ဆောက် ဒသမ* g_ln1w = calloc(D, 8)
+    တည်ဆောက် ဒသမ* g_ln1b = calloc(D, 8)
+    တည်ဆောက် ဒသမ* g_ln2w = calloc(D, 8)
+    တည်ဆောက် ဒသမ* g_ln2b = calloc(D, 8)
+    တည်ဆောက် ဒသမ* g_lnfw = calloc(D, 8)
+    တည်ဆောက် ဒသမ* g_lnfb = calloc(D, 8)
+
+    // AdamW m, v state (zeros at step 1)
+    တည်ဆောက် ဒသမ* m_wte  = calloc(V*D, 8)  တည်ဆောက် ဒသမ* v_wte  = calloc(V*D, 8)
+    တည်ဆောက် ဒသမ* m_wpe  = calloc(TMAX*D, 8)  တည်ဆောက် ဒသမ* v_wpe  = calloc(TMAX*D, 8)
+    တည်ဆောက် ဒသမ* m_Wqkv = calloc(3*D*D, 8)  တည်ဆောက် ဒသမ* v_Wqkv = calloc(3*D*D, 8)
+    တည်ဆောက် ဒသမ* m_bqkv = calloc(3*D, 8)  တည်ဆောက် ဒသမ* v_bqkv = calloc(3*D, 8)
+    တည်ဆောက် ဒသမ* m_Wo   = calloc(D*D, 8)  တည်ဆောက် ဒသမ* v_Wo   = calloc(D*D, 8)
+    တည်ဆောက် ဒသမ* m_bo   = calloc(D, 8)  တည်ဆောက် ဒသမ* v_bo   = calloc(D, 8)
+    တည်ဆောက် ဒသမ* m_W1   = calloc(DFF*D, 8)  တည်ဆောက် ဒသမ* v_W1   = calloc(DFF*D, 8)
+    တည်ဆောက် ဒသမ* m_b1   = calloc(DFF, 8)  တည်ဆောက် ဒသမ* v_b1   = calloc(DFF, 8)
+    တည်ဆောက် ဒသမ* m_W2   = calloc(D*DFF, 8)  တည်ဆောက် ဒသမ* v_W2   = calloc(D*DFF, 8)
+    တည်ဆောက် ဒသမ* m_b2   = calloc(D, 8)  တည်ဆောက် ဒသမ* v_b2   = calloc(D, 8)
+    တည်ဆောက် ဒသမ* m_ln1w = calloc(D, 8)  တည်ဆောက် ဒသမ* v_ln1w = calloc(D, 8)
+    တည်ဆောက် ဒသမ* m_ln1b = calloc(D, 8)  တည်ဆောက် ဒသမ* v_ln1b = calloc(D, 8)
+    တည်ဆောက် ဒသမ* m_ln2w = calloc(D, 8)  တည်ဆောက် ဒသမ* v_ln2w = calloc(D, 8)
+    တည်ဆောက် ဒသမ* m_ln2b = calloc(D, 8)  တည်ဆောက် ဒသမ* v_ln2b = calloc(D, 8)
+    တည်ဆောက် ဒသမ* m_lnfw = calloc(D, 8)  တည်ဆောက် ဒသမ* v_lnfw = calloc(D, 8)
+    တည်ဆောက် ဒသမ* m_lnfb = calloc(D, 8)  တည်ဆောက် ဒသမ* v_lnfb = calloc(D, 8)
+
+    တည်ဆောက် ကိန်း t = 0  တည်ဆောက် ကိန်း d = 0  တည်ဆောက် ကိန်း v = 0
+
+    // === FORWARD ===
+    // emb
+    တည်ဆောက် ဒသမ* emb = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) { emb[t*D+d] = wte[ids[t]*D+d] + wpe[t*D+d]  d = d + 1 }
+        t = t + 1
+    }
+
+    // inline block_forward (avoid calling — simpler as helper not needed here since we need intermediates anyway)
+    // Actually block_fwd_bwd gives us forward grads but not forward intermediates.
+    // We need forward output for LNf. So we do forward inline first:
+    တည်ဆောက် ဒသမ* xn1 = calloc(T*D, 8)
+    တည်ဆောက် ဒသမ* dm1 = calloc(1, 8)  တည်ဆောက် ဒသမ* di1 = calloc(1, 8)
+    t = 0
+    ပြည့်အောင်(t < T) { ln_fwd_row(xn1+t*D, emb+t*D, ln1w, ln1b, D, dm1, di1)  t = t + 1 }
+
+    တည်ဆောက် ဒသမ* qkv = calloc(T*3*D, 8)
+    // mm_fwd: out[T,J] = X @ W.T + b  → here J=3D, K=D
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ကိန်း jj = 0
+        ပြည့်အောင်(jj < 3*D) {
+            တည်ဆောက် ဒသမ s = bqkv[jj]
+            တည်ဆောက် ကိန်း kk = 0
+            ပြည့်အောင်(kk < D) { s = s + xn1[t*D+kk] * Wqkv[jj*D+kk]  kk = kk + 1 }
+            qkv[t*3*D+jj] = s
+            jj = jj + 1
+        }
+        t = t + 1
+    }
+
+    // split Q, K, V
+    တည်ဆောက် ဒသမ* Q = calloc(T*D, 8)  တည်ဆောက် ဒသမ* K = calloc(T*D, 8)  တည်ဆောက် ဒသမ* V_ = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            Q[t*D+d] = qkv[t*3*D+d]
+            K[t*D+d] = qkv[t*3*D+D+d]
+            V_[t*D+d] = qkv[t*3*D+2*D+d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+
+    // attention (multi-head with causal)
+    တည်ဆောက် ကိန်း HD = D / H
+    တည်ဆောက် ဒသမ scale = 1.0 / sqrt(HD * 1.0)
+    တည်ဆောက် ဒသမ* O = calloc(T*D, 8)
+    တည်ဆောက် ကိန်း h = 0
+    ပြည့်အောင်(h < H) {
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < T) {
+            တည်ဆောက် ဒသမ mx = -1000000000.0
+            တည်ဆောက် ဒသမ* sc = calloc(T, 8)
+            တည်ဆောက် ကိန်း j = 0
+            ပြည့်အောင်(j <= i) {
+                တည်ဆောက် ဒသမ s = 0.0
+                တည်ဆောက် ကိန်း kk = 0
+                ပြည့်အောင်(kk < HD) { s = s + Q[i*D+h*HD+kk] * K[j*D+h*HD+kk]  kk = kk + 1 }
+                sc[j] = s * scale
+                သုံးသပ်ချက်အရ(sc[j] > mx) { mx = sc[j] }
+                j = j + 1
+            }
+            တည်ဆောက် ဒသမ se = 0.0
+            j = 0
+            ပြည့်အောင်(j <= i) { sc[j] = exp(sc[j] - mx)  se = se + sc[j]  j = j + 1 }
+            j = 0
+            ပြည့်အောင်(j <= i) { sc[j] = sc[j] / se  j = j + 1 }
+            တည်ဆောက် ကိန်း hd = 0
+            ပြည့်အောင်(hd < HD) {
+                တည်ဆောက် ဒသမ s = 0.0
+                j = 0
+                ပြည့်အောင်(j <= i) { s = s + sc[j] * V_[j*D+h*HD+hd]  j = j + 1 }
+                O[i*D+h*HD+hd] = s
+                hd = hd + 1
+            }
+            free(sc)
+            i = i + 1
+        }
+        h = h + 1
+    }
+
+    // proj = O @ Wo.T + bo
+    တည်ဆောက် ဒသမ* proj = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ကိန်း jj = 0
+        ပြည့်အောင်(jj < D) {
+            တည်ဆောက် ဒသမ s = bo[jj]
+            တည်ဆောက် ကိန်း kk = 0
+            ပြည့်အောင်(kk < D) { s = s + O[t*D+kk] * Wo[jj*D+kk]  kk = kk + 1 }
+            proj[t*D+jj] = s
+            jj = jj + 1
+        }
+        t = t + 1
+    }
+
+    // x1 = emb + proj
+    တည်ဆောက် ဒသမ* x1 = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T*D) { x1[t] = emb[t] + proj[t]  t = t + 1 }
+
+    // xn2 = LN(x1)
+    တည်ဆောက် ဒသမ* xn2 = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) { ln_fwd_row(xn2+t*D, x1+t*D, ln2w, ln2b, D, dm1, di1)  t = t + 1 }
+
+    // fc1 = xn2 @ W1.T + b1
+    တည်ဆောက် ဒသမ* fc1 = calloc(T*DFF, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ကိန်း jj = 0
+        ပြည့်အောင်(jj < DFF) {
+            တည်ဆောက် ဒသမ s = b1[jj]
+            တည်ဆောက် ကိန်း kk = 0
+            ပြည့်အောင်(kk < D) { s = s + xn2[t*D+kk] * W1[jj*D+kk]  kk = kk + 1 }
+            fc1[t*DFF+jj] = s
+            jj = jj + 1
+        }
+        t = t + 1
+    }
+
+    // g = gelu(fc1)
+    တည်ဆောက် ဒသမ* g = calloc(T*DFF, 8)
+    t = 0
+    ပြည့်အောင်(t < T*DFF) {
+        တည်ဆောက် ဒသမ xv = fc1[t]
+        တည်ဆောက် ဒသမ c = 0.7978845608
+        g[t] = 0.5 * xv * (1.0 + tanh(c * (xv + 0.044715 * xv * xv * xv)))
+        t = t + 1
+    }
+
+    // fc2 = g @ W2.T + b2
+    တည်ဆောက် ဒသမ* fc2 = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ကိန်း jj = 0
+        ပြည့်အောင်(jj < D) {
+            တည်ဆောက် ဒသမ s = b2[jj]
+            တည်ဆောက် ကိန်း kk = 0
+            ပြည့်အောင်(kk < DFF) { s = s + g[t*DFF+kk] * W2[jj*DFF+kk]  kk = kk + 1 }
+            fc2[t*D+jj] = s
+            jj = jj + 1
+        }
+        t = t + 1
+    }
+
+    // x2 = x1 + fc2
+    တည်ဆောက် ဒသမ* x2 = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T*D) { x2[t] = x1[t] + fc2[t]  t = t + 1 }
+
+    // LNf
+    တည်ဆောက် ဒသမ* xnf = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) { ln_fwd_row(xnf+t*D, x2+t*D, lnfw, lnfb, D, dm1, di1)  t = t + 1 }
+
+    // logits = xnf @ wte.T
+    တည်ဆောက် ဒသမ* logits = calloc(T*V, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        v = 0
+        ပြည့်အောင်(v < V) {
+            တည်ဆောက် ဒသမ s = 0.0
+            d = 0
+            ပြည့်အောင်(d < D) { s = s + xnf[t*D+d] * wte[v*D+d]  d = d + 1 }
+            logits[t*V+v] = s
+            v = v + 1
+        }
+        t = t + 1
+    }
+
+    // CE
+    တည်ဆောက် ဒသမ loss = 0.0
+    တည်ဆောက် ဒသမ* dlogits = calloc(T*V, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ဒသမ mx = -1000000000.0
+        v = 0
+        ပြည့်အောင်(v < V) { သုံးသပ်ချက်အရ(logits[t*V+v] > mx) { mx = logits[t*V+v] }  v = v + 1 }
+        တည်ဆောက် ဒသမ se = 0.0
+        v = 0
+        ပြည့်အောင်(v < V) { se = se + exp(logits[t*V+v] - mx)  v = v + 1 }
+        loss = loss - ((logits[t*V+tg[t]] - mx) - log(se))
+        v = 0
+        ပြည့်အောင်(v < V) {
+            တည်ဆောက် ဒသမ p = exp(logits[t*V+v] - mx) / se
+            သုံးသပ်ချက်အရ(v == tg[t]) { dlogits[t*V+v] = (p - 1.0) / T }
+            သုံးသပ်ချက်အရ(v != tg[t]) { dlogits[t*V+v] = p / T }
+            v = v + 1
+        }
+        t = t + 1
+    }
+    loss = loss / T
+    printf("loss = %.10f\n", loss)
+
+    // === BACKWARD ===
+    // head bwd
+    တည်ဆောက် ဒသမ* dxnf = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ s = 0.0
+            v = 0
+            ပြည့်အောင်(v < V) { s = s + dlogits[t*V+v] * wte[v*D+d]  v = v + 1 }
+            dxnf[t*D+d] = s
+            d = d + 1
+        }
+        t = t + 1
+    }
+    v = 0
+    ပြည့်အောင်(v < V) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ s = 0.0
+            t = 0
+            ပြည့်အောင်(t < T) { s = s + dlogits[t*V+v] * xnf[t*D+d]  t = t + 1 }
+            g_wte[v*D+d] = s
+            d = d + 1
+        }
+        v = v + 1
+    }
+
+    // LNf bwd → dx2, g_lnfw, g_lnfb
+    တည်ဆောက် ဒသမ* dx2 = calloc(T*D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) { ln_bwd_row(dx2+t*D, g_lnfw, g_lnfb, dxnf+t*D, x2+t*D, lnfw, D, 0)  t = t + 1 }
+
+    // block bwd → dx_emb, all block weight grads
+    တည်ဆောက် ဒသမ* dx_emb = calloc(T*D, 8)
+    block_fwd_bwd(dx_emb, g_Wqkv, g_bqkv, g_Wo, g_bo, g_W1, g_b1, g_W2, g_b2,
+                  g_ln1w, g_ln1b, g_ln2w, g_ln2b,
+                  emb, Wqkv, bqkv, Wo, bo, W1, b1, W2, b2,
+                  ln1w, ln1b, ln2w, ln2b, dx2, T, D, DFF, H)
+
+    // emb bwd: d_wte (scatter) + d_wpe
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            g_wte[ids[t]*D+d] = g_wte[ids[t]*D+d] + dx_emb[t*D+d]
+            g_wpe[t*D+d] = dx_emb[t*D+d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+
+    // === ADAMW step=1 ===
+    တည်ဆောက် ဒသမ lr = 0.001  တည်ဆောက် ဒသမ b1c = 0.9  တည်ဆောက် ဒသမ b2c = 0.999
+    တည်ဆောက် ဒသမ eps = 0.00000001  တည်ဆောက် ဒသမ wd = 0.01  တည်ဆောက် ကိန်း step = 1
+
+    adamw(wte, g_wte, m_wte, v_wte, V*D, step, lr, b1c, b2c, eps, wd)
+    adamw(wpe, g_wpe, m_wpe, v_wpe, TMAX*D, step, lr, b1c, b2c, eps, wd)
+    adamw(Wqkv, g_Wqkv, m_Wqkv, v_Wqkv, 3*D*D, step, lr, b1c, b2c, eps, wd)
+    adamw(bqkv, g_bqkv, m_bqkv, v_bqkv, 3*D, step, lr, b1c, b2c, eps, wd)
+    adamw(Wo, g_Wo, m_Wo, v_Wo, D*D, step, lr, b1c, b2c, eps, wd)
+    adamw(bo, g_bo, m_bo, v_bo, D, step, lr, b1c, b2c, eps, wd)
+    adamw(W1, g_W1, m_W1, v_W1, DFF*D, step, lr, b1c, b2c, eps, wd)
+    adamw(b1, g_b1, m_b1, v_b1, DFF, step, lr, b1c, b2c, eps, wd)
+    adamw(W2, g_W2, m_W2, v_W2, D*DFF, step, lr, b1c, b2c, eps, wd)
+    adamw(b2, g_b2, m_b2, v_b2, D, step, lr, b1c, b2c, eps, wd)
+    adamw(ln1w, g_ln1w, m_ln1w, v_ln1w, D, step, lr, b1c, b2c, eps, wd)
+    adamw(ln1b, g_ln1b, m_ln1b, v_ln1b, D, step, lr, b1c, b2c, eps, wd)
+    adamw(ln2w, g_ln2w, m_ln2w, v_ln2w, D, step, lr, b1c, b2c, eps, wd)
+    adamw(ln2b, g_ln2b, m_ln2b, v_ln2b, D, step, lr, b1c, b2c, eps, wd)
+    adamw(lnfw, g_lnfw, m_lnfw, v_lnfw, D, step, lr, b1c, b2c, eps, wd)
+    adamw(lnfb, g_lnfb, m_lnfb, v_lnfb, D, step, lr, b1c, b2c, eps, wd)
+
+    // Save updated weights
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_wte.bin", wte, V*D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_wpe.bin", wpe, TMAX*D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_Wqkv.bin", Wqkv, 3*D*D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_bqkv.bin", bqkv, 3*D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_Wo.bin", Wo, D*D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_bo.bin", bo, D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_W1.bin", W1, DFF*D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_b1.bin", b1, DFF)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_W2.bin", W2, D*DFF)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_b2.bin", b2, D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_ln1w.bin", ln1w, D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_ln1b.bin", ln1b, D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_ln2w.bin", ln2w, D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_ln2b.bin", ln2b, D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_lnfw.bin", lnfw, D)
+    sv64("/data/data/com.termux/files/home/mmc_publish/ref/train_test/out_lnfb.bin", lnfb, D)
+
+    printf("=== train_step_test DONE ===\n")
+    ပြန်ပေး 0
+}
