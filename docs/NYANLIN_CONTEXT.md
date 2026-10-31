@@ -438,3 +438,29 @@ build/block_lib.h declares extern "C" prototypes for ln_fwd_row, ln_bwd_row, mm_
    expansion → use single quotes or escape.
 10. `.gitignore` with `!build/*.h` needs `git add -f` for first add.
 
+
+## 25. NEXT: REAL MODEL TRAINING (Phase 1 final)
+
+### Target config
+- VOCAB=256 (byte-level), SEQ=128
+- D=256, L=6, H=8, DFF=1024
+- Params: 4,837,376 (4.84M)
+- Optimizer: AdamW (lr=1e-3 to 3e-4, wd=0.01, betas=0.9/0.999)
+
+### Files to build
+1. `src/train_full.mmc` — D=256, L=6, V=256, SEQ=128, flat weight
+   arrays (L× per-block layout, same as train_multi_step.mmc).
+2. Data prep (Windows → Termux): SFT `train_clean.jsonl` → byte stream.
+3. `ref/run_full_train.py` — orchestrator with checkpointing every N
+   steps, loss log, gradient norm log, and warmup+cosine LR schedule.
+
+### Estimated runtime on Termux CPU
+- ~500 ms/step (4.84M model, 128 seq)
+- 1 epoch (14K steps @ batch=4) ≈ 2 hours
+- 5 epochs ≈ 10 hours (loss should drop below 2.0)
+
+### Realistic targets
+- Loss 5.5 (init) → 2.0–2.5 after 1 epoch on byte-level SFT
+- Loss → 1.5 after 5 epochs
+- Assistant-level fluency: **needs ~100M params + GPU** (Phase 2/3)
+
