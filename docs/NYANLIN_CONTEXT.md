@@ -223,3 +223,51 @@ Next: Phase 1 Training
 Target: 10M (or keep 4.84M) model with loss < 2.0 on byte-level data
 
 Use existing SFT dataset (56,116 pairs, byte-level)
+
+### 16. MMC SCOPING (critical for backward code)
+
+- `တည်ဆောက် ကိန်း j = 0` inside `{ }` = block-scoped only
+- Sibling block မှာ ပြန်သုံးလို့ မရ → undeclared error
+- Fix: loop vars အားလုံးကို function top မှာ hoist
+
+### 17. MMC NUMERIC LIMITS
+
+- Scientific notation မရ: `-1e30` → `e30` identifier
+- Use plain: `-1000000000.0`, `0.00001`
+- Semicolon မရ: `free(a); free(b)` → တစ်လိုင်းချင်း
+
+### 18. VERIFIED BACKWARD OPS (2026-10-31)
+
+| Op | Test | Result |
+|----|------|--------|
+| layer_norm | ln_backward_test.mmc | 8.9e-16 |
+| gelu (tanh) | gelu_backward_test.mmc | 2.6e-12 |
+| matmul_t | matmul_backward_test.mmc | 0.0 |
+| cross_entropy | ce_backward_test.mmc | 6.9e-18 |
+| attention block | attn_backward_test.mmc | 1.7e-14 |
+
+All PASS at tol 1e-10 vs PyTorch float64.
+
+### 18. VERIFIED BACKWARD OPS (2026-10-31)
+
+| Op | Test | Result |
+|----|------|--------|
+| layer_norm | ln_backward_test.mmc | 8.9e-16 |
+| gelu (tanh) | gelu_backward_test.mmc | 2.6e-12 |
+| matmul_t | matmul_backward_test.mmc | 0.0 |
+| cross_entropy | ce_backward_test.mmc | 6.9e-18 |
+| attention block | attn_backward_test.mmc | 1.7e-14 |
+
+All PASS at tol 1e-10 vs PyTorch float64.
+
+### 19. BACKWARD TEST BUILD RECIPE
+
+```bash
+./mmc_v14 src/OP_backward_test.mmc build/OP_backward_test.c
+gcc -O2 -I runtime -c build/OP_backward_test.c -o build/OP_backward_test.o
+gcc -O2 build/OP_backward_test.o build/stubs.o -o build/OP_backward_test -lm
+./build/OP_backward_test
+python3 ref/OP_bwd_test.py
+```
+
+Pattern: 2 files per op (MMC + Py test).
