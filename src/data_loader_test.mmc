@@ -1,0 +1,82 @@
+// data_loader_test.mmc — read bytes, build batches with LCG shuffle
+extern "C" void* malloc(ကိန်း n)
+extern "C" void* calloc(ကိန်း n, ကိန်း sz)
+extern "C" void free(အစု p)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+extern "C" ကိန်း fseek(အစု stream, ကိန်း offset, ကိန်း whence)
+extern "C" ကိန်း ftell(အစု stream)
+
+လုပ်ငန်း get_file_size(စာသား path) ကိန်း {
+    တည်ဆောက် အစု f = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { ပြန်ပေး -1 }
+    fseek(f, 0, 2)
+    တည်ဆောက် ကိန်း sz = ftell(f)
+    fclose(f)
+    ပြန်ပေး sz
+}
+
+လုပ်ငန်း read_all(စာသား path, ကိန်း n) စာသား {
+    တည်ဆောက် အစု b = malloc(n)
+    တည်ဆောက် အစု f = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { free(b) ပြန်ပေး 0 }
+    fread(b, 1, n, f)  fclose(f)
+    ပြန်ပေး b
+}
+
+လုပ်ငန်း sv_bytes(စာသား path, အစု b, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု f = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(f == 0) { ပြန်ပေး -1 }
+    fwrite(b, 1, n, f)  fclose(f)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း SEQ = 128
+    တည်ဆောက် ကိန်း BATCH = 4
+    တည်ဆောက် ကိန်း SEED = 42
+
+    တည်ဆောက် စာသား IN = "/data/data/com.termux/files/home/mmc_publish/ref/data_test/corpus.bin"
+
+    တည်ဆောက် ကိန်း n = get_file_size(IN)
+    သုံးသပ်ချက်အရ(n < SEQ + 1) {
+        printf("corpus too small: %d bytes\n", n)
+        ပြန်ပေး 1
+    }
+    printf("corpus size = %d bytes\n", n)
+
+    တည်ဆောက် စာသား buf = read_all(IN, n)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 1 }
+
+    // Allocate output
+    တည်ဆောက် ကိန်း* inp = calloc(BATCH * SEQ, 4)
+    တည်ဆောက် ကိန်း* tgt = calloc(BATCH * SEQ, 4)
+
+    // LCG shuffle: state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+    တည်ဆောက် ကိန်း state = SEED
+    တည်ဆောက် ကိန်း maxpos = n - SEQ - 1
+
+    တည်ဆောက် ကိန်း b = 0
+    ပြည့်အောင်(b < BATCH) {
+        state = (state * 25173 + 13849) % 65536
+        တည်ဆောက် ကိန်း pos = state % maxpos
+        printf("batch %d: pos = %d\n", b, pos)
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < SEQ) {
+            inp[b*SEQ + i] = buf[pos + i]
+            tgt[b*SEQ + i] = buf[pos + i + 1]
+            i = i + 1
+        }
+        b = b + 1
+    }
+
+    sv_bytes("/data/data/com.termux/files/home/mmc_publish/ref/data_test/inp.bin", inp, BATCH*SEQ*4)
+    sv_bytes("/data/data/com.termux/files/home/mmc_publish/ref/data_test/tgt.bin", tgt, BATCH*SEQ*4)
+
+    free(buf)  free(inp)  free(tgt)
+    printf("=== data_loader_test DONE ===\n")
+    ပြန်ပေး 0
+}
