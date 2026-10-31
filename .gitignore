@@ -19,3 +19,4 @@ ref/phase1/
 ref/*/*.npz
 ref/*/*.npy
 ref/logs/
+ref/phase1/bin/
