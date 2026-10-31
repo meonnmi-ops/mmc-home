@@ -408,3 +408,33 @@ Step 4: gcc -O2 build/train_multi_step.o build/block_lib.o build/stubs.o -o buil
 
 build/block_lib.h declares extern "C" prototypes for ln_fwd_row, ln_bwd_row, mm_fwd, mm_bwd, gelu_bwd, block_forward, block_fwd_bwd.
 
+
+## 24. BUG HISTORY — 2026-10-31 / 11-01
+
+### Forward path
+1. `mmc_matrix_new` allocated 4 bytes/element but `ဒသမ` = 8 bytes
+   (double) → segfault. **Fix**: `malloc(8 * rows * cols)`.
+2. Binary I/O wrote/read 4-byte floats but ref is double → reshape errors.
+   **Fix**: all `.bin` are float64, `fread`/`fwrite` size 8.
+3. `tn_copy` was missing from model_runtime_lib.mmc → undefined symbol.
+   **Fix**: added to `build/stubs.c`.
+
+### Backward path
+4. `mm_bwd` wrote `dX = dy*W` inside the j-loop instead of accumulating
+   `dX += dy*W` → last j overwrote all. **Fix**: `+=` only.
+
+### AdamW path
+5. **Near-threshold eps amplification**: when gradient ≈ eps (1e-8),
+   `sqrt(vh)+eps` diverges slightly between PyTorch and MMC due to
+   accumulated float error. Produces ~1e-9 absolute diff on bqkv/Wqkv
+   only. **Not a bug** — expected AdamW behavior. Use relative
+   tolerance 1e-8 in tests (per-tensor).
+
+### Tooling
+6. `/tmp` is NOT writable in Termux → use `$HOME/tmp`.
+7. `bytes.tofile()` doesn't exist in numpy → `np.frombuffer(...).tofile()`.
+8. `b"..."` with non-ASCII → use `"text".encode('utf-8')`.
+9. `sed -i 's|...` with `!` (in `!build/*.h`) triggers bash history
+   expansion → use single quotes or escape.
+10. `.gitignore` with `!build/*.h` needs `git add -f` for first add.
+
