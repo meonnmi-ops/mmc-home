@@ -20,3 +20,4 @@ ref/*/*.npz
 ref/*/*.npy
 ref/logs/
 ref/phase1/bin/
+ref/full_test/
