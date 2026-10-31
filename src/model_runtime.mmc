@@ -1,0 +1,274 @@
+// ============================================================
+// model_runtime.mmc — Nyanlin Phase 1 MMC forward runtime
+// Compile-verified syntax matching runtime_mmc.mmc style
+// ============================================================
+
+extern "C" void* malloc(ကိန်း n)
+extern "C" void free(အစု p)
+extern "C" ဒသမ sqrt(ဒသမ x)
+extern "C" ဒသမ tanh(ဒသမ x)
+extern "C" ဒသမ exp(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+
+တည်ဆောက် ကိန်း CFG_D = 256
+တည်ဆောက် ကိန်း CFG_H = 8
+တည်ဆောက် ကိန်း CFG_HD = 32
+တည်ဆောက် ဒသမ CFG_EPS = 0.00001
+
+အစုအဝေး Tensor {
+    data ဒသမ*
+    rows ကိန်း
+    cols ကိန်း
+}
+
+လုပ်ငန်း tn_new(ကိန်း rows, ကိန်း cols) အစု {
+    တည်ဆောက် Tensor* t = malloc(24)
+    သုံးသပ်ချက်အရ(t == 0) {
+        ပြန်ပေး 0
+    }
+    t->rows = rows
+    t->cols = cols
+    t->data = malloc(4 * rows * cols)
+    သုံးသပ်ချက်အရ(t->data == 0) {
+        free(t)
+        ပြန်ပေး 0
+    }
+    ပြန်ပေး t
+}
+
+လုပ်ငန်း tn_free(အစု t) {
+    သုံးသပ်ချက်အရ(t == 0) {
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် Tensor* tp = t
+    free(tp->data)
+    free(t)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း tn_get(အစု t, ကိန်း r, ကိန်း c) ဒသမ {
+    တည်ဆောက် Tensor* tp = t
+    ပြန်ပေး tp->data[r * tp->cols + c]
+}
+
+လုပ်ငန်း tn_set(အစု t, ကိန်း r, ကိန်း c, ဒသမ v) {
+    တည်ဆောက် Tensor* tp = t
+    tp->data[r * tp->cols + c] = v
+    ပြန်ပေး 0
+}
+
+// out = x @ W.T + b   x:[T,din] W:[dout,din] b:[dout] out:[T,dout]
+လုပ်ငန်း matmul_t(အစု out_ptr, အစု x_ptr, အစု W_ptr, အစု b_ptr) ကိန်း {
+    တည်ဆောက် Tensor* out = out_ptr
+    တည်ဆောက် Tensor* x = x_ptr
+    တည်ဆောက် Tensor* W = W_ptr
+    တည်ဆောက် Tensor* b = b_ptr
+    သုံးသပ်ချက်အရ(x->cols != W->cols) {
+        ပြန်ပေး -1
+    }
+    တည်ဆောက် ကိန်း T = x->rows
+    တည်ဆောက် ကိန်း din = x->cols
+    တည်ဆောက် ကိန်း dout = W->rows
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < T) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < dout) {
+            တည်ဆောက် ဒသမ acc = 0.0
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < din) {
+                acc = acc + x->data[i * din + k] * W->data[j * din + k]
+                k = k + 1
+            }
+            out->data[i * dout + j] = acc + b->data[j]
+            j = j + 1
+        }
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+
+// layernorm on one row (in-place)
+လုပ်ငန်း ln_row(ဒသမ* x, ကိန်း n, ဒသမ eps, ဒသမ* g, ဒသမ* b) ကိန်း {
+    တည်ဆောက် ဒသမ s = 0.0
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        s = s + x[i]
+        i = i + 1
+    }
+    တည်ဆောက် ဒသမ mean = s / n
+    တည်ဆောက် ဒသမ v = 0.0
+    i = 0
+    ပြည့်အောင်(i < n) {
+        တည်ဆောက် ဒသမ d = x[i] - mean
+        v = v + d * d
+        i = i + 1
+    }
+    v = v / n
+    တည်ဆောက် ဒသမ inv = 1.0 / sqrt(v + eps)
+    i = 0
+    ပြည့်အောင်(i < n) {
+        x[i] = (x[i] - mean) * inv * g[i] + b[i]
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း ln_tensor(အစု t_ptr, အစု g_ptr, အစု b_ptr) ကိန်း {
+    တည်ဆောက် Tensor* t = t_ptr
+    တည်ဆောက် Tensor* g = g_ptr
+    တည်ဆောက် Tensor* b = b_ptr
+    တည်ဆောက် ကိန်း T = t->rows
+    တည်ဆောက် ကိန်း D = t->cols
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < T) {
+        ln_row(t->data + i * D, D, CFG_EPS, g->data, b->data)
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း gelu1(ဒသမ x) ဒသမ {
+    တည်ဆောက် ဒသမ c = 0.7978845608
+    တည်ဆောက် ဒသမ x3 = x * x * x
+    တည်ဆောက် ဒသမ inner = c * (x + 0.044715 * x3)
+    ပြန်ပေး 0.5 * x * (1.0 + tanh(inner))
+}
+
+// single head attention with causal mask
+လုပ်ငန်း attn_single(အစု out_ptr, အစု Q_ptr, အစု K_ptr, အစု V_ptr) ကိန်း {
+    တည်ဆောက် Tensor* out = out_ptr
+    တည်ဆောက် Tensor* Q = Q_ptr
+    တည်ဆောက် Tensor* K = K_ptr
+    တည်ဆောက် Tensor* V = V_ptr
+    တည်ဆောက် ကိန်း T = Q->rows
+    တည်ဆောက် ကိန်း D = Q->cols
+    တည်ဆောက် အစု s_ptr = tn_new(T, T)
+    သုံးသပ်ချက်အရ(s_ptr == 0) {
+        ပြန်ပေး -1
+    }
+    တည်ဆောက် Tensor* S = s_ptr
+    တည်ဆောက် ဒသမ scale = 1.0 / sqrt(D * 1.0)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < T) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < T) {
+            တည်ဆောက် ဒသမ acc = 0.0
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < D) {
+                acc = acc + Q->data[i * D + k] * K->data[j * D + k]
+                k = k + 1
+            }
+            S->data[i * T + j] = acc * scale
+            j = j + 1
+        }
+        i = i + 1
+    }
+    // causal softmax inline
+    တည်ဆောက် ကိန်း ii = 0
+    ပြည့်အောင်(ii < T) {
+        တည်ဆောက် ဒသမ mxv = -1000000000.0
+        တည်ဆောက် ကိန်း jj = 0
+        ပြည့်အောင်(jj < ii + 1) {
+            သုံးသပ်ချက်အရ(S->data[ii * T + jj] > mxv) {
+                mxv = S->data[ii * T + jj]
+            }
+            jj = jj + 1
+        }
+        တည်ဆောက် ဒသမ sv = 0.0
+        jj = 0
+        ပြည့်အောင်(jj < T) {
+            သုံးသပ်ချက်အရ(jj < ii + 1) {
+                S->data[ii * T + jj] = exp(S->data[ii * T + jj] - mxv)
+                sv = sv + S->data[ii * T + jj]
+            }
+            သုံးသပ်ချက်အရ(jj > ii) {
+                S->data[ii * T + jj] = 0.0
+            }
+            jj = jj + 1
+        }
+        တည်ဆောက် ဒသမ invv = 1.0 / sv
+        jj = 0
+        ပြည့်အောင်(jj < ii + 1) {
+            S->data[ii * T + jj] = S->data[ii * T + jj] * invv
+            jj = jj + 1
+        }
+        ii = ii + 1
+    }
+    i = 0
+    ပြည့်အောင်(i < T) {
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < D) {
+            တည်ဆောက် ဒသမ acc = 0.0
+            တည်ဆောက် ကိန်း j = 0
+            ပြည့်အောင်(j < T) {
+                acc = acc + S->data[i * T + j] * V->data[j * D + k]
+                j = j + 1
+            }
+            out->data[i * D + k] = acc
+            k = k + 1
+        }
+        i = i + 1
+    }
+    tn_free(s_ptr)
+    ပြန်ပေး 0
+}
+
+// multi-head attention with causal mask
+လုပ်ငန်း attn_multi(အစု out_ptr, အစု Q_ptr, အစု K_ptr, အစု V_ptr, ကိန်း H) ကိန်း {
+    တည်ဆောက် Tensor* out = out_ptr
+    တည်ဆောက် Tensor* Q = Q_ptr
+    တည်ဆောက် Tensor* K = K_ptr
+    တည်ဆောက် Tensor* V = V_ptr
+    တည်ဆောက် ကိန်း T = Q->rows
+    တည်ဆောက် ကိန်း D = Q->cols
+    တည်ဆောက် ကိန်း HD = D / H
+    တည်ဆောက် ကိန်း h = 0
+    ပြည့်အောင်(h < H) {
+        တည်ဆောက် အစု Qh_p = tn_new(T, HD)
+        တည်ဆောက် အစု Kh_p = tn_new(T, HD)
+        တည်ဆောက် အစု Vh_p = tn_new(T, HD)
+        တည်ဆောက် အစု Oh_p = tn_new(T, HD)
+        သုံးသပ်ချက်အရ(Qh_p == 0 သို့မဟုတ် Kh_p == 0 သို့မဟုတ် Vh_p == 0 သို့မဟုတ် Oh_p == 0) {
+            ပြန်ပေး -1
+        }
+        တည်ဆောက် Tensor* Qh = Qh_p
+        တည်ဆောက် Tensor* Kh = Kh_p
+        တည်ဆောက် Tensor* Vh = Vh_p
+        တည်ဆောက် Tensor* Oh = Oh_p
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < T) {
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < HD) {
+                တည်ဆောက် ကိန်း src = i * D + h * HD + k
+                တည်ဆောက် ကိန်း dst = i * HD + k
+                Qh->data[dst] = Q->data[src]
+                Kh->data[dst] = K->data[src]
+                Vh->data[dst] = V->data[src]
+                k = k + 1
+            }
+            i = i + 1
+        }
+        attn_single(Oh_p, Qh_p, Kh_p, Vh_p)
+        i = 0
+        ပြည့်အောင်(i < T) {
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < HD) {
+                out->data[i * D + h * HD + k] = Oh->data[i * HD + k]
+                k = k + 1
+            }
+            i = i + 1
+        }
+        tn_free(Qh_p)
+        tn_free(Kh_p)
+        tn_free(Vh_p)
+        tn_free(Oh_p)
+        h = h + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    printf("model_runtime compiled OK\n")
+    ပြန်ပေး 0
+}
