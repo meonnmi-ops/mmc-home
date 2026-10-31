@@ -1,0 +1,469 @@
+// block_backward_test.mmc — full transformer block bwd vs PyTorch
+extern "C" void* malloc(ကိန်း n)
+extern "C" void* calloc(ကိန်း n, ကိန်း sz)
+extern "C" void free(အစု p)
+extern "C" ဒသမ sqrt(ဒသမ x)
+extern "C" ဒသမ exp(ဒသမ x)
+extern "C" ဒသမ tanh(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+// Inline helpers (avoid function calls — MMC block scoping simpler this way)
+
+လုပ်ငန်း ln_fwd_row(ဒသမ* xn, ဒသမ* x, ဒသမ* g, ဒသမ* b, ကိန်း D, ဒသမ* mean_out, ဒသမ* inv_out) ကိန်း {
+    တည်ဆောက် ဒသမ s = 0.0
+    တည်ဆောက် ကိန်း d = 0
+    ပြည့်အောင်(d < D) { s = s + x[d]  d = d + 1 }
+    တည်ဆောက် ဒသမ mean = s / D
+    တည်ဆောက် ဒသမ v = 0.0
+    d = 0
+    ပြည့်အောင်(d < D) {
+        တည်ဆောက် ဒသမ dv = x[d] - mean
+        v = v + dv * dv
+        d = d + 1
+    }
+    v = v / D
+    တည်ဆောက် ဒသမ inv = 1.0 / sqrt(v + 0.00001)
+    d = 0
+    ပြည့်အောင်(d < D) {
+        xn[d] = (x[d] - mean) * inv * g[d] + b[d]
+        d = d + 1
+    }
+    mean_out[0] = mean
+    inv_out[0] = inv
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း ln_bwd_row(ဒသမ* dx, ဒသမ* dgamma, ဒသမ* dbeta, ဒသမ* dout, ဒသမ* x, ဒသမ* gamma, ကိန်း D, ကိန်း add) ကိန်း {
+    တည်ဆောက် ဒသမ s = 0.0
+    တည်ဆောက် ကိန်း d = 0
+    ပြည့်အောင်(d < D) { s = s + x[d]  d = d + 1 }
+    တည်ဆောက် ဒသမ mean = s / D
+    တည်ဆောက် ဒသမ v = 0.0
+    d = 0
+    ပြည့်အောင်(d < D) {
+        တည်ဆောက် ဒသမ dv = x[d] - mean
+        v = v + dv * dv
+        d = d + 1
+    }
+    v = v / D
+    တည်ဆောက် ဒသမ inv = 1.0 / sqrt(v + 0.00001)
+    တည်ဆောက် ဒသမ sa = 0.0
+    တည်ဆောက် ဒသမ saz = 0.0
+    d = 0
+    ပြည့်အောင်(d < D) {
+        တည်ဆောက် ဒသမ a = dout[d] * gamma[d]
+        တည်ဆောက် ဒသမ z = (x[d] - mean) * inv
+        sa = sa + a
+        saz = saz + a * z
+        d = d + 1
+    }
+    တည်ဆောက် ဒသမ ma = sa / D
+    တည်ဆောက် ဒသမ maz = saz / D
+    d = 0
+    ပြည့်အောင်(d < D) {
+        တည်ဆောက် ဒသမ a = dout[d] * gamma[d]
+        တည်ဆောက် ဒသမ z = (x[d] - mean) * inv
+        တည်ဆောက် ဒသမ dxv = inv * (a - ma - z * maz)
+        သုံးသပ်ချက်အရ(add == 1) { dx[d] = dx[d] + dxv }
+        သုံးသပ်ချက်အရ(add == 0) { dx[d] = dxv }
+        dgamma[d] = dgamma[d] + dout[d] * z
+        dbeta[d] = dbeta[d] + dout[d]
+        d = d + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း gelu_bwd(ဒသမ* dx, ဒသမ* dout, ဒသမ* x, ကိန်း n, ကိန်း add) ကိန်း {
+    တည်ဆောက် ဒသမ c = 0.7978845608
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        တည်ဆောက် ဒသမ xv = x[i]
+        တည်ဆောက် ဒသမ x2 = xv * xv
+        တည်ဆောက် ဒသမ u = c * (xv + 0.044715 * xv * x2)
+        တည်ဆောက် ဒသမ t = tanh(u)
+        တည်ဆောက် ဒသမ dg = 0.5 * (1.0 + t) + 0.5 * xv * (1.0 - t * t) * c * (1.0 + 0.134145 * x2)
+        သုံးသပ်ချက်အရ(add == 1) { dx[i] = dx[i] + dout[i] * dg }
+        သုံးသပ်ချက်အရ(add == 0) { dx[i] = dout[i] * dg }
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+// out[T,J] = X[T,K] @ W[J,K].T + b[J]
+လုပ်ငန်း mm_fwd(ဒသမ* out, ဒသမ* X, ဒသမ* W, ဒသမ* b, ကိန်း T, ကိန်း J, ကိန်း K) ကိန်း {
+    တည်ဆောက် ကိန်း t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < J) {
+            တည်ဆောက် ဒသမ s = b[j]
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < K) {
+                s = s + X[t*K + k] * W[j*K + k]
+                k = k + 1
+            }
+            out[t*J + j] = s
+            j = j + 1
+        }
+        t = t + 1
+    }
+    ပြန်ပေး 0
+}
+
+// Bwd for out = X @ W.T + b
+လုပ်ငန်း mm_bwd(ဒသမ* dX, ဒသမ* dW, ဒသမ* db, ဒသမ* dout, ဒသမ* X, ဒသမ* W,
+                  ကိန်း T, ကိန်း J, ကိန်း K, ကိန်း add_dX) ကိန်း {
+    တည်ဆောက် ကိန်း t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < J) {
+            တည်ဆောက် ဒသမ dy = dout[t*J + j]
+            db[j] = db[j] + dy
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < K) {
+                dW[j*K + k] = dW[j*K + k] + dy * X[t*K + k]
+                dX[t*K + k] = dX[t*K + k] + dy * W[j*K + k]
+                k = k + 1
+            }
+            j = j + 1
+        }
+        t = t + 1
+    }
+    ပြန်ပေး 0
+}
+
+// Full block: x2 = x + attn(ln1(x)) + ffn(ln2(x + attn(ln1(x))))
+// Returns dx, dW*, db*, dln*_*
+လုပ်ငန်း block_fwd_bwd(
+    ဒသမ* dx,
+    ဒသမ* dWqkv, ဒသမ* dbqkv, ဒသမ* dWo, ဒသမ* dbo,
+    ဒသမ* dW1, ဒသမ* db1, ဒသမ* dW2, ဒသမ* db2,
+    ဒသမ* dln1w, ဒသမ* dln1b, ဒသမ* dln2w, ဒသမ* dln2b,
+    ဒသမ* X, ဒသမ* Wqkv, ဒသမ* bqkv, ဒသမ* Wo, ဒသမ* bo,
+    ဒသမ* W1, ဒသမ* b1, ဒသမ* W2, ဒသမ* b2,
+    ဒသမ* ln1w, ဒသမ* ln1b, ဒသမ* ln2w, ဒသမ* ln2b,
+    ဒသမ* dOut,
+    ကိန်း T, ကိန်း D, ကိန်း DFF, ကိန်း H) ကိန်း {
+
+    တည်ဆောက် ကိန်း HD = D / H
+    တည်ဆောက် ဒသမ scale = 1.0 / sqrt(HD * 1.0)
+
+    // Hoist loop vars
+    တည်ဆောက် ကိန်း t = 0
+    တည်ဆောက် ကိန်း h = 0
+    တည်ဆောက် ကိန်း i = 0
+    တည်ဆောက် ကိန်း j = 0
+    တည်ဆောက် ကိန်း k = 0
+    တည်ဆောက် ကိန်း hd = 0
+    တည်ဆောက် ကိန်း dd = 0
+    တည်ဆောက် ကိန်း d1 = 0
+    တည်ဆောက် ကိန်း d2 = 0
+
+    // ===== FORWARD (keep intermediates) =====
+    တည်ဆောက် ဒသမ* xn1 = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* mean1 = calloc(1, 8)
+    တည်ဆောက် ဒသမ* inv1 = calloc(1, 8)
+
+    t = 0
+    ပြည့်အောင်(t < T) {
+        ln_fwd_row(xn1 + t*D, X + t*D, ln1w, ln1b, D, mean1, inv1)
+        t = t + 1
+    }
+
+    // QKV
+    တည်ဆောက် ဒသမ* qkv = calloc(T * 3 * D, 8)
+    mm_fwd(qkv, xn1, Wqkv, bqkv, T, 3*D, D)
+
+    // Split + attention
+    တည်ဆောက် ဒသမ* Q = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* K = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* V = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        dd = 0
+        ပြည့်အောင်(dd < D) {
+            Q[t*D + dd] = qkv[t*3*D + dd]
+            K[t*D + dd] = qkv[t*3*D + D + dd]
+            V[t*D + dd] = qkv[t*3*D + 2*D + dd]
+            dd = dd + 1
+        }
+        t = t + 1
+    }
+
+    တည်ဆောက် ဒသမ* O = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* Aall = calloc(H * T * T, 8)
+    h = 0
+    ပြည့်အောင်(h < H) {
+        တည်ဆောက် ဒသမ* A = Aall + h * T * T
+        i = 0
+        ပြည့်အောင်(i < T) {
+            တည်ဆောက် ဒသမ mx = -1000000000.0
+            j = 0
+            ပြည့်အောင်(j <= i) {
+                တည်ဆောက် ဒသမ s = 0.0
+                k = 0
+                ပြည့်အောင်(k < HD) {
+                    s = s + Q[i*D + h*HD + k] * K[j*D + h*HD + k]
+                    k = k + 1
+                }
+                A[i*T + j] = s * scale
+                သုံးသပ်ချက်အရ(A[i*T + j] > mx) { mx = A[i*T + j] }
+                j = j + 1
+            }
+            တည်ဆောက် ဒသမ se = 0.0
+            j = 0
+            ပြည့်အောင်(j <= i) {
+                A[i*T + j] = exp(A[i*T + j] - mx)
+                se = se + A[i*T + j]
+                j = j + 1
+            }
+            j = 0
+            ပြည့်အောင်(j <= i) { A[i*T + j] = A[i*T + j] / se  j = j + 1 }
+            j = i + 1
+            ပြည့်အောင်(j < T) { A[i*T + j] = 0.0  j = j + 1 }
+            i = i + 1
+        }
+        i = 0
+        ပြည့်အောင်(i < T) {
+            hd = 0
+            ပြည့်အောင်(hd < HD) {
+                တည်ဆောက် ဒသမ s = 0.0
+                j = 0
+                ပြည့်အောင်(j < T) {
+                    s = s + A[i*T + j] * V[j*D + h*HD + hd]
+                    j = j + 1
+                }
+                O[i*D + h*HD + hd] = s
+                hd = hd + 1
+            }
+            i = i + 1
+        }
+        h = h + 1
+    }
+
+    // proj = O @ Wo.T + bo
+    တည်ဆောက် ဒသမ* proj = calloc(T * D, 8)
+    mm_fwd(proj, O, Wo, bo, T, D, D)
+
+    // x1 = X + proj
+    တည်ဆောက် ဒသမ* x1 = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T*D) {
+        x1[t] = X[t] + proj[t]
+        t = t + 1
+    }
+
+    // ln2(x1)
+    တည်ဆောက် ဒသမ* xn2 = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* mean2 = calloc(1, 8)
+    တည်ဆောက် ဒသမ* inv2 = calloc(1, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        ln_fwd_row(xn2 + t*D, x1 + t*D, ln2w, ln2b, D, mean2, inv2)
+        t = t + 1
+    }
+
+    // fc1 = xn2 @ W1.T + b1
+    တည်ဆောက် ဒသမ* fc1 = calloc(T * DFF, 8)
+    mm_fwd(fc1, xn2, W1, b1, T, DFF, D)
+
+    // g = gelu(fc1)
+    တည်ဆောက် ဒသမ* g = calloc(T * DFF, 8)
+    t = 0
+    ပြည့်အောင်(t < T*DFF) {
+        တည်ဆောက် ဒသမ xv = fc1[t]
+        တည်ဆောက် ဒသမ c = 0.7978845608
+        တည်ဆောက် ဒသမ inner = c * (xv + 0.044715 * xv * xv * xv)
+        g[t] = 0.5 * xv * (1.0 + tanh(inner))
+        t = t + 1
+    }
+
+    // fc2 = g @ W2.T + b2
+    တည်ဆောက် ဒသမ* fc2 = calloc(T * D, 8)
+    mm_fwd(fc2, g, W2, b2, T, D, DFF)
+
+    // ===== BACKWARD =====
+    // dx2 = dOut. dx1 = dx2 (residual)
+    တည်ဆောက် ဒသမ* dx1 = calloc(T * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T*D) { dx1[t] = dOut[t]  t = t + 1 }
+
+    // fc2 bwd: dg, dW2, db2 from dOut
+    တည်ဆောက် ဒသမ* dg = calloc(T * DFF, 8)
+    mm_bwd(dg, dW2, db2, dOut, g, W2, T, D, DFF, 0)
+
+    // gelu bwd: dfc1 from dg
+    တည်ဆောက် ဒသမ* dfc1 = calloc(T * DFF, 8)
+    gelu_bwd(dfc1, dg, fc1, T*DFF, 0)
+
+    // fc1 bwd: dxn2, dW1, db1 from dfc1
+    တည်ဆောက် ဒသမ* dxn2 = calloc(T * D, 8)
+    mm_bwd(dxn2, dW1, db1, dfc1, xn2, W1, T, DFF, D, 0)
+
+    // ln2 bwd → add into dx1
+    t = 0
+    ပြည့်အောင်(t < T) {
+        ln_bwd_row(dx1 + t*D, dln2w, dln2b, dxn2 + t*D, x1 + t*D, ln2w, D, 1)
+        t = t + 1
+    }
+
+    // proj bwd: dO, dWo, dbo from dx1
+    တည်ဆောက် ဒသမ* dO = calloc(T * D, 8)
+    mm_bwd(dO, dWo, dbo, dx1, O, Wo, T, D, D, 0)
+
+    // attn bwd → dQ, dK, dV
+    တည်ဆောက် ဒသမ* dQ = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* dK = calloc(T * D, 8)
+    တည်ဆောက် ဒသမ* dV = calloc(T * D, 8)
+
+    h = 0
+    ပြည့်အောင်(h < H) {
+        တည်ဆောက် ဒသမ* A = Aall + h * T * T
+        တည်ဆောက် ဒသမ* dA = calloc(T * T, 8)
+        တည်ဆောက် ဒသမ* dVh = calloc(T * HD, 8)
+        i = 0
+        ပြည့်အောင်(i < T) {
+            j = 0
+            ပြည့်အောင်(j < T) {
+                တည်ဆောက် ဒသမ s = 0.0
+                hd = 0
+                ပြည့်အောင်(hd < HD) {
+                    s = s + dO[i*D + h*HD + hd] * V[j*D + h*HD + hd]
+                    hd = hd + 1
+                }
+                dA[i*T + j] = s
+                j = j + 1
+            }
+            i = i + 1
+        }
+        i = 0
+        ပြည့်အောင်(i < T) {
+            hd = 0
+            ပြည့်အောင်(hd < HD) {
+                တည်ဆောက် ဒသမ s = 0.0
+                j = 0
+                ပြည့်အောင်(j < T) {
+                    s = s + A[j*T + i] * dO[j*D + h*HD + hd]
+                    j = j + 1
+                }
+                dVh[i*HD + hd] = s
+                hd = hd + 1
+            }
+            i = i + 1
+        }
+        တည်ဆောက် ဒသမ* dS = calloc(T * T, 8)
+        i = 0
+        ပြည့်အောင်(i < T) {
+            တည်ဆောက် ဒသမ sad = 0.0
+            j = 0
+            ပြည့်အောင်(j < T) { sad = sad + A[i*T + j] * dA[i*T + j]  j = j + 1 }
+            j = 0
+            ပြည့်အောင်(j < T) {
+                dS[i*T + j] = A[i*T + j] * (dA[i*T + j] - sad)
+                j = j + 1
+            }
+            i = i + 1
+        }
+        တည်ဆောက် ဒသမ* dQh = calloc(T * HD, 8)
+        တည်ဆောက် ဒသမ* dKh = calloc(T * HD, 8)
+        i = 0
+        ပြည့်အောင်(i < T) {
+            k = 0
+            ပြည့်အောင်(k < HD) {
+                တည်ဆောက် ဒသမ s = 0.0
+                j = 0
+                ပြည့်အောင်(j < T) {
+                    s = s + dS[i*T + j] * scale * K[j*D + h*HD + k]
+                    j = j + 1
+                }
+                dQh[i*HD + k] = s
+                k = k + 1
+            }
+            i = i + 1
+        }
+        i = 0
+        ပြည့်အောင်(i < T) {
+            k = 0
+            ပြည့်အောင်(k < HD) {
+                တည်ဆောက် ဒသမ s = 0.0
+                j = 0
+                ပြည့်အောင်(j < T) {
+                    s = s + dS[j*T + i] * scale * Q[j*D + h*HD + k]
+                    j = j + 1
+                }
+                dKh[i*HD + k] = s
+                k = k + 1
+            }
+            i = i + 1
+        }
+        i = 0
+        ပြည့်အောင်(i < T) {
+            k = 0
+            ပြည့်အောင်(k < HD) {
+                dQ[i*D + h*HD + k] = dQ[i*D + h*HD + k] + dQh[i*HD + k]
+                dK[i*D + h*HD + k] = dK[i*D + h*HD + k] + dKh[i*HD + k]
+                dV[i*D + h*HD + k] = dV[i*D + h*HD + k] + dVh[i*HD + k]
+                k = k + 1
+            }
+            i = i + 1
+        }
+        free(dA) free(dVh) free(dS) free(dQh) free(dKh)
+        h = h + 1
+    }
+
+    // concat dQKV
+    တည်ဆောက် ဒသမ* dQKV = calloc(T * 3 * D, 8)
+    t = 0
+    ပြည့်အောင်(t < T) {
+        dd = 0
+        ပြည့်အောင်(dd < D) {
+            dQKV[t*3*D + dd] = dQ[t*D + dd]
+            dQKV[t*3*D + D + dd] = dK[t*D + dd]
+            dQKV[t*3*D + 2*D + dd] = dV[t*D + dd]
+            dd = dd + 1
+        }
+        t = t + 1
+    }
+
+    // QKV matmul bwd: dxn1, dWqkv, dbqkv
+    တည်ဆောက် ဒသမ* dxn1 = calloc(T * D, 8)
+    mm_bwd(dxn1, dWqkv, dbqkv, dQKV, xn1, Wqkv, T, 3*D, D, 0)
+
+    // ln1 bwd → add into dx (residual output)
+    // first dx = dx1 (from residual 1)
+    t = 0
+    ပြည့်အောင်(t < T*D) { dx[t] = dx1[t]  t = t + 1 }
+    // then add ln1 contribution
+    t = 0
+    ပြည့်အောင်(t < T) {
+        ln_bwd_row(dx + t*D, dln1w, dln1b, dxn1 + t*D, X + t*D, ln1w, D, 1)
+        t = t + 1
+    }
+
+    free(xn1) free(mean1) free(inv1) free(qkv) free(Q) free(K) free(V)
+    free(O) free(Aall) free(proj) free(x1) free(xn2) free(mean2) free(inv2)
+    free(fc1) free(g) free(fc2) free(dx1) free(dg) free(dfc1) free(dxn2)
+    free(dO) free(dQ) free(dK) free(dV) free(dQKV) free(dxn1)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း load_f64(စာသား path, ကိန်း n) အစု {
+    တည်ဆောက် အစု buf = malloc(8 * n)
+    သုံးသပ်ချက်အရ(buf == 0) { ပြန်ပေး 0 }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) { free(buf) ပြန်ပေး 0 }
+    fread(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+လုပ်ငန်း save_f64(စာသား path, အစု buf, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု fp = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(fp == 0) { ပြန်ပေး -1 }
+    fwrite(buf, 8, n, fp)
+    fclose(fp)
+    ပြန်ပေး 0
+}
