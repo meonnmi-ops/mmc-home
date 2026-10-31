@@ -28,7 +28,7 @@ extern "C" ကိန်း printf(စာသား fmt, ...)
     }
     t->rows = rows
     t->cols = cols
-    t->data = malloc(4 * rows * cols)
+    t->data = malloc(8 * rows * cols)
     သုံးသပ်ချက်အရ(t->data == 0) {
         free(t)
         ပြန်ပေး 0

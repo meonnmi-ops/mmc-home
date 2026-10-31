@@ -1,0 +1,351 @@
+// ============================================================
+// model_forward.mmc — Phase 1 main: load .bin weights, forward, save logits
+// Requires: model_runtime_lib.o (compiled separately)
+// ============================================================
+
+// ---- C primitives ----
+extern "C" void* malloc(ကိန်း n)
+extern "C" void free(အစု p)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+// ---- From model_runtime_lib.o ----
+extern "C" အစု tn_new(ကိန်း rows, ကိန်း cols)
+extern "C" ကိန်း tn_free(အစု t)
+extern "C" ကိန်း matmul_t(အစု out, အစု x, အစု W, အစု b)
+extern "C" ကိန်း ln_tensor(အစု t, အစု g, အစု b)
+extern "C" ဒသမ gelu1(ဒသမ x)
+extern "C" ကိန်း attn_multi(အစု out, အစု Q, အစု K, အစု V, ကိန်း H)
+
+// ---- Config ----
+တည်ဆောက် ကိန်း V = 256
+တည်ဆောက် ကိန်း S = 128
+တည်ဆောက် ကိန်း D = 256
+တည်ဆောက် ကိန်း L = 6
+တည်ဆောက် ကိန်း H = 8
+တည်ဆောက် ကိန်း FF = 1024
+
+// ---- Load raw float32 from file into Tensor ----
+လုပ်ငန်း load_f32(စာသား path, ကိန်း rows, ကိန်း cols) အစု {
+    တည်ဆောက် အစု t = tn_new(rows, cols)
+    သုံးသပ်ချက်အရ(t == 0) {
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        printf("ERROR: cannot open %s\n", path)
+        tn_free(t)
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် Tensor* tp = t
+    fread(tp->data, 8, rows * cols, fp)
+    fclose(fp)
+    ပြန်ပေး t
+}
+
+// ---- Load input_ids (int32) ----
+လုပ်ငန်း load_ids(စာသား path) အစု {
+    တည်ဆောက် အစု buf = malloc(S * 4)
+    သုံးသပ်ချက်အရ(buf == 0) {
+        ပြန်ပေး 0
+    }
+    တည်ဆောက် အစု fp = fopen(path, "rb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        printf("ERROR: cannot open %s\n", path)
+        free(buf)
+        ပြန်ပေး 0
+    }
+    fread(buf, 4, S, fp)
+    fclose(fp)
+    ပြန်ပေး buf
+}
+
+// ---- Save logits as float32 .bin ----
+လုပ်ငန်း save_logits(စာသား path, အစု logits) ကိန်း {
+    တည်ဆောက် အစု fp = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        printf("ERROR: cannot write %s\n", path)
+        ပြန်ပေး -1
+    }
+    တည်ဆောက် Tensor* t = logits
+    fwrite(t->data, 8, t->rows * t->cols, fp)
+    fclose(fp)
+    printf("  saved %s (%d x %d)\n", path, t->rows, t->cols)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း save_f64(စာသား path, အစု t) ကိန်း {
+    တည်ဆောက် အစု fp = fopen(path, "wb")
+    သုံးသပ်ချက်အရ(fp == 0) {
+        ပြန်ပေး -1
+    }
+    တည်ဆောက် Tensor* tp = t
+    fwrite(tp->data, 8, tp->rows * tp->cols, fp)
+    fclose(fp)
+    ပြန်ပေး 0
+}
+
+တည်ဆောက် ကိန်း DUMP_B = -1
+
+// ---- Forward one block: x = x + proj(attn(LN(x))); x = x + ffn(LN(x)) ----
+လုပ်ငန်း block_forward(အစု x, စာသား base) ကိန်း {
+    တည်ဆောက် ကိန်း T = S
+
+    // 1. normed = LN(x)
+    တည်ဆောက် အစု ln1w = load_f32(concat3(base, "_ln_1_w.bin"), 1, D)
+    တည်ဆောက် အစု ln1b = load_f32(concat3(base, "_ln_1_b.bin"), 1, D)
+    တည်ဆောက် အစု normed = tn_copy(x)
+    ln_tensor(normed, ln1w, ln1b)
+    သုံးသပ်ချက်အရ(DUMP_B == 0) {
+        save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_b0_ln1.bin", normed)
+    }
+
+    // 2. QKV = normed @ W.T + b
+    တည်ဆောက် အစု Wqkv = load_f32(concat3(base, "_qkv_w.bin"), 3*D, D)
+    တည်ဆောက် အစု bqkv = load_f32(concat3(base, "_qkv_b.bin"), 1, 3*D)
+    တည်ဆောက် အစု qkv = tn_new(T, 3*D)
+    matmul_t(qkv, normed, Wqkv, bqkv)
+    သုံးသပ်ချက်အရ(DUMP_B == 0) {
+        save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_b0_qkv.bin", qkv)
+    }
+    tn_free(normed)
+    tn_free(Wqkv)
+    tn_free(bqkv)
+    tn_free(ln1w)
+    tn_free(ln1b)
+
+    // 3. Split Q, K, V
+    တည်ဆောက် Tensor* qkvp = qkv
+    တည်ဆောက် အစု Q = tn_new(T, D)
+    တည်ဆောက် အစု K = tn_new(T, D)
+    တည်ဆောက် အစု V = tn_new(T, D)
+    တည်ဆောက် Tensor* Qp = Q
+    တည်ဆောက် Tensor* Kp = K
+    တည်ဆောက် Tensor* Vp = V
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < T) {
+        တည်ဆောက် ကိန်း d = 0
+        ပြည့်အောင်(d < D) {
+            Qp->data[i * D + d] = qkvp->data[i * 3 * D + d]
+            Kp->data[i * D + d] = qkvp->data[i * 3 * D + D + d]
+            Vp->data[i * D + d] = qkvp->data[i * 3 * D + 2 * D + d]
+            d = d + 1
+        }
+        i = i + 1
+    }
+    tn_free(qkv)
+
+    // 4. attn = attn_multi(Q, K, V)
+    တည်ဆောက် အစု attn = tn_new(T, D)
+    attn_multi(attn, Q, K, V, H)
+    သုံးသပ်ချက်အရ(DUMP_B == 0) {
+        save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_b0_attn.bin", attn)
+    }
+    tn_free(Q)
+    tn_free(K)
+    tn_free(V)
+
+    // 5. proj = attn @ Wo.T + bo
+    တည်ဆောက် အစု Wo = load_f32(concat3(base, "_proj_w.bin"), D, D)
+    တည်ဆောက် အစု bo = load_f32(concat3(base, "_proj_b.bin"), 1, D)
+    တည်ဆောက် အစု proj = tn_new(T, D)
+    matmul_t(proj, attn, Wo, bo)
+    သုံးသပ်ချက်အရ(DUMP_B == 0) {
+        save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_b0_proj.bin", proj)
+    }
+    tn_free(attn)
+    tn_free(Wo)
+    tn_free(bo)
+
+    // 6. x = x + proj
+    တည်ဆောက် Tensor* xp = x
+    တည်ဆောက် Tensor* pp = proj
+    i = 0
+    ပြည့်အောင်(i < T * D) {
+        xp->data[i] = xp->data[i] + pp->data[i]
+        i = i + 1
+    }
+    tn_free(proj)
+
+    // 7. normed2 = LN(x)
+    တည်ဆောက် အစု ln2w = load_f32(concat3(base, "_ln_2_w.bin"), 1, D)
+    တည်ဆောက် အစု ln2b = load_f32(concat3(base, "_ln_2_b.bin"), 1, D)
+    တည်ဆောက် အစု normed2 = tn_copy(x)
+    ln_tensor(normed2, ln2w, ln2b)
+    သုံးသပ်ချက်အရ(DUMP_B == 0) {
+        save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_b0_ln2.bin", normed2)
+    }
+    tn_free(ln2w)
+    tn_free(ln2b)
+
+    // 8. fc1 = normed2 @ W1.T + b1, then gelu
+    တည်ဆောက် အစု W1 = load_f32(concat3(base, "_fc1_w.bin"), FF, D)
+    တည်ဆောက် အစု b1 = load_f32(concat3(base, "_fc1_b.bin"), 1, FF)
+    တည်ဆောက် အစု h = tn_new(T, FF)
+    matmul_t(h, normed2, W1, b1)
+    သုံးသပ်ချက်အရ(DUMP_B == 0) {
+        save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_b0_fc1.bin", h)
+    }
+    tn_free(normed2)
+    tn_free(W1)
+    tn_free(b1)
+
+    // gelu in-place
+    တည်ဆောက် Tensor* hp = h
+    i = 0
+    ပြည့်အောင်(i < T * FF) {
+        hp->data[i] = gelu1(hp->data[i])
+        i = i + 1
+    }
+    သုံးသပ်ချက်အရ(DUMP_B == 0) {
+        save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_b0_gelu.bin", h)
+    }
+
+    // 9. fc2 = h @ W2.T + b2
+    တည်ဆောက် အစု W2 = load_f32(concat3(base, "_fc2_w.bin"), D, FF)
+    တည်ဆောက် အစု b2 = load_f32(concat3(base, "_fc2_b.bin"), 1, D)
+    တည်ဆောက် အစု ffn = tn_new(T, D)
+    matmul_t(ffn, h, W2, b2)
+    သုံးသပ်ချက်အရ(DUMP_B == 0) {
+        save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_b0_fc2.bin", ffn)
+    }
+    tn_free(h)
+    tn_free(W2)
+    tn_free(b2)
+
+    // 10. x = x + ffn
+    တည်ဆောက် Tensor* fp = ffn
+    i = 0
+    ပြည့်အောင်(i < T * D) {
+        xp->data[i] = xp->data[i] + fp->data[i]
+        i = i + 1
+    }
+    tn_free(ffn)
+    ပြန်ပေး 0
+}
+
+// ---- String helper: base + suffix ----
+လုပ်ငန်း concat3(စာသား base, စာသား suffix) စာသား {
+    တည်ဆောက် ကိန်း n1 = str_len(base)
+    တည်ဆောက် ကိန်း n2 = str_len(suffix)
+    တည်ဆောက် အစု buf = malloc(n1 + n2 + 1)
+    တည်ဆောက် char* bp = buf
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n1) {
+        bp[i] = base[i]
+        i = i + 1
+    }
+    i = 0
+    ပြည့်အောင်(i < n2) {
+        bp[n1 + i] = suffix[i]
+        i = i + 1
+    }
+    bp[n1 + n2] = 0
+    ပြန်ပေး bp
+}
+
+လုပ်ငန်း str_len(စာသား s) ကိန်း {
+    တည်ဆောက် ကိန်း n = 0
+    ပြည့်အောင်(s[n] != 0) {
+        n = n + 1
+    }
+    ပြန်ပေး n
+}
+
+// ---- main ----
+လုပ်ငန်း main() {
+    printf("=== NYANLIN Phase 1 MMC forward ===\n")
+    တည်ဆောက် စာသား bin = "/data/data/com.termux/files/home/mmc_publish/ref/phase1/bin"
+    တည်ဆောက် စာသား base0 = concat3(bin, "/b0")
+
+    // Load embeddings
+    တည်ဆောက် အစု wte = load_f32(concat3(bin, "/wte.bin"), V, D)
+    တည်ဆောက် အစု wpe = load_f32(concat3(bin, "/wpe.bin"), S, D)
+    သုံးသပ်ချက်အရ(wte == 0 သို့မဟုတ် wpe == 0) {
+        printf("ERROR: embedding load failed\n")
+        ပြန်ပေး 1
+    }
+
+    // Load input_ids
+    တည်ဆောက် အစု ids = load_ids(concat3(bin, "/input_ids.bin"))
+    သုံးသပ်ချက်အရ(ids == 0) {
+        ပြန်ပေး 1
+    }
+    တည်ဆောက် ကိန်း* idp = ids
+    တည်ဆောက် Tensor* wtep = wte
+    တည်ဆောက် Tensor* wpep = wpe
+
+    // x[b,t,d] = wte[ids[t], d] + wpe[t, d]
+    တည်ဆောက် အစု x = tn_new(S, D)
+    တည်ဆောက် Tensor* xp = x
+    တည်ဆောက် ကိန်း t = 0
+    ပြည့်အောင်(t < S) {
+        တည်ဆောက် ကိန်း id = idp[t]
+        တည်ဆောက် ကိန်း d = 0
+        ပြည့်အောင်(d < D) {
+            xp->data[t * D + d] = wtep->data[id * D + d] + wpep->data[t * D + d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/dbg_mmc_emb.bin", x)
+    tn_free(wte)
+    tn_free(wpe)
+    free(ids)
+
+    // Forward through L blocks
+    တည်ဆောက် ကိန်း b = 0
+    ပြည့်အောင်(b < L) {
+        DUMP_B = b
+        printf("  block %d/%d\n", b, L)
+        // build base string "bN"
+        တည်ဆောက် အစု bb = malloc(16)
+        တည်ဆောက် char* bbp = bb
+        bbp[0] = 'b'
+        bbp[1] = 48 + b
+        bbp[2] = 0
+        တည်ဆောက် စာသား bbase = concat3(bin, "/")
+        တည်ဆောက် စာသား block_base = concat3(bbase, bb)
+        block_forward(x, block_base)
+        သုံးသပ်ချက်အရ(b == 0) {
+            save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/dbg_mmc_block0.bin", x)
+        }
+        သုံးသပ်ချက်အရ(b == 3) {
+            save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/dbg_mmc_block3.bin", x)
+        }
+        သုံးသပ်ချက်အရ(b == 5) {
+            save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/dbg_mmc_block5.bin", x)
+        }
+        free(bb)
+        b = b + 1
+    }
+
+    // Final LN
+    တည်ဆောက် အစု lnfw = load_f32(concat3(bin, "/ln_f_w.bin"), 1, D)
+    တည်ဆောက် အစု lnfb = load_f32(concat3(bin, "/ln_f_b.bin"), 1, D)
+    ln_tensor(x, lnfw, lnfb)
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/dbg_mmc_lnf.bin", x)
+    tn_free(lnfw)
+    tn_free(lnfb)
+
+    // Logits = x @ wte.T  (tied head, no bias)
+    // Reload wte
+    တည်ဆောက် အစု wte2 = load_f32(concat3(bin, "/wte.bin"), V, D)
+    တည်ဆောက် အစု logits = tn_new(S, V)
+    တည်ဆောက် အစု zeros = tn_new(1, V)   // zero bias
+    matmul_t(logits, x, wte2, zeros)
+    tn_free(wte2)
+    tn_free(zeros)
+    tn_free(x)
+
+    // Save logits
+    save_f64("/data/data/com.termux/files/home/mmc_publish/ref/phase1/dbg_mmc_logits.bin", logits)
+    save_logits("/data/data/com.termux/files/home/mmc_publish/ref/phase1/mmc_logits.bin", logits)
+    tn_free(logits)
+
+    printf("=== DONE ===\n")
+    ပြန်ပေး 0
+}
