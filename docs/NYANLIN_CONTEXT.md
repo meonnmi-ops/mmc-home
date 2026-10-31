@@ -172,3 +172,54 @@ Next: Phase 1 Training
 Target: 10M (or keep 4.84M) model with loss < 2.0 on byte-level data
 
 Use existing SFT dataset (56,116 pairs, byte-level)
+
+## 14. PHASE 1 MMC FORWARD — PASS (2026-10-31)
+
+### Achievement
+MMC forward matches PyTorch float64 reference to **2.6e-12**
+(Target was 1e-6 — exceeded by 4 orders of magnitude)
+
+### Stage-by-stage verification
+| Stage  | max_diff   | Notes                          |
+|--------|------------|--------------------------------|
+| emb    | 0.0        | exact                          |
+| ln1    | 2.2e-15    | machine epsilon                |
+| qkv    | 1.7e-15    | machine epsilon                |
+| attn   | 6.1e-16    | machine epsilon                |
+| gelu   | 9.1e-13    | tanh approx diff               |
+| logits | 2.6e-12    | PASS                           |
+
+### Bug journey (2 bugs found + fixed)
+1. **`မဟုတ်ရင်` (else)** — MMC compiler NOT supported
+   → workaround: two separate `သုံးသပ်ချက်အရ` with negated condition
+2. **`CFG_EPS` global** — MMC wraps main as auto-main; objcopy rename
+   skips global initializers → CFG_EPS = 0 instead of 1e-5
+   → workaround: use literal 0.00001 inside ln_row call
+
+### Also fixed
+- `malloc(4 * rows * cols)` → `malloc(8 * rows * cols)` (double = 8 bytes)
+- `fread/fwrite` size 4 → 8 (float64 binary files)
+- `tn_copy` missing from model_runtime_lib.mmc → added in build/stubs.c
+
+### Files
+- `src/model_runtime.mmc`       — full runtime (lib + main)
+- `src/model_runtime_lib.mmc`   — runtime lib only (no main)
+- `src/model_forward.mmc`       — forward + load + save
+- `build/model_runtime_lib.h`   — C header for forward.c
+- `build/stubs.c`               — tn_copy + mmc_array_* stubs
+- `build/model_forward`         — final binary (21K)
+
+### Build recipe
+```bash
+./mmc_v14 src/model_runtime_lib.mmc build/model_runtime_lib.c
+gcc -O2 -c -I build -I runtime build/model_runtime_lib.c -o build/model_runtime_lib.o
+objcopy --redefine-sym main=mmc_runtime_auto_main build/model_runtime_lib.o
+./mmc_v14 src/model_forward.mmc build/model_forward.c
+sed -i '1i #include "model_runtime_lib.h"' build/model_forward.c
+gcc -O2 -c -I build -I runtime build/model_forward.c -o build/model_forward.o
+gcc -O2 build/model_forward.o build/model_runtime_lib.o build/stubs.o -o build/model_forward -lm
+./build/model_forward
+Next: Phase 1 Training
+Target: 10M (or keep 4.84M) model with loss < 2.0 on byte-level data
+
+Use existing SFT dataset (56,116 pairs, byte-level)
