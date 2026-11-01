@@ -533,3 +533,23 @@ Total: ~100-160x speedup, 2 weeks setup
 - WSL CPU 8 cores: 350M train OK
 - 350M train MUST be CPU, GPU only for inference
 
+
+## 28. CPU OPTIMIZE PLAN — LOCKED
+
+### 5 steps, in order
+
+1. FP32 (double→float): 2x speedup, 10 min
+2. Blocked matmul: 2-3x, 30 min
+3. AVX2 intrinsics: 5x, 1 hour
+4. OpenMP 8 threads: 6-7x, 30 min
+5. Batch=4: 2-3x, 2 hours
+
+Total: ~100-160x speedup, ~2 hours setup
+
+### Speedup estimates
+- 4.84M: 2.4s → 0.015s/step
+- 30M: 15s → 0.15s/step
+- 350M: 172s → 1-1.5s/step
+- 350M 100K steps: 200 days → 1.5-3 days
+
+### Build pipeline
