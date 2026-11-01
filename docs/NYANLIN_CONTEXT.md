@@ -565,3 +565,34 @@ Total: ~100-160x speedup, ~2 hours setup
 - Break long responses into parts
 - All data belongs to user (meonnmi-ops)
 
+
+## 30. TECHNICAL REFERENCE
+
+### MMC compiler limits
+- No `မဟုတ်ရင်` (else) — use two `သုံးသပ်ချက်အရ`
+- No semicolon in loops
+- No scientific notation (1e30 → e30 error)
+- Hoist loop vars to function top
+- extern "C" single line only
+- `ဒသမ*` not allowed in extern "C" — use `အစု` (void*)
+- Byte buffers use `စာသား` (char*) not `ကိန်း*` (int*)
+
+### MMC rule (BINDING)
+- ZERO external engines
+- PyTorch = debug oracle only
+- libm OK, OpenBLAS/cuBLAS need approval
+- AVX2/OpenMP OK (CPU/OS primitives)
+
+### Numerical verification (2026-10-31)
+- Forward 4.84M: 2.6e-12
+- 7 backward ops: all PASS
+- AdamW step: 8.4e-14
+- Data loader: exact match
+- L=2 multi-block: 3.47e-12
+- D=20→100 scale: all PASS
+
+### Training results
+- Demo (55 unique bytes): 5.67→0.09 (memorize)
+- Real SFT (196 bytes): 1.53→0.86 (real learning)
+- GOLD 234K docs: current, expected 1.2-1.5
+
