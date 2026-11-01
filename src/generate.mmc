@@ -1,0 +1,130 @@
+extern "C" void* malloc(ကိန်း n)
+extern "C" void* calloc(ကိန်း n, ကိန်း sz)
+extern "C" void free(အစု p)
+extern "C" ဒသမ sqrt(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု b, ကိန်း s, ကိန်း n, အစု f)
+extern "C" ကိန်း fwrite(အစု b, ကိန်း s, ကိန်း n, အစု f)
+extern "C" ကိန်း fclose(အစု f)
+extern "C" ကိန်း fseek(အစု f, ကိန်း o, ကိန်း w)
+extern "C" ကိန်း ftell(အစု f)
+extern "C" ကိန်း block_forward(အစု x2, အစု X, အစု Wqkv, အစု bqkv, အစု Wo, အစု bo, အစု W1, အစု b1, အစု W2, အစု b2, အစု ln1w, အစု ln1b, အစု ln2w, အစု ln2b, ကိန်း T, ကိန်း D, ကိန်း DFF, ကိန်း H)
+extern "C" ကိန်း ln_fwd_row(အစု xn, အစု x, အစု g, အစု b, ကိန်း D, အစု mo, အစု io)
+
+လုပ်ငန်း ldf(စာသား p, ကိန်း n) အစု {
+    တည်ဆောက် အစု b = calloc(n, 8)
+    တည်ဆောက် အစု f = fopen(p, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { free(b) ပြန်ပေး 0 }
+    fread(b, 8, n, f)  fclose(f)  ပြန်ပေး b
+}
+
+လုပ်ငန်း ldi(စာသား p, ကိန်း n) အစု {
+    တည်ဆောက် အစု b = calloc(n, 4)
+    တည်ဆောက် အစု f = fopen(p, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { free(b) ပြန်ပေး 0 }
+    fread(b, 4, n, f)  fclose(f)  ပြန်ပေး b
+}
+
+လုပ်ငန်း svb(စာသား p, အစု b, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု f = fopen(p, "wb")
+    သုံးသပ်ချက်အရ(f == 0) { ပြန်ပေး -1 }
+    fwrite(b, 1, n, f)  fclose(f)  ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း TMAX = 128
+    တည်ဆောက် ကိန်း D = 256
+    တည်ဆောက် ကိန်း DFF = 1024
+    တည်ဆောက် ကိန်း H = 8
+    တည်ဆောက် ကိန်း V = 256
+    တည်ဆောက် ကိန်း L = 6
+    တည်ဆောက် ကိန်း NGEN = 40
+    တည်ဆောက် စာသား PP = "/data/data/com.termux/files/home/mmc_publish/ref/full_test/"
+
+    တည်ဆောက် ဒသမ* Wqkv = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/Wqkv.bin", L*3*D*D)
+    တည်ဆောက် ဒသမ* bqkv = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/bqkv.bin", L*3*D)
+    တည်ဆောက် ဒသမ* Wo = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/Wo.bin", L*D*D)
+    တည်ဆောက် ဒသမ* bo = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/bo.bin", L*D)
+    တည်ဆောက် ဒသမ* W1 = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/W1.bin", L*DFF*D)
+    တည်ဆောက် ဒသမ* b1 = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/b1.bin", L*DFF)
+    တည်ဆောက် ဒသမ* W2 = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/W2.bin", L*D*DFF)
+    တည်ဆောက် ဒသမ* b2 = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/b2.bin", L*D)
+    တည်ဆောက် ဒသမ* ln1w = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/ln1w.bin", L*D)
+    တည်ဆောက် ဒသမ* ln1b = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/ln1b.bin", L*D)
+    တည်ဆောက် ဒသမ* ln2w = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/ln2w.bin", L*D)
+    တည်ဆောက် ဒသမ* ln2b = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/ln2b.bin", L*D)
+    တည်ဆောက် ဒသမ* wte = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/wte.bin", V*D)
+    တည်ဆောက် ဒသမ* wpe = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/wpe.bin", TMAX*D)
+    တည်ဆောက် ဒသမ* lnfw = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/lnfw.bin", D)
+    တည်ဆောက် ဒသမ* lnfb = ldf("/data/data/com.termux/files/home/mmc_publish/ref/full_test/lnfb.bin", D)
+
+    သုံးသပ်ချက်အရ(wte == 0) { printf("missing weights\n") ပြန်ပေး 1 }
+
+    တည်ဆောက် ကိန်း* ids = ldi("/data/data/com.termux/files/home/mmc_publish/ref/full_test/prompt0.bin", TMAX)
+    သုံးသပ်ချက်အရ(ids == 0) { printf("missing prompt0.bin\n") ပြန်ပေး 1 }
+
+    // Count prompt length (up to first zero? no — prompt has no zero necessarily)
+    // Instead: read file size in bytes
+    တည်ဆောက် အစု pf = fopen("/data/data/com.termux/files/home/mmc_publish/ref/full_test/prompt0.bin", "rb")
+    fseek(pf, 0, 2)  တည်ဆောက် ကိန်း psize = ftell(pf)  fclose(pf)
+    တည်ဆောက် ကိန်း plen = psize / 4
+    printf("prompt length = %d\n", plen)
+
+    တည်ဆောက် ဒသမ* x = calloc(TMAX * D, 8)
+    တည်ဆောက် ဒသမ* cur = calloc(TMAX * D, 8)
+    တည်ဆောက် ဒသမ* nxt = calloc(TMAX * D, 8)
+    တည်ဆောက် စာသား out_bytes = calloc(NGEN, 1)
+    တည်ဆောက် ဒသမ* xnf = calloc(D, 8)
+    တည်ဆောက် ဒသမ* dm = calloc(1, 8)
+    တည်ဆောက် ဒသမ* di = calloc(1, 8)
+
+    တည်ဆောက် ကိန်း cur_len = plen
+    တည်ဆောက် ကိန်း gen = 0
+    တည်ဆောက် ကိန်း t = 0  တည်ဆောက် ကိန်း d = 0
+    တည်ဆောက် ကိန်း i = 0  တည်ဆောက် ကိန်း b = 0
+    တည်ဆောက် ကိန်း v = 0
+
+    ပြည့်အောင်(gen < NGEN နှင့် cur_len < TMAX) {
+        // Build embedding for positions 0..cur_len-1
+        t = 0
+        ပြည့်အောင်(t < cur_len) {
+            d = 0
+            ပြည့်အောင်(d < D) { cur[t*D+d] = wte[ids[t]*D+d] + wpe[t*D+d]  d = d + 1 }
+            t = t + 1
+        }
+
+        // L blocks
+        b = 0
+        ပြည့်အောင်(b < L) {
+            block_forward(nxt, cur, Wqkv+b*3*D*D, bqkv+b*3*D, Wo+b*D*D, bo+b*D, W1+b*DFF*D, b1+b*DFF, W2+b*D*DFF, b2+b*D, ln1w+b*D, ln1b+b*D, ln2w+b*D, ln2b+b*D, cur_len, D, DFF, H)
+            // swap cur <-> nxt
+            တည်ဆောက် ဒသမ* tmp = cur  cur = nxt  nxt = tmp
+            b = b + 1
+        }
+
+        // LNf on LAST position only
+        ln_fwd_row(xnf, cur + (cur_len - 1) * D, lnfw, lnfb, D, dm, di)
+
+        // logits[v] = xnf @ wte[v]
+        တည်ဆောက် ကိန်း best_v = 0
+        တည်ဆောက် ဒသမ best_l = -1000000000.0
+        v = 0
+        ပြည့်အောင်(v < V) {
+            တည်ဆောက် ဒသမ s = 0.0
+            d = 0
+            ပြည့်အောင်(d < D) { s = s + xnf[d] * wte[v*D+d]  d = d + 1 }
+            သုံးသပ်ချက်အရ(s > best_l) { best_l = s  best_v = v }
+            v = v + 1
+        }
+        out_bytes[gen] = best_v
+        ids[cur_len] = best_v
+        cur_len = cur_len + 1
+        gen = gen + 1
+    }
+
+    svb("/data/data/com.termux/files/home/mmc_publish/ref/full_test/gen_out.bin", out_bytes, gen)
+    printf("generated %d bytes\n", gen)
+    printf("=== generate DONE ===\n")
+    ပြန်ပေး 0
+}
