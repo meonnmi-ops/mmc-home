@@ -1,9 +1,9 @@
 """prep_corpus.py — build ref/full_test/corpus.bin (raw UTF-8 byte stream).
 
 Usage:
-  python3 ref/prep_corpus.py --jsonl ~/train_clean.jsonl   # SFT data
-  python3 ref/prep_corpus.py --text  ~/mybook.txt          # plain text
-  python3 ref/prep_corpus.py                               # demo corpus
+  python3 ref/prep_corpus.py --jsonl ~/train_clean.jsonl
+  python3 ref/prep_corpus.py --text  ~/book.txt
+  python3 ref/prep_corpus.py           # demo corpus
 """
 import argparse, json, sys
 from pathlib import Path
@@ -13,14 +13,14 @@ B.mkdir(parents=True, exist_ok=True)
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--jsonl', help='path to SFT jsonl')
-ap.add_argument('--text', help='path to plain text file')
+ap.add_argument('--text',  help='path to plain text file')
 args = ap.parse_args()
 
 docs = []
 if args.jsonl:
     p = Path(args.jsonl).expanduser()
     if not p.exists():
-        sys.exit(f"❌ not found: {p}")
+        sys.exit(f"not found: {p}")
     n_bad = 0
     for line in p.read_text(encoding='utf-8').splitlines():
         line = line.strip()
@@ -32,7 +32,9 @@ if args.jsonl:
             n_bad += 1
             continue
         if isinstance(d, dict):
-            if isinstance(d.get('text'), str):
+            if isinstance(d.get('instruction'), str) and isinstance(d.get('output'), str):
+                docs.append(d['instruction'] + '\n' + d['output'])
+            elif isinstance(d.get('text'), str):
                 docs.append(d['text'])
             elif isinstance(d.get('messages'), list):
                 for msg in d['messages']:
@@ -46,7 +48,7 @@ if args.jsonl:
 elif args.text:
     p = Path(args.text).expanduser()
     if not p.exists():
-        sys.exit(f"❌ not found: {p}")
+        sys.exit(f"not found: {p}")
     docs = [p.read_text(encoding='utf-8')]
 else:
     print("no source given — writing DEMO corpus (bilingual, ~120KB)")
@@ -60,11 +62,10 @@ out.write_bytes(data)
 
 uniq = len(set(data))
 steps_per_epoch = len(data) // 128
-print(f"✅ wrote {len(data):,} bytes -> {out}")
+print(f"wrote {len(data):,} bytes -> {out}")
 print(f"   unique bytes: {uniq}/256")
 print(f"   1 epoch @ SEQ=128 ≈ {steps_per_epoch:,} steps (batch=1)")
 if len(data) < 2_000_000:
-    print("   ⚠️  corpus < 2MB — model will overfit/memorize quickly;")
-    print("      consider a larger corpus for meaningful language learning")
+    print("   WARNING: corpus < 2MB — model will overfit quickly")
 if len(data) < 130:
-    sys.exit("❌ corpus too small (need >= 130 bytes)")
+    sys.exit("ERROR: corpus too small (need >= 130 bytes)")
