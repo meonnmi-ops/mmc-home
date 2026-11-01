@@ -105,7 +105,7 @@ def count_params(m):
     return sum(p.numel() for p in m.parameters())
 
 
-def save_all(model, out_dir):
+def save_all(model, out_dir, seed=SEED):
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -123,7 +123,7 @@ def save_all(model, out_dir):
     print(f"weights: {len(W)} arrays, {sum(v.size for v in W.values()):,} values")
 
     # 2. input
-    rng = np.random.default_rng(SEED)
+    rng = np.random.default_rng(seed)
     input_ids = rng.integers(0, VOCAB, size=(1, SEQ), dtype=np.int32)
     np.save(out/'input_ids.npy', input_ids)
     print(f"input_ids: shape={input_ids.shape} dtype={input_ids.dtype}")
@@ -149,8 +149,18 @@ def save_all(model, out_dir):
         shift_targets.view(-1),
     )
     loss.backward()
-    G = {n: p.grad.detach().cpu().numpy()
-         for n, p in model.named_parameters() if p.grad is not None}
+    # Export gradients with the same MMC-facing names as weights.npz.
+    # PyTorch names (e.g. "blocks.0.qkv_w") are intentionally not used here.
+    G = {
+        'wte': model.wte.weight.grad.detach().cpu().numpy(),
+        'wpe': model.wpe.weight.grad.detach().cpu().numpy(),
+        'ln_f_w': model.ln_f_w.grad.detach().cpu().numpy(),
+        'ln_f_b': model.ln_f_b.grad.detach().cpu().numpy(),
+    }
+    for i, b in enumerate(model.blocks):
+        for n in ('ln_1_w','ln_1_b','qkv_w','qkv_b','proj_w','proj_b',
+                  'ln_2_w','ln_2_b','fc1_w','fc1_b','fc2_w','fc2_b'):
+            G[f'b{i}_{n}'] = getattr(b, n).grad.detach().cpu().numpy()
     np.savez(out/'ref_grads.npz', **G)
     print(f"ref_grads: {len(G)} arrays, loss={loss.item():.6f}")
 
@@ -170,7 +180,7 @@ def main():
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    model = GPT2Ref()
+    model = GPT2Ref().to(dtype=DTYPE)
     n = count_params(model)
     print("=" * 60)
     print(f"NYANLIN Phase 1 Ref Model")
@@ -178,7 +188,7 @@ def main():
     print(f"  Params: {n:,}  ({n/1e6:.4f}M)")
     print("=" * 60)
 
-    save_all(model, args.out)
+    save_all(model, args.out, seed=args.seed)
 
     print("=" * 60)
     print(f"DONE. All outputs in: {Path(args.out).resolve()}")

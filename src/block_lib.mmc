@@ -95,20 +95,64 @@ extern "C" ကိန်း fclose(အစု stream)
 
 // out[T,J] = X[T,K] @ W[J,K].T + b[J]
 လုပ်ငန်း mm_fwd(ဒသမ* out, ဒသမ* X, ဒသမ* W, ဒသမ* b, ကိန်း T, ကိန်း J, ကိန်း K) ကိန်း {
+    // Tile dimensions keep a small X/W/output working set in cache.
+    တည်ဆောက် ကိန်း TB = 8
+    တည်ဆောက် ကိန်း JB = 32
+    တည်ဆောက် ကိန်း KB = 64
     တည်ဆောက် ကိန်း t = 0
+    တည်ဆောက် ကိန်း j = 0
+    တည်ဆောက် ကိန်း k = 0
+    တည်ဆောက် ကိန်း t0 = 0
+    တည်ဆောက် ကိန်း j0 = 0
+    တည်ဆောက် ကိန်း k0 = 0
+    တည်ဆောက် ကိန်း te = 0
+    တည်ဆောက် ကိန်း je = 0
+    တည်ဆောက် ကိန်း ke = 0
+    တည်ဆောက် ဒသမ s = 0.0
+
+    // Start each output at its bias, then add K tiles in ascending order.
+    t = 0
     ပြည့်အောင်(t < T) {
-        တည်ဆောက် ကိန်း j = 0
+        j = 0
         ပြည့်အောင်(j < J) {
-            တည်ဆောက် ဒသမ s = b[j]
-            တည်ဆောက် ကိန်း k = 0
-            ပြည့်အောင်(k < K) {
-                s = s + X[t*K + k] * W[j*K + k]
-                k = k + 1
-            }
-            out[t*J + j] = s
+            out[t*J + j] = b[j]
             j = j + 1
         }
         t = t + 1
+    }
+
+    t0 = 0
+    ပြည့်အောင်(t0 < T) {
+        te = t0 + TB
+        သုံးသပ်ချက်အရ(te > T) { te = T }
+        j0 = 0
+        ပြည့်အောင်(j0 < J) {
+            je = j0 + JB
+            သုံးသပ်ချက်အရ(je > J) { je = J }
+            k0 = 0
+            ပြည့်အောင်(k0 < K) {
+                ke = k0 + KB
+                သုံးသပ်ချက်အရ(ke > K) { ke = K }
+                t = t0
+                ပြည့်အောင်(t < te) {
+                    j = j0
+                    ပြည့်အောင်(j < je) {
+                        s = out[t*J + j]
+                        k = k0
+                        ပြည့်အောင်(k < ke) {
+                            s = s + X[t*K + k] * W[j*K + k]
+                            k = k + 1
+                        }
+                        out[t*J + j] = s
+                        j = j + 1
+                    }
+                    t = t + 1
+                }
+                k0 = k0 + KB
+            }
+            j0 = j0 + JB
+        }
+        t0 = t0 + TB
     }
     ပြန်ပေး 0
 }
@@ -116,21 +160,57 @@ extern "C" ကိန်း fclose(အစု stream)
 // Bwd for out = X @ W.T + b
 လုပ်ငန်း mm_bwd(ဒသမ* dX, ဒသမ* dW, ဒသမ* db, ဒသမ* dout, ဒသမ* X, ဒသမ* W,
                   ကိန်း T, ကိန်း J, ကိန်း K, ကိန်း add_dX) ကိန်း {
+    // Tile batch rows and output rows, while keeping K contiguous for the
+    // innermost loop and the compiler's vectorizer.
+    တည်ဆောက် ကိန်း TB = 8
+    တည်ဆောက် ကိန်း JB = 32
     တည်ဆောက် ကိန်း t = 0
+    တည်ဆောက် ကိန်း j = 0
+    တည်ဆောက် ကိန်း k = 0
+    တည်ဆောက် ကိန်း t0 = 0
+    တည်ဆောက် ကိန်း j0 = 0
+    တည်ဆောက် ကိန်း te = 0
+    တည်ဆောက် ကိန်း je = 0
+    တည်ဆောက် ဒသမ dy = 0.0
+
+    // Bias gradient has no K dimension.
+    t = 0
     ပြည့်အောင်(t < T) {
-        တည်ဆောက် ကိန်း j = 0
+        j = 0
         ပြည့်အောင်(j < J) {
-            တည်ဆောက် ဒသမ dy = dout[t*J + j]
-            db[j] = db[j] + dy
-            တည်ဆောက် ကိန်း k = 0
-            ပြည့်အောင်(k < K) {
-                dW[j*K + k] = dW[j*K + k] + dy * X[t*K + k]
-                dX[t*K + k] = dX[t*K + k] + dy * W[j*K + k]
-                k = k + 1
-            }
+            db[j] = db[j] + dout[t*J + j]
             j = j + 1
         }
         t = t + 1
+    }
+
+    // Keep each reduction in its original ascending order along T or J.
+    t0 = 0
+    ပြည့်အောင်(t0 < T) {
+        te = t0 + TB
+        သုံးသပ်ချက်အရ(te > T) { te = T }
+        j0 = 0
+        ပြည့်အောင်(j0 < J) {
+            je = j0 + JB
+            သုံးသပ်ချက်အရ(je > J) { je = J }
+            t = t0
+            ပြည့်အောင်(t < te) {
+                j = j0
+                ပြည့်အောင်(j < je) {
+                    dy = dout[t*J + j]
+                    k = 0
+                    ပြည့်အောင်(k < K) {
+                        dW[j*K + k] = dW[j*K + k] + dy * X[t*K + k]
+                        dX[t*K + k] = dX[t*K + k] + dy * W[j*K + k]
+                        k = k + 1
+                    }
+                    j = j + 1
+                }
+                t = t + 1
+            }
+            j0 = j0 + JB
+        }
+        t0 = t0 + TB
     }
     ပြန်ပေး 0
 }

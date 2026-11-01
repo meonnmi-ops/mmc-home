@@ -31,7 +31,7 @@ ap.add_argument('--start', type=int, default=0, help='global first step (0 = aut
 ap.add_argument('--no-ckpt', action='store_true')
 args = ap.parse_args()
 
-ROOT = Path.home() / 'mmc_publish'
+ROOT = Path.home() / 'mmc_wsl/mmc_publish'
 os.chdir(ROOT)
 B = Path('ref/full_test'); B.mkdir(parents=True, exist_ok=True)
 

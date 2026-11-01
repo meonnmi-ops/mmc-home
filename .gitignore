@@ -21,3 +21,10 @@ ref/*/*.npy
 ref/logs/
 ref/phase1/bin/
 ref/full_test/
+# Large binaries — DO NOT COMMIT
+ref/full_test/*.bin
+ref/full_test_fp64_bak/
+*.bin
+!build/*.h
+*.npz
+corpus.bin
