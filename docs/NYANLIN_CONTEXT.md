@@ -464,3 +464,25 @@ Total: ~100-160x speedup, 2 weeks setup
 - After OpenMP: 0.015-0.02s
 - **350M after all: 1-1.5s/step → 100K steps = 1.5-3 days**
 
+
+## 26. SESSION UPDATE — 2026-11-01
+
+### Training state
+- Phone Termux: steps 1→2336, loss 5.73→0.86
+- WSL Debian: steps 2336→~2527 (2.4s/step)
+- Training STOPPED for CPU optimization
+- Backup: src_backup_*, build_backup_*
+
+### WSL paths
+- Working dir: ~/mmc_wsl/mmc_publish
+- Weights: ref/full_test/*.bin (~50MB)
+- Corpus: ref/full_test/corpus.bin (299MB)
+- next_step: 2336
+- SFT: ~/train_clean.jsonl
+
+### Device IPs (Tailscale)
+- WSL: 100.85.155.94
+- Note8: 100.108.181.26 (STOPPED)
+- Phone: 100.125.128.47 (idle)
+- Windows: 100.70.181.124
+
