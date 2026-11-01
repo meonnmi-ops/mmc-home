@@ -334,3 +334,74 @@ Fix: စာသား buf = read_bytes(...).
 - Loss → 1.5 after 5 epochs
 - Assistant-level fluency: **needs ~100M params + GPU** (Phase 2/3)
 
+
+## 26. SESSION UPDATE — 2026-11-01
+
+### Training completed (partial, then migrated)
+
+- Phone Termux: 4.84M model, steps 1→2336, loss 5.73→0.86 (43.5% drop)
+- Note8 Termux: continued steps 2336→~2527 (2.4s/step)
+- WSL Debian: continued steps 2336→~2527 (2.4s/step, verified path fix)
+- Reason for migration: local WSL faster (10x), no device heat
+- Training process STOPPED for CPU optimization work
+
+### Current file locations (after migration)
+
+WSL Debian (~/mmc_wsl/mmc_publish/):
+- source: src/*.mmc (from git clone + phone transfer)
+- binaries: build/train_full (90K), build/generate (31K)
+- weights: ref/full_test/*.bin (16 tensors + m_/v_ AdamW state, ~50MB)
+- corpus: ref/full_test/corpus.bin (299MB from GOLD/MEGA_GOLDEN_CLEAN.jsonl, 234,133 docs)
+- next_step.txt: 2336 (trained checkpoint)
+- SFT: ~/train_clean.jsonl (30MB, 56,116 pairs)
+
+Phone Termux (~/mmc_publish/):
+- mmc_v14 (78K ARM64)
+- src/*.mmc (source of truth for MMC code)
+- build/train_full.c, build/block_lib.c, build/generate.c (generated C, 6.7KB tarball)
+
+Note8 Termux (~/mmc_publish/):
+- same as phone (weights backup)
+- STOPPED, freed for other use
+
+Windows C:\Users\TikTo\:
+- OneDrive\AI_Dataset\CLEAN\train_clean.jsonl (29.7MB)
+- OneDrive\AI_Dataset\GOLD\MEGA_GOLDEN_CLEAN.jsonl (used for corpus)
+- mmc_nyanlin\ (4KB only, leftover)
+
+### WSL environment
+
+- User: meonnmi-0ps
+- Tailscale IP: 100.85.155.94
+- SSH server: enabled, port 22
+- Disk: 1007GB total, 857GB free
+- CPU: 8 cores
+- Memory: 16GB RAM (assumed)
+
+### Device inventory
+
+| Device | IP (Tailscale) | Purpose |
+|---|---|---|
+| Windows Laptop | 100.70.181.124 | Host (GTX 1660 Ti 6GB) |
+| WSL Debian | 100.85.155.94 | Main dev |
+| Galaxy Note 8 | 100.108.181.26 | Stopped (was training) |
+| Redmi Note 12R | 100.125.128.47 | Current phone (idle) |
+
+### User data (WSL home, ~100GB)
+
+| Folder | Size | Content |
+|---|---|---|
+| myanmar_ai | 16G | Myanmar AI data |
+| nyanlin-ai-dataset | 14G | Nyanlin dataset |
+| f5_env | 11G | F5 TTS env |
+| GOLD_VAULT | 9.4G | GOLD data |
+| DATA_RAW | 8.2G | Raw data |
+| AI_Dataset | 7.5G | AI dataset |
+| f5_new | 6.8G | F5 TTS |
+| nyanlin_env | 5.9G | Env |
+| nyanlin_pipeline | 2.1G | Pipeline |
+| nyanlin_data | 1.2G | Data |
+| CORPUS_STAGE | 348M | Staged |
+
+**User has ~100GB data. Do NOT call it "old data". It is precious.**
+
