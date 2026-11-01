@@ -405,3 +405,62 @@ Windows C:\Users\TikTo\:
 
 **User has ~100GB data. Do NOT call it "old data". It is precious.**
 
+
+## 27. DECISIONS LOCKED (2026-11-01) — DO NOT REVISIT
+
+### Model target (user decision)
+
+- **350M OR 500M** (NOT 1B — hardware insufficient)
+- **MoE architecture**: 350M main + Phase 1/2/3 helpers
+- **Helpers**: 4.84M (Phase 1), 30M (Phase 2), 100M (Phase 3)
+- **Routing**: Rule-based (chat.mmc), later learned router
+- **Replay**: Simple (main outputs helper's answer), later reformat
+
+### Training approach (user decision)
+
+- **100% Pure MMC — ZERO external engines**
+- **NO** QLoRA, NO distillation, NO external models
+- **YES** math libraries as primitives (libm, OpenBLAS, cuBLAS if allowed)
+- **YES** CPU optimization (AVX2, OpenMP, blocked matmul, FP32)
+- **YES** Kaggle/Colab for compute (device access, not engine)
+
+### Path (user decision, LOCKED)
+
+**Phase A — CPU Optimize (START NOW)**
+1. FP32 (double→float): 2x
+2. Blocked matmul: 2-3x
+3. AVX2 intrinsics: 5x
+4. OpenMP 8 threads: 6-7x
+5. Batch=4: 2-3x
+Total: ~100-160x speedup, 2 weeks setup
+
+**Phase B — Train 350M (after CPU optimize)**
+- WSL CPU, 1.5-3 days (batch=4 maybe more memory)
+- Data: GOLD + train_clean + AI_Dataset subset (~1GB)
+
+**Phase C — GPU Inference (after 350M trained)**
+- 1660 Ti 6GB cannot train 350M (needs ~20GB)
+- But CAN do 350M inference in Q4 (~175MB VRAM)
+- Use 1660 Ti for inference only
+
+### Hardware reality (LOCKED understanding)
+
+| Model | Train on 1660 Ti 6GB | Train on WSL CPU | Inference on 1660 Ti |
+|---|---|---|---|
+| 4.84M | ✅ | ✅ | ✅ |
+| 30M | ✅ (tight) | ✅ | ✅ |
+| 100M | ❌ (7GB+) | ✅ | ✅ |
+| 350M | ❌ (20GB+) | ✅ | ✅ (Q4) |
+| 500M | ❌ | ✅ (slow) | ✅ (Q4) |
+
+**= 350M training MUST be CPU. GPU only for inference at this stage.**
+
+### Speedup estimates (LOCKED)
+
+- Current MMC: 2.4s/step (4.84M)
+- After FP32: 1.2s
+- After Blocked: 0.4-0.6s
+- After AVX2: 0.08-0.12s
+- After OpenMP: 0.015-0.02s
+- **350M after all: 1-1.5s/step → 100K steps = 1.5-3 days**
+
