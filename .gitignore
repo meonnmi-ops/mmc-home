@@ -28,3 +28,7 @@ ref/full_test_fp64_bak/
 !build/*.h
 *.npz
 corpus.bin
+perf.data
+ref/full_test_safe_*
+ref/full_test_before_*
+ref/full_test_fp32/
