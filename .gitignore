@@ -32,3 +32,4 @@ perf.data
 ref/full_test_safe_*
 ref/full_test_before_*
 ref/full_test_fp32/
+ref/full_test/out_*
