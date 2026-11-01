@@ -507,3 +507,29 @@ Total: ~100-160x speedup, 2 weeks setup
 - Phone: 100.125.128.47
 - Windows: 100.70.181.124
 
+
+## 27. DECISIONS LOCKED (2026-11-01) — DO NOT REVISIT
+
+### Model target
+- 350M OR 500M (NOT 1B — hardware insufficient)
+- MoE: main + Phase 1/2/3 helpers
+- Helper roles: 4.84M, 30M, 100M
+- Routing: rule-based (chat.mmc), later learned
+
+### Training approach
+- 100% Pure MMC, ZERO external engines
+- NO QLoRA, NO distillation, NO external models
+- YES math libraries as primitives (libm OK, OpenBLAS needs approval)
+- YES CPU optimization (AVX2, OpenMP, blocked, FP32)
+- YES Kaggle/Colab for compute access
+
+### Path (LOCKED)
+- Phase A: CPU optimize now (2 weeks, ~100-160x)
+- Phase B: Train 350M on WSL CPU (1.5-3 days)
+- Phase C: GPU inference only (1660 Ti Q4)
+
+### Hardware reality
+- 1660 Ti 6GB: 30M train OK, 100M+ train NO
+- WSL CPU 8 cores: 350M train OK
+- 350M train MUST be CPU, GPU only for inference
+
