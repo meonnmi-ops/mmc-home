@@ -553,3 +553,15 @@ Total: ~100-160x speedup, ~2 hours setup
 - 350M 100K steps: 200 days → 1.5-3 days
 
 ### Build pipeline
+
+## 29. USER PREFERENCES
+
+- No "take a break" / "nap" / "rest" suggestions
+- No dismissing user data as "old" (100GB+, 2+ years)
+- No jumping to conclusions without checking
+- No "can't do" without explaining root cause
+- Explain simply, patiently (no code background)
+- Respect 13,000 baht GTX 1660 Ti purchase
+- Break long responses into parts
+- All data belongs to user (meonnmi-ops)
+
