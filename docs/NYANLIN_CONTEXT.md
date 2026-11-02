@@ -1019,3 +1019,52 @@ Smooth monotonic decay - typical of healthy training.
 - /tmp/fm_wpe.bin — 2048B, T=16
 - /tmp/fm_wpe_T8_bak.bin — previous T=8 backup
 - Compile: -DUSE_LR_SCHEDULE=1 -DN_STEPS=200 -DWARMUP=20
+
+
+## 39. T=32 — VAL 3.43 / STUCK AT FLOOR (2026-11-03)
+
+### THE MILESTONE
+- T=16 -> T=32 (wpe 2048B -> 4096B, 16 new random rows)
+- N=45 fixed: val 3.43 (was 3.77 at T=16, -0.34)
+- N=200 sched ON: val 3.47 (was 3.48 at T=16, plateau)
+- Val std: 0.20 (was 0.43) — much more consistent
+
+### THE PLATEAU TABLE
+| Run  | N=45 fixed | N=200 sched | std(N=200) |
+|------|------------|-------------|------------|
+| T=8  | 4.47       | 4.15        | 0.40       |
+| T=16 | 3.77       | 3.48        | 0.43       |
+| T=32 | 3.43       | 3.47        | 0.20       |
+
+### INTERPRETATION
+- T=16 -> T=32 gave big improvement at N=45 (-0.34)
+- T=16 -> T=32 gave ~none at N=200 (-0.01) -> plateau
+- Mean loss floor at T=32 is ~3.4-3.5
+- Std halved (0.43->0.20): model is consistent, quality gain is real
+- "train final > val mean" at T=32: last batch is hard, not overfitting
+
+### DIAGNOSIS: CONTEXT NO LONGER THE BOTTLENECK
+Plateau means we've maxed out context length for THIS MODEL SIZE + DATA.
+Levers left (in order of expected value):
+1. **More steps**: N=500 or 1000 — does loss drop further?
+2. **Bigger model**: D=64 or DFF=128 — model capacity
+3. **Data diversity**: currently all from START=1000, region ~7360 bytes
+   - Could span full 312MB corpus
+4. **Batch size**: currently 1 batch per step, no accumulation
+
+### BATCHES
+- 230 batches, T=32: train 1..200, val 201..230
+- START=1000, stride T=32 (covers ~7.4KB of corpus)
+
+### KEY FILES
+- scripts/cuda/test_train_step.cu — T=32, N-step, schedule, val
+- scripts/cuda/test_train_step.py — verify + val stats
+- /tmp/fm_wpe.bin — 4096B, T=32
+- Backups: fm_wpe_T8_bak.bin, fm_wpe_T16_bak.bin
+- Compile: -DUSE_LR_SCHEDULE=1 -DN_STEPS=200 -DWARMUP=20
+
+### NEXT SESSION — pick up here
+1. **First test: N=500 at T=32** — is 200 the step limit or the floor?
+2. **Then: D=64** — model capacity, likely biggest lever
+3. **Checkpoint save/load** — needed for N=500+ runs
+4. **Data diversity** — random START per step, or fixed stride over corpus
