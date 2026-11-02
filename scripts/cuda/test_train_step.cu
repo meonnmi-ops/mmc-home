@@ -480,7 +480,7 @@ int main(){
         #define SAVE_S(NM, PTR, N) do { \
             float* _h = (float*)malloc((N)*4); \
             cudaMemcpy(_h, (PTR), (N)*4, cudaMemcpyDeviceToHost); \
-            char _p[64]; snprintf(_p, sizeof(_p), "/tmp/ts_s%d_" NM ".bin", step); \
+            char _p[64]; snprintf(_p, sizeof(_p), "experiments/run_F/data/ts_s%d_" NM ".bin", step); \
             sv(_p, _h, (N)); free(_h); \
         } while(0)
         SAVE_S("wte",  dwte,  V*D);
@@ -511,8 +511,8 @@ int main(){
             // --- Reload batch (micro-batch mb) ---
             {
                 char _idp[64], _tgp[64];
-                snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", step*BATCH+mb+1);
-                snprintf(_tgp, sizeof(_tgp), "/tmp/batch_%d_tg.bin", step*BATCH+mb+1);
+                snprintf(_idp, sizeof(_idp), "experiments/run_F/data/batch_%d_ids.bin", step*BATCH+mb+1);
+                snprintf(_tgp, sizeof(_tgp), "experiments/run_F/data/batch_%d_tg.bin", step*BATCH+mb+1);
                 ld(_idp, hids, T); ld(_tgp, htg, T);
                 cudaMemcpy(dids, hids, T*4, cudaMemcpyHostToDevice);
                 cudaMemcpy(dtg, htg, T*4, cudaMemcpyHostToDevice);
@@ -670,8 +670,8 @@ int main(){
     for (int v = 1; v <= NVAL; v++) {
         int gstep = N_STEPS*BATCH + v;
         char _idp[64], _tgp[64];
-        snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", gstep);
-        snprintf(_tgp, sizeof(_tgp), "/tmp/batch_%d_tg.bin", gstep);
+        snprintf(_idp, sizeof(_idp), "experiments/run_F/data/batch_%d_ids.bin", gstep);
+        snprintf(_tgp, sizeof(_tgp), "experiments/run_F/data/batch_%d_tg.bin", gstep);
         ld(_idp, hids, T); ld(_tgp, htg, T);
         cudaMemcpy(dids, hids, T*4, cudaMemcpyHostToDevice);
         cudaMemcpy(dtg, htg, T*4, cudaMemcpyHostToDevice);
