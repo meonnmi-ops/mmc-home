@@ -616,3 +616,86 @@ Total: ~100-160x speedup, ~2 hours setup
 - ref/full_test_before_n100_*: pre-N100 backup
 - ref/full_test_after_b4_*: post-batch=4 backup
 - ~/backup_cuda_ready_*.tar.gz: CUDA-ready snapshot
+
+## 29. GPU BACKEND PROGRESS — 2026-11-02 (Session 29)
+
+### USER RULES (CRITICAL — မမေ့ရ)
+- No "take a break" / "rest" / "nap" / "ဒီနေ့ ရပ်" suggestions — USER STOPS, not assistant
+- No fake optimism or sugar-coating
+- Verify claims before accepting
+- Be honest about estimates (100x was wrong, 7.87x real)
+- Say "Context ပြည့်တော့မယ်" ONLY when actually near limit
+- Do NOT stop user mid-work
+- Write complete context in ONE block (no fragmentation — markdown fences break paste)
+
+### 100% MMC STANDARD (LOCKED — DECISIONS_LOCKED.md)
+- Current: C/CUDA/Python = scaffolding (allowed during transition)
+- Success day: ALL scaffolding removed
+- Final: Terminal commands → output = 100% Myanmar MMC
+- Phase 1 (1 month): Prove pathway (GPU training + 350M) with scaffolding
+- Phase 2 (2-3 months): Replace scaffolding (MMC --cuda, MMC tests)
+- Phase 3 (6-12 months): Native MMC (shell, file ops, codegen)
+
+### ENVIRONMENT (WSL2, Debian 13, GTX 1660 Ti)
+- CUDA 12.8 (V12.8.93) at /usr/local/cuda-12.8
+- gcc-13 (CUDA 12.6 incompatible with gcc-14 in Debian 13)
+- Swap: 9 GB (2 + 8)
+- GLIBC 2.41 fix (CRITICAL):
+  - Header: ~/cuda_compat/glibc_c23_math_compat.h
+  - Env: NVCC_PREPEND_FLAGS="-Xcompiler=-include,$HOME/cuda_compat/glibc_c23_math_compat.h"
+  - Verify: nvcc -O3 test.cu -o test && ./test (no extra flags needed)
+
+### GPU OPS — ALL PASS (verified 2026-11-02)
+- cuBLAS matmul: 4.77e-07 correctness, 1670 GFLOPS (30% peak)
+- LayerNorm fwd+bwd: 1.4e-06, 83+21 us
+- GELU fwd+bwd: 1.2e-07, 30+41 us
+- Softmax+CE fwd+bwd: 1e-06, 32+44 us
+- AdamW: 1.5e-08, 13 us
+- Attention fwd: 7.6e-08, 1.61 ms (single-thread, optimize later)
+
+### KEY FILES
+- scripts/cuda/test_mm.cu (naive — reference only)
+- scripts/cuda/test_mm_tiled.cu (514 GFLOPS)
+- scripts/cuda/test_mm_cublas.cu (1670 GFLOPS — USE THIS)
+- scripts/cuda/test_ln.cu (LayerNorm)
+- scripts/cuda/test_ops.cu (GELU+softmax+AdamW)
+- scripts/cuda/test_attn.cu (attention fwd, PASS 7.6e-08)
+- scripts/cuda/test_*.py (Python verifiers — scaffolding)
+
+### BUILD COMMANDS
+- All CUDA: nvcc -O3 -arch=sm_75 scripts/cuda/test_XXX.cu -o /tmp/test_XXX
+- cuBLAS: nvcc -O3 -arch=sm_75 scripts/cuda/test_mm_cublas.cu -o /tmp/test_mm_cublas -lcublas
+- NVCC_PREPEND_FLAGS auto-applied from ~/.bashrc
+
+### ATTENTION BACKWARD (NEXT — not yet done)
+Formulas:
+- dV = softmax^T @ dO
+- dS_pre = dO @ V^T
+- row_dot = sum_k dS_pre[k] * softmax[k]
+- dS = softmax * (dS_pre - row_dot) * scale
+- dQ = dS @ K
+- dK = dS^T @ Q
+After attention bwd: residual add + full GPU training step integration
+
+### BACKUP STATE
+- ~/backup_cuda_ready_20261102_161757.tar.gz (175K)
+- ref/full_test_before_n100_* (pre-N100)
+- ref/full_test_after_b4_* (post-batch=4)
+- Git HEAD: 362652b (attention fwd pending commit)
+
+### HONEST TIMELINE (8 months documented)
+- 2026-02-22: myanmar-code v1.0.0 (PyPI, first evidence)
+- 2026-10-15: first .mmc file
+- 2026-10-26: Git repo (MMC v11)
+- 2026-11-02: GPU ops complete (all PASS)
+
+### COST REALITY (honest)
+- 4.84M CPU: 0.31s/step (7.87x from FP64)
+- 4.84M GPU: ~0.02-0.05s/step (estimate, full integration pending)
+- 100M CPU: ~7.5 days for 100K steps
+- 100M GPU: ~1.5-2 days (estimate)
+- 350M GPU + model parallel: ~3-5 days (estimate)
+
+### NEXT SESSION START
+Continue GPU backend — attention backward
+Context: All GPU ops done except attention bwd. Then integration. Then Phase 1 scale-up.
