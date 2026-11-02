@@ -5,6 +5,10 @@
 #include <cublas_v2.h>
 #include "block_ops.h"
 
+#ifndef N_STEPS
+#define N_STEPS 20
+#endif
+
 #define MAX_T 512
 static cublasHandle_t gb;
 
@@ -116,6 +120,13 @@ static void mm_tn(const float* A,const float* B,float* C,int M,int K,int N){
 }
 static void ld(const char* p,void* b,int n){ FILE* f=fopen(p,"rb"); if(!f){perror(p);exit(1);} fread(b,4,n,f); fclose(f); }
 static void sv(const char* p,void* b,int n){ FILE* f=fopen(p,"wb"); if(!f){perror(p);exit(1);} fwrite(b,4,n,f); fclose(f); }
+static void sv_loss(const char* path, const float* dloss, int T) {
+    float* h = (float*)malloc(T*4);
+    cudaMemcpy(h, dloss, T*4, cudaMemcpyDeviceToHost);
+    float s = 0; for (int i = 0; i < T; i++) s += h[i]; s /= T;
+    FILE* f = fopen(path, "wb"); if(f){ fwrite(&s,4,1,f); fclose(f); }
+    free(h);
+}
 #define ALLOC(ptr, sz) cudaMalloc(&ptr, (sz)*4)
 
 int main(){
@@ -384,6 +395,8 @@ int main(){
     cudaMemcpy(h,dWo_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dwo.bin",h,L*sD);
     free(h);
 
+    sv_loss("/tmp/loss_s1.bin", dloss, T);
+
     // ===== PERSISTENT M/V (shared across step 1 & 2) =====
     #define MK_MV(NM, N) float* mv_##NM##_m; float* mv_##NM##_v; \
         cudaMalloc(&mv_##NM##_m, (N)*4); cudaMalloc(&mv_##NM##_v, (N)*4); \
@@ -400,7 +413,7 @@ int main(){
     // ===== ADAMW 2-STEP LOOP (persistent m/v, step-1 grads reused) =====
     float adamw_lr = 1e-3f, adamw_b1 = 0.9f, adamw_b2 = 0.999f;
     float adamw_eps = 1e-8f, adamw_wd = 0.01f;
-    for (int step = 1; step <= 2; step++) {
+    for (int step = 1; step <= N_STEPS; step++) {
         float bc1 = (step == 1) ? (1.0f - 0.9f)   : (1.0f - 0.9f*0.9f);
         float bc2 = (step == 1) ? (1.0f - 0.999f) : (1.0f - 0.999f*0.999f);
 
@@ -450,7 +463,7 @@ int main(){
         #undef SAVE_S
 
         // ===== STEP 2: Re-run fwd+bwd with UPDATED weights =====
-        if (step < 2) {
+        if (step < N_STEPS) {
             // --- FORWARD (step-2) ---
             emb_fwd_k<<<T, D>>>(dids, dwte, dwpe, dXs, T, D);
             cudaDeviceSynchronize();
@@ -494,7 +507,9 @@ int main(){
             softmax_ce_fwd<<<T, sm_b, sm_sh>>>(dlogits, dtg, dprobs, dloss, T, V);
             cudaDeviceSynchronize();
 
-            // Save step-2 forward (for python sanity check: y2 != y1)
+            { char _lp[64]; snprintf(_lp, sizeof(_lp), "/tmp/loss_s%d.bin", step+1); sv_loss(_lp, dloss, T); }
+
+            if (step == 1) {
             { float* h=(float*)malloc(sx*4); cudaMemcpy(h, dXs+L*sx, sx*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_y.bin",h,sx); free(h); }
             { float* h=(float*)malloc(T*4); cudaMemcpy(h, dloss, T*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_loss.bin",h,T); free(h); }
 
@@ -505,6 +520,8 @@ int main(){
             { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,db2_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_db2.bin",h,L*D); free(h); }
             { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,dln1g_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dln1g.bin",h,L*D); cudaMemcpy(h,dln1b_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dln1b.bin",h,L*D); free(h); }
             { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,dln2g_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dln2g.bin",h,L*D); cudaMemcpy(h,dln2b_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dln2b.bin",h,L*D); free(h); }
+
+            }
 
             // --- ZERO GRADS for step 2 ---
             cudaMemset(dWq_g,0,L*sD*4);cudaMemset(dWk_g,0,L*sD*4);
@@ -571,7 +588,7 @@ int main(){
             emb_bwd_k<<<T, D>>>(dids, dY_temp, dwte_g, dwpe_g, T, D);
             cudaDeviceSynchronize();
 
-            // Save step-2 grads
+            if (step == 1) {
             { float* h=(float*)malloc(V*D*4); cudaMemcpy(h, dwte_g, V*D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dwte.bin",h,V*D); free(h); }
             { float* h=(float*)malloc(TMAX*D*4); cudaMemcpy(h, dwpe_g, TMAX*D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dwpe.bin",h,TMAX*D); free(h); }
             { float* h=(float*)malloc(D*4); cudaMemcpy(h, dlnfg_g, D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dlnfg.bin",h,D); cudaMemcpy(h, dlnfb_g, D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dlnfb.bin",h,D); free(h); }
@@ -580,6 +597,7 @@ int main(){
             { float* h=(float*)malloc(L*sDFF*4); cudaMemcpy(h,dW1_g,L*sDFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dw1.bin",h,L*sDFF); cudaMemcpy(h,dW2_g,L*sDFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dw2.bin",h,L*sDFF); free(h); }
             { float* h=(float*)malloc(L*DFF*4); cudaMemcpy(h,db1_g,L*DFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_db1.bin",h,L*DFF); free(h); }
             { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,db2_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_db2.bin",h,L*D); free(h); }
+            }
         }
     }
 

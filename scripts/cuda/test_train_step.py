@@ -317,4 +317,28 @@ ok_w2 = all([
     chk_w2('ln2b', np.stack(ln2b_2), (L, D)),
 ])
 
+# ===== Loss trajectory =====
+print()
+print("--- Loss trajectory (N=20 steps) ---")
+losses = []
+for k in range(1, 21):
+    try:
+        v = np.fromfile(f'/tmp/loss_s{k}.bin', dtype=np.float32)
+        if len(v) > 0:
+            losses.append((k, float(v[0])))
+    except FileNotFoundError:
+        break
+for k, v in losses:
+    print(f"  loss_s{k:2d} = {v:.6f}")
+if len(losses) >= 2:
+    first, last = losses[0][1], losses[-1][1]
+    print()
+    print(f"  Trajectory: {first:.6f} -> {last:.6f}  (delta = {last-first:+.6f})")
+    if last < first - 1e-4:
+        print("  ✓ LOSS DECREASED — training is working")
+    elif last < first:
+        print("  ~ Small decrease (bump N for clarity)")
+    else:
+        print("  ✗ No decrease — check lr/data")
+
 print("ALL PASS (grads + step1 + step2)" if (ok and ok_w and ok_w2) else "SOME FAILED")
