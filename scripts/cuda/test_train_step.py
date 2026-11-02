@@ -159,34 +159,6 @@ b2_new   = [adamw_step(b2[b],  grads[b]['db2'])  for b in range(L)]
 ln2g_new = [adamw_step(ln2g[b], grads[b]['dln2g']) for b in range(L)]
 ln2b_new = [adamw_step(ln2b[b], grads[b]['dln2b']) for b in range(L)]
 
-def step2_for(w0, g, lr=1e-3, b1=0.9, b2=0.999, eps=1e-8, wd=0.01):
-    # Step 1
-    m1 = (1-b1)*g
-    v1 = (1-b2)*g*g
-    w1 = w0*(1-lr*wd) - lr*(m1/(1-b1)) / (np.sqrt(v1/(1-b2)) + eps)
-    # Step 2 (g2 = g1: shortcut to test m/v accumulation)
-    m2 = b1*m1 + (1-b1)*g
-    v2 = b2*v1 + (1-b2)*g*g
-    w2 = w1*(1-lr*wd) - lr*(m2/(1-b1**2)) / (np.sqrt(v2/(1-b2**2)) + eps)
-    return w2
-
-wte_2  = step2_for(wte,  dwte_ref)
-wpe_2  = step2_for(wpe,  dwpe_ref)
-lnfg_2 = step2_for(lnfg, dlnfg_ref)
-lnfb_2 = step2_for(lnfb, dlnfb_ref)
-Wq_2   = [step2_for(Wq[b],  grads[b]['dWq'])  for b in range(L)]
-Wk_2   = [step2_for(Wk[b],  grads[b]['dWk'])  for b in range(L)]
-Wv_2   = [step2_for(Wv[b],  grads[b]['dWv'])  for b in range(L)]
-Wo_2   = [step2_for(Wo[b],  grads[b]['dWo'])  for b in range(L)]
-ln1g_2 = [step2_for(ln1g[b], grads[b]['dln1g']) for b in range(L)]
-ln1b_2 = [step2_for(ln1b[b], grads[b]['dln1b']) for b in range(L)]
-W1_2   = [step2_for(W1[b],  grads[b]['dW1'])  for b in range(L)]
-b1_2   = [step2_for(b1[b],  grads[b]['db1'])  for b in range(L)]
-W2_2   = [step2_for(W2[b],  grads[b]['dW2'])  for b in range(L)]
-b2_2   = [step2_for(b2[b],  grads[b]['db2'])  for b in range(L)]
-ln2g_2 = [step2_for(ln2g[b], grads[b]['dln2g']) for b in range(L)]
-ln2b_2 = [step2_for(ln2b[b], grads[b]['dln2b']) for b in range(L)]
-
 r = subprocess.run(['/tmp/test_train_step'], capture_output=True, text=True)
 print(r.stdout)
 if r.returncode != 0: print("STDERR:", r.stderr); sys.exit(1)
@@ -253,7 +225,79 @@ def chk_w2(name, ref, shape):
     return d < 1e-3
 
 print()
-print("--- AdamW updated weights (step 2, m/v persisted) ---")
+# ===== NEW step-2 refs: REAL (w1 from ts_s1, g2 from fm_s2) =====
+def ld_s1(name, shape):
+    return np.fromfile(f'/tmp/ts_s1_{name}.bin', dtype=np.float32).reshape(shape)
+def ld_g2(name, shape):
+    return np.fromfile(f'/tmp/fm_s2_{name}.bin', dtype=np.float32).reshape(shape)
+
+wte_w1  = ld_s1('wte',  (V, D));     wpe_w1  = ld_s1('wpe',  (TMAX, D))
+lnfg_w1 = ld_s1('lnfg', (D,));       lnfb_w1 = ld_s1('lnfb', (D,))
+Wq_w1   = ld_s1('wq',   (L, D, D));  Wk_w1   = ld_s1('wk',   (L, D, D))
+Wv_w1   = ld_s1('wv',   (L, D, D));  Wo_w1   = ld_s1('wo',   (L, D, D))
+ln1g_w1 = ld_s1('ln1g', (L, D));     ln1b_w1 = ld_s1('ln1b', (L, D))
+W1_w1   = ld_s1('w1',   (L, D, DFF));b1_w1   = ld_s1('b1',   (L, DFF))
+W2_w1   = ld_s1('w2',   (L, DFF, D));b2_w1   = ld_s1('b2',   (L, D))
+ln2g_w1 = ld_s1('ln2g', (L, D));     ln2b_w1 = ld_s1('ln2b', (L, D))
+
+dwte_g2  = ld_g2('dwte',  (V, D));    dwpe_g2  = ld_g2('dwpe',  (TMAX, D))
+dlnfg_g2 = ld_g2('dlnfg', (D,));      dlnfb_g2 = ld_g2('dlnfb', (D,))
+dWq_g2   = ld_g2('dwq',   (L, D, D)); dWk_g2   = ld_g2('dwk',   (L, D, D))
+dWv_g2   = ld_g2('dwv',   (L, D, D)); dWo_g2   = ld_g2('dwo',   (L, D, D))
+dln1g_g2 = ld_g2('dln1g', (L, D));    dln1b_g2 = ld_g2('dln1b', (L, D))
+dW1_g2   = ld_g2('dw1',   (L, D, DFF));db1_g2  = ld_g2('db1',   (L, DFF))
+dW2_g2   = ld_g2('dw2',   (L, DFF, D));db2_g2  = ld_g2('db2',   (L, D))
+dln2g_g2 = ld_g2('dln2g', (L, D));    dln2b_g2 = ld_g2('dln2b', (L, D))
+dwte_g1  = np.fromfile('/tmp/fm_dwte.bin', dtype=np.float32).reshape((V, D))
+dwpe_g1  = np.fromfile('/tmp/fm_dwpe.bin', dtype=np.float32).reshape((TMAX, D))
+dlnfg_g1 = np.fromfile('/tmp/fm_dlnfg.bin', dtype=np.float32).reshape((D,))
+dlnfb_g1 = np.fromfile('/tmp/fm_dlnfb.bin', dtype=np.float32).reshape((D,))
+dWq_g1   = np.fromfile('/tmp/fm_dwq.bin', dtype=np.float32).reshape((L, D, D))
+dWk_g1   = np.fromfile('/tmp/fm_dwk.bin', dtype=np.float32).reshape((L, D, D))
+dWv_g1   = np.fromfile('/tmp/fm_dwv.bin', dtype=np.float32).reshape((L, D, D))
+dWo_g1   = np.fromfile('/tmp/fm_dwo.bin', dtype=np.float32).reshape((L, D, D))
+dln1g_g1 = np.fromfile('/tmp/fm_dln1g.bin', dtype=np.float32).reshape((L, D))
+dln1b_g1 = np.fromfile('/tmp/fm_dln1b.bin', dtype=np.float32).reshape((L, D))
+dW1_g1   = np.fromfile('/tmp/fm_dw1.bin', dtype=np.float32).reshape((L, D, DFF))
+db1_g1   = np.fromfile('/tmp/fm_db1.bin', dtype=np.float32).reshape((L, DFF))
+dW2_g1   = np.fromfile('/tmp/fm_dw2.bin', dtype=np.float32).reshape((L, DFF, D))
+db2_g1   = np.fromfile('/tmp/fm_db2.bin', dtype=np.float32).reshape((L, D))
+dln2g_g1 = np.fromfile('/tmp/fm_dln2g.bin', dtype=np.float32).reshape((L, D))
+dln2b_g1 = np.fromfile('/tmp/fm_dln2b.bin', dtype=np.float32).reshape((L, D))
+
+
+y1 = np.fromfile('/tmp/fm_y.bin', dtype=np.float32)
+y2 = np.fromfile('/tmp/fm_s2_y.bin', dtype=np.float32)
+dy = np.abs(y1 - y2).max()
+print(f"  sanity: |y2-y1| = {dy:.3e}  {'CHANGED (good)' if dy > 1e-4 else 'SAME (BAD)'}")
+
+def adamw_step2(w1, g1, g2, lr=1e-3, b1=0.9, b2=0.999, eps=1e-8, wd=0.01):
+    m1 = (1-b1)*g1
+    v1 = (1-b2)*g1*g1
+    m2 = b1*m1 + (1-b1)*g2
+    v2 = b2*v1 + (1-b2)*g2*g2
+    bc1 = 1 - b1**2
+    bc2 = 1 - b2**2
+    return w1*(1-lr*wd) - lr*(m2/bc1) / (np.sqrt(v2/bc2) + eps)
+
+wte_2  = adamw_step2(wte_w1,  dwte_g1,  dwte_g2)
+wpe_2  = adamw_step2(wpe_w1,  dwpe_g1,  dwpe_g2)
+lnfg_2 = adamw_step2(lnfg_w1, dlnfg_g1, dlnfg_g2)
+lnfb_2 = adamw_step2(lnfb_w1, dlnfb_g1, dlnfb_g2)
+Wq_2   = np.stack([adamw_step2(Wq_w1[b], dWq_g1[b], dWq_g2[b]) for b in range(L)])
+Wk_2   = np.stack([adamw_step2(Wk_w1[b], dWk_g1[b], dWk_g2[b]) for b in range(L)])
+Wv_2   = np.stack([adamw_step2(Wv_w1[b], dWv_g1[b], dWv_g2[b]) for b in range(L)])
+Wo_2   = np.stack([adamw_step2(Wo_w1[b], dWo_g1[b], dWo_g2[b]) for b in range(L)])
+ln1g_2 = np.stack([adamw_step2(ln1g_w1[b], dln1g_g1[b], dln1g_g2[b]) for b in range(L)])
+ln1b_2 = np.stack([adamw_step2(ln1b_w1[b], dln1b_g1[b], dln1b_g2[b]) for b in range(L)])
+W1_2   = np.stack([adamw_step2(W1_w1[b], dW1_g1[b], dW1_g2[b]) for b in range(L)])
+b1_2   = np.stack([adamw_step2(b1_w1[b], db1_g1[b], db1_g2[b]) for b in range(L)])
+W2_2   = np.stack([adamw_step2(W2_w1[b], dW2_g1[b], dW2_g2[b]) for b in range(L)])
+b2_2   = np.stack([adamw_step2(b2_w1[b], db2_g1[b], db2_g2[b]) for b in range(L)])
+ln2g_2 = np.stack([adamw_step2(ln2g_w1[b], dln2g_g1[b], dln2g_g2[b]) for b in range(L)])
+ln2b_2 = np.stack([adamw_step2(ln2b_w1[b], dln2b_g1[b], dln2b_g2[b]) for b in range(L)])
+
+print("--- AdamW step 2 (REAL: w1 + g2 from fresh fwd+bwd) ---")
 ok_w2 = all([
     chk_w2('wte',  wte_2,  (V, D)),
     chk_w2('wpe',  wpe_2,  (TMAX, D)),

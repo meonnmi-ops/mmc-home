@@ -448,6 +448,139 @@ int main(){
         SAVE_S("ln2g", dln2g, L*D);
         SAVE_S("ln2b", dln2b, L*D);
         #undef SAVE_S
+
+        // ===== STEP 2: Re-run fwd+bwd with UPDATED weights =====
+        if (step < 2) {
+            // --- FORWARD (step-2) ---
+            emb_fwd_k<<<T, D>>>(dids, dwte, dwpe, dXs, T, D);
+            cudaDeviceSynchronize();
+            for (int b = 0; b < L; b++) {
+                float *xin = dXs + b*sx;
+                float *xout = dXs + (b+1)*sx;
+                float *bWq = dWq + b*sD, *bWk = dWk + b*sD, *bWv = dWv + b*sD, *bWo = dWo + b*sD;
+                float *bln1g = dln1g + b*D, *bln1b = dln1b + b*D;
+                float *bW1 = dW1 + b*sDFF, *bb1 = db1 + b*DFF;
+                float *bW2 = dW2 + b*sDFF, *bb2 = db2 + b*D;
+                float *bln2g = dln2g + b*D, *bln2b = dln2b + b*D;
+                float *bh1 = dh1 + b*sx;
+                float *bQ = dQ + b*sx, *bK = dK + b*sx, *bV = dV + b*sx;
+                float *bA = dA + b*sx, *bO = dO + b*sx;
+                float *bX1 = dX1_fwd + b*sx;
+                float *bh2 = dh2 + b*sx;
+                float *bpre = dpre + b*sh;
+                float *bpre_save = dpre_save + b*sh;
+                float *bm1 = dm1 + b*T, *br1 = dr1 + b*T;
+                float *bm2 = dm2 + b*T, *br2 = dr2 + b*T;
+
+                ln_fwd_dev(xin, bln1g, bln1b, bh1, bm1, br1, T, D, eps);
+                mm(bh1, bWq, bQ, T, D, D); mm(bh1, bWk, bK, T, D, D); mm(bh1, bWv, bV, T, D, D);
+                attn_fwd_k<<<grd,blk>>>(bQ, bK, bV, bA, T, D, H, sc);
+                cudaDeviceSynchronize();
+                mm(bA, bWo, bO, T, D, D);
+                cudaMemcpy(bX1, xin, sx*4, cudaMemcpyDeviceToDevice);
+                add_dev(bX1, bO, sx);
+                ln_fwd_dev(bX1, bln2g, bln2b, bh2, bm2, br2, T, D, eps);
+                mm(bh2, bW1, bpre, T, D, DFF);
+                add_bias_dev(bpre, bb1, T, DFF);
+                cudaMemcpy(bpre_save, bpre, sh*4, cudaMemcpyDeviceToDevice);
+                gelu_fwd_dev(bpre_save, bpre, sh);
+                mm(bpre, bW2, xout, T, DFF, D);
+                add_bias_dev(xout, bb2, T, D);
+                add_dev(xout, bX1, sx);
+            }
+            ln_fwd_dev(dXs + L*sx, dlnfg, dlnfb, dxnf, dmlf, drlf, T, D, eps);
+            tied_head_fwd<<<T, V>>>(dxnf, dwte, dlogits, T, V, D);
+            cudaDeviceSynchronize();
+            softmax_ce_fwd<<<T, sm_b, sm_sh>>>(dlogits, dtg, dprobs, dloss, T, V);
+            cudaDeviceSynchronize();
+
+            // Save step-2 forward (for python sanity check: y2 != y1)
+            { float* h=(float*)malloc(sx*4); cudaMemcpy(h, dXs+L*sx, sx*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_y.bin",h,sx); free(h); }
+            { float* h=(float*)malloc(T*4); cudaMemcpy(h, dloss, T*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_loss.bin",h,T); free(h); }
+
+            // Save g1 for ALL tensors before step-2 memset (needed for python verify)
+            { float* h=(float*)malloc(L*sDFF*4); cudaMemcpy(h,dW1_g,L*sDFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dw1.bin",h,L*sDFF); free(h); }
+            { float* h=(float*)malloc(L*DFF*4); cudaMemcpy(h,db1_g,L*DFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_db1.bin",h,L*DFF); free(h); }
+            { float* h=(float*)malloc(L*sDFF*4); cudaMemcpy(h,dW2_g,L*sDFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dw2.bin",h,L*sDFF); free(h); }
+            { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,db2_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_db2.bin",h,L*D); free(h); }
+            { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,dln1g_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dln1g.bin",h,L*D); cudaMemcpy(h,dln1b_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dln1b.bin",h,L*D); free(h); }
+            { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,dln2g_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dln2g.bin",h,L*D); cudaMemcpy(h,dln2b_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dln2b.bin",h,L*D); free(h); }
+
+            // --- ZERO GRADS for step 2 ---
+            cudaMemset(dWq_g,0,L*sD*4);cudaMemset(dWk_g,0,L*sD*4);
+            cudaMemset(dWv_g,0,L*sD*4);cudaMemset(dWo_g,0,L*sD*4);
+            cudaMemset(dln1g_g,0,L*D*4);cudaMemset(dln1b_g,0,L*D*4);
+            cudaMemset(dW1_g,0,L*sDFF*4);cudaMemset(db1_g,0,L*DFF*4);
+            cudaMemset(dW2_g,0,L*sDFF*4);cudaMemset(db2_g,0,L*D*4);
+            cudaMemset(dln2g_g,0,L*D*4);cudaMemset(dln2b_g,0,L*D*4);
+            cudaMemset(dwte_g,0,V*D*4);cudaMemset(dwpe_g,0,TMAX*D*4);
+            cudaMemset(dlnfg_g,0,D*4);cudaMemset(dlnfb_g,0,D*4);
+
+            // --- BACKWARD (step-2) ---
+            softmax_ce_bwd<<<dlg_b, 256>>>(dprobs, dtg, dlogits, T, V, invT);
+            cudaDeviceSynchronize();
+            cudaMemcpy(dxnf_fwd, dxnf, sx*4, cudaMemcpyDeviceToDevice);
+            tied_head_bwd_dxnf<<<T,D>>>(dlogits, dwte, dxnf, T,V,D);
+            tied_head_bwd_dwte<<<V,D>>>(dlogits, dxnf_fwd, dwte_g, T,V,D);
+            cudaDeviceSynchronize();
+            ln_bwd_dev(dxnf, dXs+L*sx, dlnfg, dmlf, drlf, dY_temp, dlnfg_g, dlnfb_g, T,D);
+            cudaDeviceSynchronize();
+            for (int b=L-1; b>=0; b--) {
+                float *bWq=dWq+b*sD,*bWk=dWk+b*sD,*bWv=dWv+b*sD,*bWo=dWo+b*sD;
+                float *bW1=dW1+b*sDFF,*bW2=dW2+b*sDFF;
+                float *bln1g=dln1g+b*D,*bln2g=dln2g+b*D;
+                float *bh1=dh1+b*sx;
+                float *bQ=dQ+b*sx,*bK=dK+b*sx,*bV=dV+b*sx;
+                float *bA=dA+b*sx;
+                float *bX1=dX1_fwd+b*sx;
+                float *bh2=dh2+b*sx;
+                float *bpre_save=dpre_save+b*sh;
+                float *bpre=dpre+b*sh;
+                float *bm1=dm1+b*T,*br1=dr1+b*T;
+                float *bm2=dm2+b*T,*br2=dr2+b*T;
+
+                cudaMemcpy(dX1_temp, dY_temp, sx*4, cudaMemcpyDeviceToDevice);
+                mm_tn(bpre, dY_temp, dW2_g+b*sDFF, DFF, T, D);
+                colsum_k<<<(D+255)/256,256>>>(dY_temp, db2_g+b*D, T, D);
+                mm_nt(dY_temp, bW2, dhg_temp, T, D, DFF);
+                gelu_bwd_dev(dhg_temp, bpre_save, dpre_temp, sh);
+                mm_tn(bh2, dpre_temp, dW1_g+b*sDFF, D, T, DFF);
+                colsum_k<<<(DFF+255)/256,256>>>(dpre_temp, db1_g+b*DFF, T, DFF);
+                mm_nt(dpre_temp, bW1, dh2_temp, T, DFF, D);
+                add_dev(dX1_temp, dh2_temp, sx);
+                ln_bwd_dev(dh2_temp, bX1, bln2g, bm2, br2, dT_sx_a, dln2g_g+b*D, dln2b_g+b*D, T,D);
+                add_dev(dX1_temp, dT_sx_a, sx);
+                mm_tn(bA, dX1_temp, dWo_g+b*sD, D, T, D);
+                mm_nt(dX1_temp, bWo, dA_temp, T, D, D);
+                cudaMemset(dQ_t,0,sx*4);cudaMemset(dK_t,0,sx*4);cudaMemset(dV_t,0,sx*4);
+                attn_bwd_k<<<grd,blk>>>(bQ, bK, bV, dA_temp, dQ_t, dK_t, dV_t, T, D, H, sc);
+                cudaDeviceSynchronize();
+                mm_tn(bh1, dQ_t, dWq_g+b*sD, D, T, D);
+                mm_tn(bh1, dK_t, dWk_g+b*sD, D, T, D);
+                mm_tn(bh1, dV_t, dWv_g+b*sD, D, T, D);
+                mm_nt(dQ_t, bWq, dh1_temp, T, D, D);
+                mm_nt(dK_t, bWk, dT_sx_a, T, D, D);
+                add_dev(dh1_temp, dT_sx_a, sx);
+                mm_nt(dV_t, bWv, dT_sx_a, T, D, D);
+                add_dev(dh1_temp, dT_sx_a, sx);
+                cudaMemcpy(dX_temp, dX1_temp, sx*4, cudaMemcpyDeviceToDevice);
+                ln_bwd_dev(dh1_temp, dXs+b*sx, bln1g, bm1, br1, dT_sx_a, dln1g_g+b*D, dln1b_g+b*D, T,D);
+                add_dev(dX_temp, dT_sx_a, sx);
+                cudaMemcpy(dY_temp, dX_temp, sx*4, cudaMemcpyDeviceToDevice);
+            }
+            emb_bwd_k<<<T, D>>>(dids, dY_temp, dwte_g, dwpe_g, T, D);
+            cudaDeviceSynchronize();
+
+            // Save step-2 grads
+            { float* h=(float*)malloc(V*D*4); cudaMemcpy(h, dwte_g, V*D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dwte.bin",h,V*D); free(h); }
+            { float* h=(float*)malloc(TMAX*D*4); cudaMemcpy(h, dwpe_g, TMAX*D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dwpe.bin",h,TMAX*D); free(h); }
+            { float* h=(float*)malloc(D*4); cudaMemcpy(h, dlnfg_g, D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dlnfg.bin",h,D); cudaMemcpy(h, dlnfb_g, D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dlnfb.bin",h,D); free(h); }
+            { float* h=(float*)malloc(L*sD*4); cudaMemcpy(h,dWq_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dwq.bin",h,L*sD); cudaMemcpy(h,dWk_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dwk.bin",h,L*sD); cudaMemcpy(h,dWv_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dwv.bin",h,L*sD); cudaMemcpy(h,dWo_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dwo.bin",h,L*sD); free(h); }
+            { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,dln1g_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dln1g.bin",h,L*D); cudaMemcpy(h,dln1b_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dln1b.bin",h,L*D); cudaMemcpy(h,dln2g_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dln2g.bin",h,L*D); cudaMemcpy(h,dln2b_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dln2b.bin",h,L*D); free(h); }
+            { float* h=(float*)malloc(L*sDFF*4); cudaMemcpy(h,dW1_g,L*sDFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dw1.bin",h,L*sDFF); cudaMemcpy(h,dW2_g,L*sDFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_dw2.bin",h,L*sDFF); free(h); }
+            { float* h=(float*)malloc(L*DFF*4); cudaMemcpy(h,db1_g,L*DFF*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_db1.bin",h,L*DFF); free(h); }
+            { float* h=(float*)malloc(L*D*4); cudaMemcpy(h,db2_g,L*D*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_s2_db2.bin",h,L*D); free(h); }
+        }
     }
 
     printf("Train step 1 done: T=%d D=%d L=%d V=%d\\n", T,D,L,V);
