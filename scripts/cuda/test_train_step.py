@@ -1,6 +1,6 @@
 import numpy as np, subprocess, sys
 
-T, D, DFF, H, L, V, TMAX = 16, 32, 64, 2, 3, 256, 16
+T, D, DFF, H, L, V, TMAX = 32, 32, 64, 2, 3, 256, 32
 hd = D // H; eps = 1e-5
 np.random.seed(42)
 def rn(*s): return (np.random.randn(*s) * 0.3).astype(np.float32)

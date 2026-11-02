@@ -150,7 +150,7 @@ static float lr_at(int step, int total, int warmup, float peak) {
 
 int main(){
     cublasCreate(&gb);
-    const int T=16, D=32, DFF=64, H=2, L=3, V=256, TMAX=16;
+    const int T=32, D=32, DFF=64, H=2, L=3, V=256, TMAX=32;
     const float eps=1e-5f;
     const float sc = 1.0f/sqrtf((float)(D/H));
     size_t sx=T*D, sh=T*DFF, sD=D*D, sDFF=D*DFF;
