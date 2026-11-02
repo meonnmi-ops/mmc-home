@@ -2,12 +2,13 @@
 # usage: run_acc.sh D DFF H LR N BATCH
 D=$1; DFF=$2; H=$3; LR=$4; N=$5; B=$6; NV=${7:-30}
 cd ~/mmc_wsl/mmc_publish
+export TMPDIR=$PWD/experiments/run_F/data/tmp
 python3 scripts/cuda/gen_batches.py $N $B $NV || exit 1
 python3 scripts/cuda/gen_init.py $D $DFF || exit 1
 cp scripts/cuda/test_train_step.cu scripts/cuda/ts_exp.cu
 sed -i "s/const int T=32, D=32, DFF=64, H=2,/const int T=32, D=$D, DFF=$DFF, H=$H,/; s/adamw_lr = 1e-3f/adamw_lr = ${LR}f/" scripts/cuda/ts_exp.cu
-rm -f /tmp/loss_*.bin
-nvcc -O3 -arch=sm_75 -DUSE_LR_SCHEDULE=1 -DN_STEPS=$N -DBATCH=$B -DNVAL=$NV -DWARMUP=$((N/20)) scripts/cuda/ts_exp.cu /tmp/block_ops.o -o /tmp/ts_exp -lcublas 2>&1 | grep -E "error"
-( time /tmp/ts_exp > /dev/null ) 2>&1 | grep real
+rm -f experiments/run_F/data/loss_*.bin
+nvcc -O3 -arch=sm_75 -DUSE_LR_SCHEDULE=1 -DN_STEPS=$N -DBATCH=$B -DNVAL=$NV -DWARMUP=$((N/20)) scripts/cuda/ts_exp.cu experiments/run_F/data/block_ops.o -o experiments/run_F/data/ts_exp -lcublas 2>&1 | grep -E "error"
+( time experiments/run_F/data/ts_exp > /dev/null ) 2>&1 | grep real
 python3 scripts/cuda/read_loss.py $N $NV
 rm -f scripts/cuda/ts_exp.cu

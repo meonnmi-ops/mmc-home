@@ -5,6 +5,6 @@ corpus = np.fromfile('ref/full_test/corpus.bin', dtype=np.uint8)
 rng = np.random.RandomState(42)
 pos = rng.randint(0, len(corpus) - T - 2, size=N * B + NV)
 for s, p in enumerate(pos):
-    corpus[p:p+T].astype(np.int32).tofile(f'/tmp/batch_{s+1}_ids.bin')
-    corpus[p+1:p+T+1].astype(np.int32).tofile(f'/tmp/batch_{s+1}_tg.bin')
+    corpus[p:p+T].astype(np.int32).tofile(f'experiments/run_F/data/batch_{s+1}_ids.bin')
+    corpus[p+1:p+T+1].astype(np.int32).tofile(f'experiments/run_F/data/batch_{s+1}_tg.bin')
 print(f"[OK] {N*B+NV} batches (train 1..{N*B}, val {N*B+1}..{N*B+NV})")

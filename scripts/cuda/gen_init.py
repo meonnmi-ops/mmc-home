@@ -14,7 +14,7 @@ w = {
  'ln2g': np.ones((L, D), np.float32), 'ln2b': np.zeros((L, D), np.float32),
  'dy': n(T, D),
 }
-for k, v in w.items(): v.astype(np.float32).tofile(f'/tmp/fm_{k}.bin')
-np.fromfile('/tmp/batch_1_ids.bin', dtype=np.int32).tofile('/tmp/fm_ids.bin')
-np.fromfile('/tmp/batch_1_tg.bin', dtype=np.int32).tofile('/tmp/fm_tg.bin')
+for k, v in w.items(): v.astype(np.float32).tofile(f'experiments/run_F/data/fm_{k}.bin')
+np.fromfile('experiments/run_F/data/batch_1_ids.bin', dtype=np.int32).tofile('experiments/run_F/data/fm_ids.bin')
+np.fromfile('experiments/run_F/data/batch_1_tg.bin', dtype=np.int32).tofile('experiments/run_F/data/fm_tg.bin')
 print(f"[OK] init D={D} DFF={DFF}, params ~ {sum(v.size for k,v in w.items() if k!='dy'):,}")
