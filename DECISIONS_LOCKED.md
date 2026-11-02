@@ -12,3 +12,15 @@ All operations: matmul, LN, GELU, softmax, AdamW, embedding, loss
 ## Timeline: 8 weeks
 
 ## This is locked. No alternatives.
+
+## 2026-11-02 — MMC Name & Identity (BINDING)
+
+**MMC = Myanmar Code = Myanmar Programming Language**
+
+- **MM** = Myanmar (မြန်မာလူမျိုး အများစု အသုံးပြုတဲ့ အတိုကောက်)
+- **C** = Code / Programming Language
+- **= မြန်မာတွေ နားလည်လွယ်အောင် တမင် ပေးထားတဲ့ နာမည်**
+
+**Purpose:** မြန်မာစာနဲ့ မြန်မာတွေ အလွယ်တကူ နားလည်ပြီး မြန်မာ AI တည်ဆောက်နိုင်ဖို့
+
+**This name is fixed. Do not rename.**
