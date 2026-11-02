@@ -319,9 +319,9 @@ ok_w2 = all([
 
 # ===== Loss trajectory =====
 print()
-print("--- Loss trajectory (N=45 train steps) ---")
+print("--- Loss trajectory ---")
 losses = []
-for k in range(1, 46):
+for k in range(1, 501):
     try:
         v = np.fromfile(f'/tmp/loss_s{k}.bin', dtype=np.float32)
         if len(v) > 0:

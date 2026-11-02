@@ -9,6 +9,13 @@
 #define N_STEPS 45
 #endif
 
+#ifndef USE_LR_SCHEDULE
+#define USE_LR_SCHEDULE 0
+#endif
+#ifndef WARMUP
+#define WARMUP 10
+#endif
+
 #define MAX_T 512
 static cublasHandle_t gb;
 
@@ -128,6 +135,18 @@ static void sv_loss(const char* path, const float* dloss, int T) {
     free(h);
 }
 #define ALLOC(ptr, sz) cudaMalloc(&ptr, (sz)*4)
+
+static float lr_at(int step, int total, int warmup, float peak) {
+    if (warmup <= 0 || step <= warmup) {
+        return (warmup > 0) ? peak * (float)step / (float)warmup : peak;
+    }
+    int span = total - warmup;
+    if (span <= 0) return peak;
+    float tt = (float)(step - warmup) / (float)span;
+    if (tt > 1.0f) tt = 1.0f;
+    float v = peak * 0.5f * (1.0f + cosf(3.14159265358979f * tt));
+    return (v < peak * 0.1f) ? peak * 0.1f : v;
+}
 
 int main(){
     cublasCreate(&gb);
@@ -416,9 +435,13 @@ int main(){
     for (int step = 1; step <= N_STEPS; step++) {
         float bc1 = (step == 1) ? (1.0f - 0.9f)   : (1.0f - 0.9f*0.9f);
         float bc2 = (step == 1) ? (1.0f - 0.999f) : (1.0f - 0.999f*0.999f);
+        float cur_lr = adamw_lr;
+#if USE_LR_SCHEDULE
+        cur_lr = lr_at(step, N_STEPS, WARMUP, adamw_lr);
+#endif
 
         #define ADAMW(W, G, NM, N) adamw_dev((W), (G), mv_##NM##_m, mv_##NM##_v, \
-            adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, bc1, bc2, (N))
+            cur_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, bc1, bc2, (N))
         ADAMW(dwte,  dwte_g,  wte,  V*D);
         ADAMW(dwpe,  dwpe_g,  wpe,  TMAX*D);
         ADAMW(dlnfg, dlnfg_g, lnfg, D);
@@ -610,7 +633,7 @@ int main(){
         }
     }
 
-    printf("Train %d steps done: T=%d D=%d L=%d V=%d\\n", N_STEPS, T, D, L, V);
+    printf("Train %d steps done (lr_sched=%d, warmup=%d): T=%d D=%d L=%d V=%d\n", N_STEPS, (int)USE_LR_SCHEDULE, (int)WARMUP, T, D, L, V);
     // ===== VALIDATION (forward-only on batches N+1..N+5) =====
     for (int v = 1; v <= 30; v++) {
         int gstep = N_STEPS + v;
