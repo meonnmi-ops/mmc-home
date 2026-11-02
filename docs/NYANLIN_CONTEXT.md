@@ -735,3 +735,27 @@ Context: All GPU ops done except attention bwd. Then integration. Then Phase 1 s
 - GLIBC fix: ~/cuda_compat/glibc_c23_math_compat.h
 - NVCC_PREPEND_FLAGS in ~/.bashrc
 - GTX 1660 Ti (7.5, 24 SM, 6143 MB)
+
+## 31. TRAINING STEP 1 PASS (2026-11-02)
+
+### DONE
+- `test_train_step.cu/.py`: fwd + bwd + AdamW step 1
+- 12 grads PASS (< 3.1e-05), 16 updated weights PASS (< 8.5e-07)
+- `adamw_dev` in block_ops.cu (bc1/bc2 args, no libm)
+
+### NEXT SESSION — pick up here
+1. **Refactor backward into a function** (`model_bwd()` callable)
+   Currently backward is inline in `test_full_model.cu` main().
+   Needed for multi-step loop without copy-paste.
+2. **2-step training loop** — verify m/v momentum persistence
+3. **Checkpoint save/load** — save all 16 tensors + m/v state to dir
+4. **Real data loader** — corpus.bin → ids/tg per step
+
+### KEY FILES
+- `scripts/cuda/test_train_step.cu` — training step 1 (WORKING)
+- `scripts/cuda/test_full_model.cu` — fwd+bwd (WORKING)
+- `scripts/cuda/block_ops.cu` — LN/GELU/add/bias/adamw_dev
+
+### CONTEXT NOTE
+Session 31 ends here — context near full. Next session: start by reading
+this doc + `git log --oneline -10`, then continue with refactor above.
