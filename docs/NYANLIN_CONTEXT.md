@@ -554,3 +554,65 @@ Total: ~100-160x speedup, ~2 hours setup
 - build/train_b4 (batch=4 variant, quality-tested)
 - scripts/gen_multi_batches.py, make_multi_c.py, make_batch4.py
 - Backup: ref/full_test_before_n100_*, ref/full_test_after_b4_*
+
+## 28. SESSION UPDATE — 2026-11-02 (GPU Backend Complete)
+
+### Environment (WSL2, Debian 13, GTX 1660 Ti)
+- CUDA 12.8 (V12.8.93) at /usr/local/cuda-12.8
+- gcc-13 (CUDA 12.6 incompatible with gcc-14)
+- Swap: 9 GB (2 + 8)
+- **GLIBC 2.41 fix REQUIRED:**
+  - Header: ~/cuda_compat/glibc_c23_math_compat.h
+  - Env: NVCC_PREPEND_FLAGS="-Xcompiler=-include,$HOME/cuda_compat/glibc_c23_math_compat.h"
+
+### GPU Ops COMPLETE (All PASS)
+- cuBLAS matmul: 1670 GFLOPS (30% of peak, small matrix)
+- LayerNorm fwd+bwd: ALL PASS (< 1.5e-06)
+- GELU fwd+bwd: ALL PASS (< 1.2e-07)
+- Softmax+CE fwd+bwd: ALL PASS (< 1e-06)
+- AdamW: ALL PASS (< 1.5e-08)
+
+### Key Files
+- scripts/cuda/test_mm.cu (naive)
+- scripts/cuda/test_mm_tiled.cu (tiled)
+- scripts/cuda/test_mm_cublas.cu (cuBLAS — USE THIS for matmul)
+- scripts/cuda/test_ln.cu (LayerNorm)
+- scripts/cuda/test_ops.cu (GELU+softmax+AdamW)
+
+### Decision LOCKED
+- Matmul: cuBLAS (hardware primitive, NOT external engine)
+- All custom kernels: elementwise ops only
+- Tiled CUDA: 514 GFLOPS (only use if philosophy demands)
+- Naive CUDA: 336 GFLOPS (reference only)
+
+### Next Session Start
+"Continue GPU backend — full training step integration"
+
+### User Rules (CRITICAL — DO NOT IGNORE)
+- No "take a break" / "rest" / "nap" suggestions
+- No fake optimism or sugar-coating
+- Verify claims before accepting (example: pip install myanmar-code was real)
+- 8 months documented work (2026-02-22 PyPI upload → now)
+- Be honest about estimates (100x was wrong, 7.87x was real)
+- Verify patterns before sed/regex scripts
+- No unnecessary verification commands for trivial tasks
+- Backup: ~/backup_cuda_ready_*.tar.gz
+- Weights: ref/full_test/*.bin (DO NOT promote out_* without explicit request)
+
+### Timeline Truth
+- 2026-02-22: myanmar-code v1.0.0 (PyPI, first evidence)
+- 2026-10-15: first .mmc file
+- 2026-10-26: Git repo (MMC v11)
+- 2026-11-02: GPU ops complete
+
+### Cost Reality (honest)
+- 4.84M CPU: 0.31s/step (7.87x from FP64)
+- 4.84M GPU: ~0.02-0.05s/step estimated (5-8x from CPU)
+- 100M CPU: ~7.5 days for 100K steps
+- 100M GPU: ~1.5-2 days for 100K steps
+- 350M GPU + model parallel: ~3-5 days
+
+### Backup State
+- ref/full_test_before_n100_*: pre-N100 backup
+- ref/full_test_after_b4_*: post-batch=4 backup
+- ~/backup_cuda_ready_*.tar.gz: CUDA-ready snapshot
