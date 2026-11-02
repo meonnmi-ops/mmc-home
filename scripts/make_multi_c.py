@@ -15,6 +15,13 @@ if 'int L = 3;' not in text:
 # 1. N_STEPS
 text = text.replace('int L = 3;', f'int L = 3;\n    int N_STEPS = {n_steps};', 1)
 
+# FIX lr bug: ld64 -> ld32 (lr.bin converted to float32, 4 bytes)
+text = text.replace(
+    'float* lr_p = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/lr.bin", 1);',
+    'float* lr_p = ld32("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/lr.bin", 1);',
+    1
+)
+
 # 2. zero_float helper
 if 'int zero_float(' not in text:
     helper = (
