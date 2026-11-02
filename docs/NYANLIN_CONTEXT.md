@@ -862,3 +862,46 @@ Smooth monotonic decay - typical of healthy training.
 - `scripts/cuda/test_train_step.cu` — N-step loop (WORKING)
 - `scripts/cuda/test_train_step.py` — verify + loss trajectory
 - `docs/NYANLIN_CONTEXT.md` — this file
+
+
+## 35. MULTI-BATCH TRAINING ON REAL CORPUS (2026-11-03)
+
+### THE MILESTONE
+- First real-data training on GPU: 45 steps × different batches
+- Train loss 6.96 -> 3.44 (fluctuates because batches differ, trend down)
+- Val loss (5 held-out): mean 4.32
+- Train/Val gap 0.87 → genuine generalization, not memorization
+- All step-1/2 verify checks still PASS
+
+### DATA PIPELINE
+- corpus.bin = raw UTF-8 bytes (np.uint8), 312MB
+- Vocabulary: V=256 (byte-level)
+- Batches: /tmp/batch_{k}_ids.bin + batch_{k}_tg.bin (int32)
+- T=4 per batch (NOTE: very short, next step = T=16 or 32)
+- START=1000, stride T per batch
+
+### IMPLEMENTATION
+- CUDA: per-step batch reload inside loop (batch_{step+1}_*.bin)
+- After 45 train steps: forward-only eval on 5 held-out batches
+- Per-batch loss saved (loss_s{k}.bin, loss_val{v}.bin)
+- Python reads all + prints trajectory + generalization verdict
+
+### LESSONS
+- Same-batch loss (section 34) was memorization test only
+- Multi-batch confirms real learning (val tracks train)
+- Per-step fluctuation is NORMAL (different batch each step)
+- T=4 gives limited context — increasing T is the natural next step
+
+### NEXT SESSION — pick up here
+1. **T=16 or 32** — longer context, better loss floor
+   - Update CUDA kernels (attn stack arrays sized by T, MAX_T=512 supports this)
+   - Regenerate batches with new T
+2. **Checkpoint save/load** — all 16 tensors + m/v
+3. **LR schedule** — warmup + cosine (see ref/run_full_train.py)
+4. **N=200-500 steps** to see steady-state loss
+
+### KEY FILES
+- scripts/cuda/test_train_step.cu — N-step multi-batch loop
+- scripts/cuda/test_train_step.py — verify + trajectory + val
+- ref/full_test/corpus.bin — 312MB UTF-8 bytes
+- ref/run_full_train.py — reference (T=128, full arch)
