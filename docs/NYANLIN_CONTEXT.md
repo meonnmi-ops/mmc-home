@@ -699,3 +699,39 @@ After attention bwd: residual add + full GPU training step integration
 ### NEXT SESSION START
 Continue GPU backend — attention backward
 Context: All GPU ops done except attention bwd. Then integration. Then Phase 1 scale-up.
+
+
+## 30. FULL 4.84M MODEL GPU FWD+BWD — COMPLETE (2026-11-02)
+
+### ALL 12 GRADIENTS PASS (< 4e-05 vs NumPy)
+- Forward: y (6.9e-06), probs (1.1e-07), loss (7.2e-07)
+- Backward: dx, dwte, dwpe, dlnfg, dlnfb, dwq, dwk, dwv, dwo
+
+### KEY FILES (scripts/cuda/)
+- block_ops.cu + .h (device API)
+- test_full_model.cu + .py (full 4.84M equivalent)
+- test_ops.cu (GELU+softmax+AdamW)
+- test_mlp.cu (MLP fwd+bwd)
+- test_full_block.cu (pre-LN block, 14 grads)
+- test_lblock.cu (L=3 chain)
+- test_attn.cu + test_attn_bwd.cu
+
+### NEXT SESSION: TRAINING LOOP
+1. AdamW kernel (already in test_ops.cu — reuse)
+2. Training step: fwd + bwd + AdamW + log
+3. Checkpoint save/load (CPU<->GPU weights)
+4. Real data loader (corpus.bin -> ids/tg)
+
+### KEY BUGS FOUND
+- mm_nt order: (M, K, N) not (M, N, K)
+- dT1 must be sh (T*DFF), not sx (T*D)
+- bpre (post-gelu) vs bpre_save (pre-gelu)
+- xnf forward saved separately
+- dwte vs dwte_g separate buffers
+- Python: np.stack, not np.concatenate
+
+### ENVIRONMENT
+- CUDA 12.8 at /usr/local/cuda-12.8
+- GLIBC fix: ~/cuda_compat/glibc_c23_math_compat.h
+- NVCC_PREPEND_FLAGS in ~/.bashrc
+- GTX 1660 Ti (7.5, 24 SM, 6143 MB)
