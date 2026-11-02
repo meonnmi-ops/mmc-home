@@ -979,3 +979,43 @@ Smooth monotonic decay - typical of healthy training.
 - scripts/cuda/test_train_step.cu — N-step + schedule + 30 val
 - scripts/cuda/test_train_step.py — verify + val stats
 - Compile flags: -DUSE_LR_SCHEDULE=1 -DN_STEPS=200 -DWARMUP=20
+
+
+## 38. T=16 — VAL 3.48 (was 4.15 at T=8) (2026-11-03)
+
+### THE MILESTONE
+- T=8 -> T=16 (wpe extended 1024B -> 2048B, 8 old + 8 new random)
+- N=45 fixed lr: val 3.77 (was 4.47 at T=8)
+- N=200 sched ON: val 3.48 (was 4.15 at T=8)
+- Both runs: ALL PASS (step-1/2 verify intact)
+
+### COMPARISON TABLE
+| Run               | T=8   | T=16  | delta |
+|-------------------|-------|-------|-------|
+| N=45 fixed lr     | 4.47  | 3.77  | -0.70 |
+| N=200 sched ON    | 4.15  | 3.48  | -0.67 |
+| Val std (N=200)   | 0.40  | 0.43  | +0.03 |
+
+### INTERPRETATION
+- 2x context = -0.67 val loss, ~same std -> clean win
+- Longer context helps because attn can condition on more history
+- New wpe rows (pos 9-16) trained from scratch during N=200
+- This validates: context length is a real lever, not just more params
+
+### BATCHES NOW
+- 230 batches, T=16: train 1..200, val 201..230
+- START=1000, stride T=16
+
+### NEXT SESSION — pick up here
+1. **T=32** — double again, wpe 4096B. Will val < 3.0?
+2. **Checkpoint save/load** — persist T=16 state, resume training
+3. **N=500-1000** — with T=16 + schedule, does floor drop further?
+4. **Real data mixture** — currently all from one START=1000 region;
+   could span full 312MB corpus for diversity
+
+### KEY FILES
+- scripts/cuda/test_train_step.cu — T=16, N-step, schedule, val
+- scripts/cuda/test_train_step.py — verify + val stats
+- /tmp/fm_wpe.bin — 2048B, T=16
+- /tmp/fm_wpe_T8_bak.bin — previous T=8 backup
+- Compile: -DUSE_LR_SCHEDULE=1 -DN_STEPS=200 -DWARMUP=20
