@@ -6,7 +6,7 @@
 #include "block_ops.h"
 
 #ifndef N_STEPS
-#define N_STEPS 20
+#define N_STEPS 45
 #endif
 
 #define MAX_T 512
@@ -464,6 +464,15 @@ int main(){
 
         // ===== STEP 2: Re-run fwd+bwd with UPDATED weights =====
         if (step < N_STEPS) {
+            // --- Reload batch for next step ---
+            {
+                char _idp[64], _tgp[64];
+                snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", step+1);
+                snprintf(_tgp, sizeof(_tgp), "/tmp/batch_%d_tg.bin", step+1);
+                ld(_idp, hids, T); ld(_tgp, htg, T);
+                cudaMemcpy(dids, hids, T*4, cudaMemcpyHostToDevice);
+                cudaMemcpy(dtg, htg, T*4, cudaMemcpyHostToDevice);
+            }
             // --- FORWARD (step-2) ---
             emb_fwd_k<<<T, D>>>(dids, dwte, dwpe, dXs, T, D);
             cudaDeviceSynchronize();
@@ -601,6 +610,60 @@ int main(){
         }
     }
 
-    printf("Train step 1 done: T=%d D=%d L=%d V=%d\\n", T,D,L,V);
+    printf("Train %d steps done: T=%d D=%d L=%d V=%d\\n", N_STEPS, T, D, L, V);
+    // ===== VALIDATION (forward-only on batches N+1..N+5) =====
+    for (int v = 1; v <= 5; v++) {
+        int gstep = N_STEPS + v;
+        char _idp[64], _tgp[64];
+        snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", gstep);
+        snprintf(_tgp, sizeof(_tgp), "/tmp/batch_%d_tg.bin", gstep);
+        ld(_idp, hids, T); ld(_tgp, htg, T);
+        cudaMemcpy(dids, hids, T*4, cudaMemcpyHostToDevice);
+        cudaMemcpy(dtg, htg, T*4, cudaMemcpyHostToDevice);
+        emb_fwd_k<<<T, D>>>(dids, dwte, dwpe, dXs, T, D);
+        cudaDeviceSynchronize();
+        for (int b = 0; b < L; b++) {
+            float *xin = dXs + b*sx;
+            float *xout = dXs + (b+1)*sx;
+            float *bWq = dWq + b*sD, *bWk = dWk + b*sD, *bWv = dWv + b*sD, *bWo = dWo + b*sD;
+            float *bln1g = dln1g + b*D, *bln1b = dln1b + b*D;
+            float *bW1 = dW1 + b*sDFF, *bb1 = db1 + b*DFF;
+            float *bW2 = dW2 + b*sDFF, *bb2 = db2 + b*D;
+            float *bln2g = dln2g + b*D, *bln2b = dln2b + b*D;
+            float *bh1 = dh1 + b*sx;
+            float *bQ = dQ + b*sx, *bK = dK + b*sx, *bV = dV + b*sx;
+            float *bA = dA + b*sx, *bO = dO + b*sx;
+            float *bX1 = dX1_fwd + b*sx;
+            float *bh2 = dh2 + b*sx;
+            float *bpre = dpre + b*sh;
+            float *bpre_save = dpre_save + b*sh;
+            float *bm1 = dm1 + b*T, *br1 = dr1 + b*T;
+            float *bm2 = dm2 + b*T, *br2 = dr2 + b*T;
+            ln_fwd_dev(xin, bln1g, bln1b, bh1, bm1, br1, T, D, eps);
+            mm(bh1, bWq, bQ, T, D, D); mm(bh1, bWk, bK, T, D, D); mm(bh1, bWv, bV, T, D, D);
+            attn_fwd_k<<<grd,blk>>>(bQ, bK, bV, bA, T, D, H, sc);
+            cudaDeviceSynchronize();
+            mm(bA, bWo, bO, T, D, D);
+            cudaMemcpy(bX1, xin, sx*4, cudaMemcpyDeviceToDevice);
+            add_dev(bX1, bO, sx);
+            ln_fwd_dev(bX1, bln2g, bln2b, bh2, bm2, br2, T, D, eps);
+            mm(bh2, bW1, bpre, T, D, DFF);
+            add_bias_dev(bpre, bb1, T, DFF);
+            cudaMemcpy(bpre_save, bpre, sh*4, cudaMemcpyDeviceToDevice);
+            gelu_fwd_dev(bpre_save, bpre, sh);
+            mm(bpre, bW2, xout, T, DFF, D);
+            add_bias_dev(xout, bb2, T, D);
+            add_dev(xout, bX1, sx);
+        }
+        ln_fwd_dev(dXs + L*sx, dlnfg, dlnfb, dxnf, dmlf, drlf, T, D, eps);
+        tied_head_fwd<<<T, V>>>(dxnf, dwte, dlogits, T, V, D);
+        cudaDeviceSynchronize();
+        softmax_ce_fwd<<<T, sm_b, sm_sh>>>(dlogits, dtg, dprobs, dloss, T, V);
+        cudaDeviceSynchronize();
+        char _lp[64];
+        snprintf(_lp, sizeof(_lp), "/tmp/loss_val%d.bin", v);
+        sv_loss(_lp, dloss, T);
+    }
+
     return 0;
 }

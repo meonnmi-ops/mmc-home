@@ -319,9 +319,9 @@ ok_w2 = all([
 
 # ===== Loss trajectory =====
 print()
-print("--- Loss trajectory (N=20 steps) ---")
+print("--- Loss trajectory (N=45 train steps) ---")
 losses = []
-for k in range(1, 21):
+for k in range(1, 46):
     try:
         v = np.fromfile(f'/tmp/loss_s{k}.bin', dtype=np.float32)
         if len(v) > 0:
@@ -340,5 +340,29 @@ if len(losses) >= 2:
         print("  ~ Small decrease (bump N for clarity)")
     else:
         print("  ✗ No decrease — check lr/data")
+
+# ===== Validation loss =====
+print()
+print("--- Validation loss (5 held-out batches) ---")
+vals = []
+for v in range(1, 6):
+    try:
+        vv = np.fromfile(f'/tmp/loss_val{v}.bin', dtype=np.float32)
+        if len(vv) > 0:
+            vals.append((v, float(vv[0])))
+    except FileNotFoundError:
+        break
+for v, val in vals:
+    print(f"  val_{v} = {val:.6f}")
+if len(vals) >= 1 and len(losses) >= 2:
+    print()
+    print(f"  Train final: {losses[-1][1]:.6f}")
+    print(f"  Val mean:    {sum(v for _,v in vals)/len(vals):.6f}")
+    print(f"  Val min:     {min(v for _,v in vals):.6f}")
+    print()
+    if losses[-1][1] < 4.0 and sum(v for _,v in vals)/len(vals) < 5.0:
+        print("  ✓ Generalization: val loss reasonable, not just memorization")
+    else:
+        print("  ✗ Overfitting suspected: train dropped but val high")
 
 print("ALL PASS (grads + step1 + step2)" if (ok and ok_w and ok_w2) else "SOME FAILED")
