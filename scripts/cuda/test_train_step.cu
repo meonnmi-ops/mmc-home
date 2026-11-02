@@ -11,6 +11,9 @@
 #ifndef BATCH
 #define BATCH 1
 #endif
+#ifndef NVAL
+#define NVAL 30
+#endif
 
 #ifndef USE_LR_SCHEDULE
 #define USE_LR_SCHEDULE 0
@@ -664,7 +667,7 @@ int main(){
 
     printf("Train %d steps done (lr_sched=%d, warmup=%d): T=%d D=%d L=%d V=%d\n", N_STEPS, (int)USE_LR_SCHEDULE, (int)WARMUP, T, D, L, V);
     // ===== VALIDATION (forward-only on batches N+1..N+5) =====
-    for (int v = 1; v <= 30; v++) {
+    for (int v = 1; v <= NVAL; v++) {
         int gstep = N_STEPS*BATCH + v;
         char _idp[64], _tgp[64];
         snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", gstep);
