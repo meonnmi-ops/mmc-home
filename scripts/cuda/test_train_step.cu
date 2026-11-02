@@ -23,7 +23,7 @@ static cublasHandle_t gb;
 __global__ void attn_fwd_k(const float* Q,const float* K,const float* V,float* out,
                            int T,int D,int H,float sc){
     int h=blockIdx.x,row=blockIdx.y; int hd=D/H,off=h*hd; float s[MAX_T];
-    for (int c=0;c<T;c++){ float su=0; for (int d=0;d<hd;d++) su+=Q[row*D+off+d]*K[c*D+off+d]; s[c]=su*sc; }
+    for (int c=0;c<T;c++){ float su=0; for (int d=0;d<hd;d++) su+=Q[row*D+off+d]*K[c*D+off+d]; s[c]=(c>row)?-1e30f:su*sc; }
     float mx=-1e30f; for (int c=0;c<T;c++) if (s[c]>mx) mx=s[c];
     float se=0; for (int c=0;c<T;c++){ s[c]=expf(s[c]-mx); se+=s[c]; }
     for (int c=0;c<T;c++) s[c]/=se;
@@ -33,7 +33,7 @@ __global__ void attn_bwd_k(const float* Q,const float* K,const float* V,const fl
                            float* dQ,float* dK,float* dV,int T,int D,int H,float sc){
     int h=blockIdx.x,row=blockIdx.y; int hd=D/H,off=h*hd;
     float s[MAX_T],sm[MAX_T],dp[MAX_T],ds[MAX_T];
-    for (int c=0;c<T;c++){ float su=0; for (int d=0;d<hd;d++) su+=Q[row*D+off+d]*K[c*D+off+d]; s[c]=su*sc; }
+    for (int c=0;c<T;c++){ float su=0; for (int d=0;d<hd;d++) su+=Q[row*D+off+d]*K[c*D+off+d]; s[c]=(c>row)?-1e30f:su*sc; }
     float mx=-1e30f; for (int c=0;c<T;c++) if (s[c]>mx) mx=s[c];
     float se=0; for (int c=0;c<T;c++){ sm[c]=expf(s[c]-mx); se+=sm[c]; }
     for (int c=0;c<T;c++) sm[c]/=se;
@@ -433,8 +433,8 @@ int main(){
     float adamw_lr = 1e-3f, adamw_b1 = 0.9f, adamw_b2 = 0.999f;
     float adamw_eps = 1e-8f, adamw_wd = 0.01f;
     for (int step = 1; step <= N_STEPS; step++) {
-        float bc1 = (step == 1) ? (1.0f - 0.9f)   : (1.0f - 0.9f*0.9f);
-        float bc2 = (step == 1) ? (1.0f - 0.999f) : (1.0f - 0.999f*0.999f);
+        float bc1 = 1.0f - powf(adamw_b1, (float)step);
+        float bc2 = 1.0f - powf(adamw_b2, (float)step);
         float cur_lr = adamw_lr;
 #if USE_LR_SCHEDULE
         cur_lr = lr_at(step, N_STEPS, WARMUP, adamw_lr);

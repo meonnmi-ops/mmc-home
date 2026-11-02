@@ -53,6 +53,7 @@ def mhsa(Q,K,V):
     Qh=Q.reshape(T,H,hd).transpose(1,0,2); Kh=K.reshape(T,H,hd).transpose(1,0,2)
     Vh=V.reshape(T,H,hd).transpose(1,0,2); sc_=1.0/np.sqrt(hd)
     s_=np.einsum('htd,hcd->htc',Qh,Kh)*sc_
+    s_=np.where(np.tril(np.ones((T,T),dtype=bool))[None],s_,-1e30)
     mx=s_.max(-1,keepdims=True); ex=np.exp(s_-mx); S=ex/ex.sum(-1,keepdims=True)
     Ah=np.einsum('htc,hcd->htd',S,Vh)
     return Ah.transpose(1,0,2).reshape(T,D)
@@ -61,6 +62,7 @@ def mhsa_bwd(dA,Q,K,V):
     Qh=Q.reshape(T,H,hd).transpose(1,0,2); Kh=K.reshape(T,H,hd).transpose(1,0,2)
     Vh=V.reshape(T,H,hd).transpose(1,0,2); dAh=dA.reshape(T,H,hd).transpose(1,0,2)
     s_=np.einsum('htd,hcd->htc',Qh,Kh)*sc_
+    s_=np.where(np.tril(np.ones((T,T),dtype=bool))[None],s_,-1e30)
     mx=s_.max(-1,keepdims=True); ex=np.exp(s_-mx); S=ex/ex.sum(-1,keepdims=True)
     dVh=np.einsum('htc,htd->hcd',S,dAh)
     dSp=np.einsum('htd,hcd->htc',dAh,Vh)
