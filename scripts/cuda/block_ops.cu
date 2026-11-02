@@ -1,3 +1,4 @@
+#include <math.h>
 #include <cuda_runtime.h>
 
 // ---------- Kernels ----------
@@ -69,6 +70,19 @@ __global__ void add_bias_k(float* y, const float* b, int T, int D) {
     y[i] += b[i % D];
 }
 
+
+__global__ void adamw_step_k(float* w, const float* g, float* m, float* v,
+                             float lr, float b1, float b2, float eps, float wd,
+                             float bc1, float bc2, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    m[i] = b1 * m[i] + (1.0f - b1) * g[i];
+    v[i] = b2 * v[i] + (1.0f - b2) * g[i] * g[i];
+    float mh = m[i] / bc1;
+    float vh = v[i] / bc2;
+    w[i] = w[i] * (1.0f - lr * wd) - lr * mh / (sqrtf(vh) + eps);
+}
+
 // ---------- Device API ----------
 extern "C" {
 
@@ -105,6 +119,15 @@ void add_dev(float* d_a, const float* d_b, int n) {
 void add_bias_dev(float* d_y, const float* d_b, int T, int D) {
     int n = T*D;
     add_bias_k<<<(n+255)/256, 256>>>(d_y, d_b, T, D);
+}
+
+
+void adamw_dev(float* d_w, const float* d_g, float* d_m, float* d_v,
+               float lr, float b1, float b2, float eps, float wd,
+               int step, int n) {
+    float bc1 = 1.0f - powf(b1, (float)step);
+    float bc2 = 1.0f - powf(b2, (float)step);
+    adamw_step_k<<<(n+255)/256, 256>>>(d_w, d_g, d_m, d_v, lr, b1, b2, eps, wd, bc1, bc2, n);
 }
 
 }  // extern "C"
