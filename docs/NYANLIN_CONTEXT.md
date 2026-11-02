@@ -794,3 +794,35 @@ this doc + `git log --oneline -10`, then continue with refactor above.
 - Heredoc paste into bash is fragile (we saw 20+ syntax errors)
 - Use `cat > /tmp/script.py << 'PYEOF'` first, then `python3 /tmp/script.py`
 - The script validates anchors exist before writing — catches mismatch early
+
+
+## 33. REAL 2-STEP TRAINING — FRESH FWD+BWD PASS (2026-11-03)
+
+### DONE
+- `test_train_step.cu`: real 2-step loop (fwd+bwd ×2, distinct grads)
+- Step-2 grads saved (fm_s2_*) for verification
+- Step-2 grads use g1 + g2 in AdamW m/v accumulation (verified)
+- Sanity check: |y2-y1| = 1.92 (forward re-ran, weights changed)
+- Step-1: 16 weights PASS (< 8.8e-07)
+- Step-2 (REAL): 16 weights PASS (< 1.2e-07)
+
+### KEY INSIGHT
+- Prior section 32 used step-1 grads for step-2 (shortcut)
+- This session runs ACTUAL step-2 fwd+bwd with step-1 weights
+- Distinguishes: AdamW math (section 32) vs training loop (section 33)
+
+### ARCHITECTURE LEARNED
+- Python reference: adamw_step2(w1, g1, g2) = real 2-step reference
+- Requires g1 saved → fixed by saving fm_dw1/fm_db1/etc BEFORE memset
+- Shape gotchas: W2 is (L, DFF, D) not (L, D, DFF); dW2 same
+
+### NEXT SESSION — pick up here
+1. **True N-step loop (N=4, 8)** — generalize 2-step; verify loss decreases
+2. **Checkpoint save/load** — all 16 tensors + m/v state
+3. **Real data loader** — corpus.bin → ids/tg per step
+4. **Clean function refactor** — model_fwd(), model_bwd() (still inline)
+
+### FILES
+- `scripts/cuda/test_train_step.cu` — REAL 2-step loop (WORKING)
+- `scripts/cuda/test_train_step.py` — full reference verify
+- `scripts/cuda/test_full_model.cu` — single fwd+bwd reference
