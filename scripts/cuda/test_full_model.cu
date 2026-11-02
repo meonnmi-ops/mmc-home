@@ -266,15 +266,124 @@ int main(){
     cudaMemset(ddwte_head, 0, V*D*4);
     tied_head_bwd_dxnf<<<T, D>>>(dlogits, dwte, dxnf, T, V, D);    // NOTE: use saved xnf? We overwrote dxnf. Need xnf saved.
     cudaDeviceSynchronize();
-    // ^ BUG: xnf got overwritten by dxnf. Need to save xnf forward first.
-    // FIX: save xnf forward before tied head bwd
-    // We'll fix in next iteration — for now save we'll recompute xnf later.
-    // Actually — save xnf before tied_head_bwd. Let me handle by using separate buf.
-    // (for now, skip; add buffer)
-    float *dxnf_save; ALLOC(dxnf_save, sx);
+    // ===== BACKWARD (clean) =====
+    float *dxnf_fwd; ALLOC(dxnf_fwd, sx);
+    ln_fwd_dev(dXs + L*sx, dlnfg, dlnfb, dxnf_fwd, dmlf, drlf, T, D, eps);
 
-    // (Skip — need forward xnf saved; restructure below)
+    // Separate grad buffers (forward weights untouched)
+    float *dWq_g,*dWk_g,*dWv_g,*dWo_g,*dln1g_g,*dln1b_g;
+    float *dW1_g,*db1_g,*dW2_g,*db2_g,*dln2g_g,*dln2b_g;
+    float *dwte_g,*dwpe_g,*dlnfg_g,*dlnfb_g;
+    ALLOC(dWq_g,L*sD);ALLOC(dWk_g,L*sD);ALLOC(dWv_g,L*sD);ALLOC(dWo_g,L*sD);
+    ALLOC(dln1g_g,L*D);ALLOC(dln1b_g,L*D);
+    ALLOC(dW1_g,L*sDFF);ALLOC(db1_g,L*DFF);ALLOC(dW2_g,L*sDFF);ALLOC(db2_g,L*D);
+    ALLOC(dln2g_g,L*D);ALLOC(dln2b_g,L*D);
+    ALLOC(dwte_g,V*D);ALLOC(dwpe_g,TMAX*D);
+    ALLOC(dlnfg_g,D);ALLOC(dlnfb_g,D);
+    cudaMemset(dWq_g,0,L*sD*4);cudaMemset(dWk_g,0,L*sD*4);
+    cudaMemset(dWv_g,0,L*sD*4);cudaMemset(dWo_g,0,L*sD*4);
+    cudaMemset(dln1g_g,0,L*D*4);cudaMemset(dln1b_g,0,L*D*4);
+    cudaMemset(dW1_g,0,L*sDFF*4);cudaMemset(db1_g,0,L*DFF*4);
+    cudaMemset(dW2_g,0,L*sDFF*4);cudaMemset(db2_g,0,L*D*4);
+    cudaMemset(dln2g_g,0,L*D*4);cudaMemset(dln2b_g,0,L*D*4);
+    cudaMemset(dwte_g,0,V*D*4);cudaMemset(dwpe_g,0,TMAX*D*4);
+    cudaMemset(dlnfg_g,0,D*4);cudaMemset(dlnfb_g,0,D*4);
 
-    printf("Full model fwd+bwd (part 1): T=%d D=%d L=%d V=%d\n", T,D,L,V);
+    // Temp buffers
+    float *dY_temp,*dX1_temp,*dhg_temp,*dpre_temp,*dh2_temp;
+    float *dA_temp,*dQ_t,*dK_t,*dV_t,*dh1_temp,*dX_temp;
+    float *dT_sx_a,*dT_sh_a;
+    ALLOC(dY_temp,sx);ALLOC(dX1_temp,sx);ALLOC(dhg_temp,sh);
+    ALLOC(dpre_temp,sh);ALLOC(dh2_temp,sx);
+    ALLOC(dA_temp,sx);ALLOC(dQ_t,sx);ALLOC(dK_t,sx);ALLOC(dV_t,sx);
+    ALLOC(dh1_temp,sx);ALLOC(dX_temp,sx);
+    ALLOC(dT_sx_a,sx);ALLOC(dT_sh_a,sh);
+
+    // 4') Tied head bwd
+    tied_head_bwd_dxnf<<<T,D>>>(dlogits, dwte, dxnf, T,V,D);
+    tied_head_bwd_dwte<<<V,D>>>(dlogits, dxnf_fwd, dwte_g, T,V,D);
+    cudaDeviceSynchronize();
+
+    // 3') LNf bwd
+    cudaMemset(dlnfg_g,0,D*4);cudaMemset(dlnfb_g,0,D*4);
+    ln_bwd_dev(dxnf, dXs+L*sx, dlnfg, dmlf, drlf, dY_temp, dlnfg_g, dlnfb_g, T,D);
+    cudaDeviceSynchronize();
+
+    // 2') Block chain
+    for (int b=L-1; b>=0; b--) {
+        float *bWq=dWq+b*sD,*bWk=dWk+b*sD,*bWv=dWv+b*sD,*bWo=dWo+b*sD;
+        float *bW1=dW1+b*sDFF,*bW2=dW2+b*sDFF;
+        float *bln1g=dln1g+b*D,*bln2g=dln2g+b*D;
+        float *bh1=dh1+b*sx;
+        float *bQ=dQ+b*sx,*bK=dK+b*sx,*bV=dV+b*sx;
+        float *bA=dA+b*sx;
+        float *bX1=dX1_fwd+b*sx;
+        float *bh2=dh2+b*sx;
+        float *bpre_save=dpre_save+b*sh;
+        float *bpre=dpre+b*sh;
+        float *bm1=dm1+b*T,*br1=dr1+b*T;
+        float *bm2=dm2+b*T,*br2=dr2+b*T;
+
+        cudaMemcpy(dX1_temp, dY_temp, sx*4, cudaMemcpyDeviceToDevice);
+        mm_tn(bpre, dY_temp, dW2_g+b*sDFF, DFF, T, D);
+        colsum_k<<<(D+255)/256,256>>>(dY_temp, db2_g+b*D, T, D);
+        mm_nt(dY_temp, bW2, dhg_temp, T, D, DFF);
+        gelu_bwd_dev(dhg_temp, bpre_save, dpre_temp, sh);
+        mm_tn(bh2, dpre_temp, dW1_g+b*sDFF, D, T, DFF);
+        colsum_k<<<(DFF+255)/256,256>>>(dpre_temp, db1_g+b*DFF, T, DFF);
+        mm_nt(dpre_temp, bW1, dh2_temp, T, DFF, D);
+        add_dev(dX1_temp, dh2_temp, sx);
+        ln_bwd_dev(dh2_temp, bX1, bln2g, bm2, br2, dT_sx_a, dln2g_g+b*D, dln2b_g+b*D, T,D);
+        add_dev(dX1_temp, dT_sx_a, sx);
+        mm_tn(bA, dX1_temp, dWo_g+b*sD, D, T, D);
+        mm_nt(dX1_temp, bWo, dA_temp, T, D, D);
+        cudaMemset(dQ_t,0,sx*4);cudaMemset(dK_t,0,sx*4);cudaMemset(dV_t,0,sx*4);
+        attn_bwd_k<<<grd,blk>>>(bQ, bK, bV, dA_temp, dQ_t, dK_t, dV_t, T, D, H, sc);
+        cudaDeviceSynchronize();
+        mm_tn(bh1, dQ_t, dWq_g+b*sD, D, T, D);
+        mm_tn(bh1, dK_t, dWk_g+b*sD, D, T, D);
+        mm_tn(bh1, dV_t, dWv_g+b*sD, D, T, D);
+        mm_nt(dQ_t, bWq, dh1_temp, T, D, D);
+        mm_nt(dK_t, bWk, dT_sx_a, T, D, D);
+        add_dev(dh1_temp, dT_sx_a, sx);
+        mm_nt(dV_t, bWv, dT_sx_a, T, D, D);
+        add_dev(dh1_temp, dT_sx_a, sx);
+        cudaMemcpy(dX_temp, dX1_temp, sx*4, cudaMemcpyDeviceToDevice);
+        ln_bwd_dev(dh1_temp, dXs+b*sx, bln1g, bm1, br1, dT_sx_a, dln1g_g+b*D, dln1b_g+b*D, T,D);
+        add_dev(dX_temp, dT_sx_a, sx);
+        cudaMemcpy(dY_temp, dX_temp, sx*4, cudaMemcpyDeviceToDevice);
+    }
+
+    // 1') Emb bwd
+    emb_bwd_k<<<T, D>>>(dids, dY_temp, dwte_g, dwpe_g, T, D);
+    cudaDeviceSynchronize();
+
+    // Save grads
+    float *h=(float*)malloc(sx*4);
+    cudaMemcpy(h, dY_temp, sx*4, cudaMemcpyDeviceToHost);
+    sv("/tmp/fm_dx.bin", h, sx); free(h);
+
+    h=(float*)malloc(V*D*4);
+    cudaMemcpy(h, dwte_g, V*D*4, cudaMemcpyDeviceToHost);
+    sv("/tmp/fm_dwte.bin", h, V*D); free(h);
+
+    h=(float*)malloc(TMAX*D*4);
+    cudaMemcpy(h, dwpe_g, TMAX*D*4, cudaMemcpyDeviceToHost);
+    sv("/tmp/fm_dwpe.bin", h, TMAX*D); free(h);
+
+    h=(float*)malloc(D*4);
+    cudaMemcpy(h, dlnfg_g, D*4, cudaMemcpyDeviceToHost);
+    sv("/tmp/fm_dlnfg.bin", h, D);
+    cudaMemcpy(h, dlnfb_g, D*4, cudaMemcpyDeviceToHost);
+    sv("/tmp/fm_dlnfb.bin", h, D); free(h);
+
+    h=(float*)malloc(L*sD*4);
+    cudaMemcpy(h,dWq_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dwq.bin",h,L*sD);
+    cudaMemcpy(h,dWk_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dwk.bin",h,L*sD);
+    cudaMemcpy(h,dWv_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dwv.bin",h,L*sD);
+    cudaMemcpy(h,dWo_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dwo.bin",h,L*sD);
+    free(h);
+
+    printf("Full model fwd+bwd DONE: T=%d D=%d L=%d V=%d\n", T,D,L,V);
     return 0;
 }
