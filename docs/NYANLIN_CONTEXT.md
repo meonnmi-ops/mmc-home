@@ -905,3 +905,38 @@ Smooth monotonic decay - typical of healthy training.
 - scripts/cuda/test_train_step.py — verify + trajectory + val
 - ref/full_test/corpus.bin — 312MB UTF-8 bytes
 - ref/run_full_train.py — reference (T=128, full arch)
+
+
+## 36. T=8 TRAINING + 30-BATCH VALIDATION (2026-11-03)
+
+### THE MILESTONE
+- T=4 -> T=8 (wpe.bin was already 1024B = TMAX=8)
+- 45 train batches + 30 val batches (was 5)
+- Train: 7.73 -> 3.56 (delta -4.17)
+- Val mean 4.47, median 4.33, std 0.84
+- Train/Val gap 0.92 -> generalization confirmed
+
+### LESSON: VALIDATION SAMPLE SIZE MATTERS
+- n=5 val: mean 5.05, one batch 7.30 -> false "overfitting" verdict
+- n=30 val: mean 4.47, std 0.84 -> clear generalization
+- Rule: use >= 20 val batches before drawing conclusions
+- T=8 + 30 batches gives stable estimate
+
+### COMPARISON T=4 vs T=8
+- Train final: 3.44 (T=4) vs 3.56 (T=8) — similar
+- Val mean:   4.32 (n=5) vs 4.47 (n=30) — similar
+- Interpretation: 45 steps × T=8 isn't enough to beat T=4 significantly;
+  context length helps but need more training to see it
+
+### NEXT SESSION — pick up here
+1. **LR schedule** (warmup + cosine) — ref/run_full_train.py has it
+   - Current fixed 1e-3 -> likely leaves loss on table
+2. **Longer run** N=200-500 steps — see steady-state loss floor
+3. **Larger T=16 or 32** — need new wpe (regenerate 2048B/4096B)
+   - Update TMAX and regenerate weights
+4. **Checkpoint save/load** — for multi-session training
+
+### KEY FILES
+- scripts/cuda/test_train_step.cu — N=45 train, 30 val, T=8
+- scripts/cuda/test_train_step.py — full verify + 30-batch val stats
+- ref/full_test/corpus.bin — 312MB UTF-8
