@@ -826,3 +826,39 @@ this doc + `git log --oneline -10`, then continue with refactor above.
 - `scripts/cuda/test_train_step.cu` — REAL 2-step loop (WORKING)
 - `scripts/cuda/test_train_step.py` — full reference verify
 - `scripts/cuda/test_full_model.cu` — single fwd+bwd reference
+
+
+## 34. N=20-STEP TRAINING — LOSS DECREASES (2026-11-03)
+
+### THE MILESTONE
+- 20-step AdamW loop: loss 6.961554 -> 3.374765 (delta -3.587, -52%)
+- Monotonic decrease: every step lower than previous
+- ALL step-1 + step-2 verify checks still PASS
+
+### IMPLEMENTATION
+- #define N_STEPS 20 (overridable)
+- Loop: step 1..N: AdamW -> save weights -> [if step<N: fwd+bwd, next grads]
+- Per-step avg loss saved to /tmp/loss_s{step}.bin
+- Python reads all 20, prints trajectory, flags ✓ if decreased
+
+### LOSS TRAJECTORY (reference)
+s1=6.962, s5=5.801, s10=4.771, s15=3.980, s20=3.375
+Smooth monotonic decay - typical of healthy training.
+
+### KNOWN COSMETIC BUG
+- printf still says "Train step 1 done" - not updated to N_STEPS
+- Harmless (python check is the source of truth)
+- Fix when convenient
+
+### NEXT SESSION — pick up here
+1. **Checkpoint save/load** — all 16 tensors + m/v state to dir
+   (now possible: weights are meaningfully different after 20 steps)
+2. **Real data loader** — corpus.bin -> ids/tg per step
+   (currently ids/tg fixed, so loss decreases on same batch = memorization)
+3. **Function refactor** — model_fwd()/model_bwd() to eliminate code dup
+4. **Larger N** (100+) + multiple batches to verify generalization
+
+### KEY FILES
+- `scripts/cuda/test_train_step.cu` — N-step loop (WORKING)
+- `scripts/cuda/test_train_step.py` — verify + loss trajectory
+- `docs/NYANLIN_CONTEXT.md` — this file
