@@ -384,60 +384,71 @@ int main(){
     cudaMemcpy(h,dWo_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dwo.bin",h,L*sD);
     free(h);
 
-    // ===== ADAMW STEP (step=1, m=v=0 init) =====
-    float bc1 = 1.0f - powf(0.9f, 1.0f);
-    float bc2 = 1.0f - powf(0.999f, 1.0f);
+    // ===== PERSISTENT M/V (shared across step 1 & 2) =====
+    #define MK_MV(NM, N) float* mv_##NM##_m; float* mv_##NM##_v; \
+        cudaMalloc(&mv_##NM##_m, (N)*4); cudaMalloc(&mv_##NM##_v, (N)*4); \
+        cudaMemset(mv_##NM##_m, 0, (N)*4); cudaMemset(mv_##NM##_v, 0, (N)*4);
+    MK_MV(wte, V*D);   MK_MV(wpe, TMAX*D);
+    MK_MV(lnfg, D);    MK_MV(lnfb, D);
+    MK_MV(wq, L*sD);   MK_MV(wk, L*sD);   MK_MV(wv, L*sD);   MK_MV(wo, L*sD);
+    MK_MV(ln1g, L*D);  MK_MV(ln1b, L*D);
+    MK_MV(w1, L*sDFF); MK_MV(b1, L*DFF);
+    MK_MV(w2, L*sDFF); MK_MV(b2, L*D);
+    MK_MV(ln2g, L*D);  MK_MV(ln2b, L*D);
+    #undef MK_MV
+
+    // ===== ADAMW 2-STEP LOOP (persistent m/v, step-1 grads reused) =====
     float adamw_lr = 1e-3f, adamw_b1 = 0.9f, adamw_b2 = 0.999f;
     float adamw_eps = 1e-8f, adamw_wd = 0.01f;
-    #define ADAMW(W, G, N) do { \
-        float* _m; float* _v; \
-        cudaMalloc(&_m, (N)*4); cudaMalloc(&_v, (N)*4); \
-        cudaMemset(_m, 0, (N)*4); cudaMemset(_v, 0, (N)*4); \
-        adamw_dev((W), (G), _m, _v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, bc1, bc2, (N)); \
-        cudaFree(_m); cudaFree(_v); \
-    } while(0)
-    ADAMW(dwte, dwte_g, V*D);
-    ADAMW(dwpe, dwpe_g, TMAX*D);
-    ADAMW(dlnfg, dlnfg_g, D);
-    ADAMW(dlnfb, dlnfb_g, D);
-    ADAMW(dWq, dWq_g, L*sD);
-    ADAMW(dWk, dWk_g, L*sD);
-    ADAMW(dWv, dWv_g, L*sD);
-    ADAMW(dWo, dWo_g, L*sD);
-    ADAMW(dln1g, dln1g_g, L*D);
-    ADAMW(dln1b, dln1b_g, L*D);
-    ADAMW(dW1, dW1_g, L*sDFF);
-    ADAMW(db1, db1_g, L*DFF);
-    ADAMW(dW2, dW2_g, L*sDFF);
-    ADAMW(db2, db2_g, L*D);
-    ADAMW(dln2g, dln2g_g, L*D);
-    ADAMW(dln2b, dln2b_g, L*D);
-    #undef ADAMW
-    cudaDeviceSynchronize();
+    for (int step = 1; step <= 2; step++) {
+        float bc1 = (step == 1) ? (1.0f - 0.9f)   : (1.0f - 0.9f*0.9f);
+        float bc2 = (step == 1) ? (1.0f - 0.999f) : (1.0f - 0.999f*0.999f);
 
-    #define SAVE_W(NM, PTR, N) do { \
-        float* _h = (float*)malloc((N)*4); \
-        cudaMemcpy(_h, (PTR), (N)*4, cudaMemcpyDeviceToHost); \
-        sv("/tmp/ts_" NM ".bin", _h, (N)); \
-        free(_h); \
-    } while(0)
-    SAVE_W("wte",  dwte,  V*D);
-    SAVE_W("wpe",  dwpe,  TMAX*D);
-    SAVE_W("lnfg", dlnfg, D);
-    SAVE_W("lnfb", dlnfb, D);
-    SAVE_W("wq",   dWq,   L*sD);
-    SAVE_W("wk",   dWk,   L*sD);
-    SAVE_W("wv",   dWv,   L*sD);
-    SAVE_W("wo",   dWo,   L*sD);
-    SAVE_W("ln1g", dln1g, L*D);
-    SAVE_W("ln1b", dln1b, L*D);
-    SAVE_W("w1",   dW1,   L*sDFF);
-    SAVE_W("b1",   db1,   L*DFF);
-    SAVE_W("w2",   dW2,   L*sDFF);
-    SAVE_W("b2",   db2,   L*D);
-    SAVE_W("ln2g", dln2g, L*D);
-    SAVE_W("ln2b", dln2b, L*D);
-    #undef SAVE_W
+        #define ADAMW(W, G, NM, N) adamw_dev((W), (G), mv_##NM##_m, mv_##NM##_v, \
+            adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, bc1, bc2, (N))
+        ADAMW(dwte,  dwte_g,  wte,  V*D);
+        ADAMW(dwpe,  dwpe_g,  wpe,  TMAX*D);
+        ADAMW(dlnfg, dlnfg_g, lnfg, D);
+        ADAMW(dlnfb, dlnfb_g, lnfb, D);
+        ADAMW(dWq,   dWq_g,   wq,   L*sD);
+        ADAMW(dWk,   dWk_g,   wk,   L*sD);
+        ADAMW(dWv,   dWv_g,   wv,   L*sD);
+        ADAMW(dWo,   dWo_g,   wo,   L*sD);
+        ADAMW(dln1g, dln1g_g, ln1g, L*D);
+        ADAMW(dln1b, dln1b_g, ln1b, L*D);
+        ADAMW(dW1,   dW1_g,   w1,   L*sDFF);
+        ADAMW(db1,   db1_g,   b1,   L*DFF);
+        ADAMW(dW2,   dW2_g,   w2,   L*sDFF);
+        ADAMW(db2,   db2_g,   b2,   L*D);
+        ADAMW(dln2g, dln2g_g, ln2g, L*D);
+        ADAMW(dln2b, dln2b_g, ln2b, L*D);
+        #undef ADAMW
+        cudaDeviceSynchronize();
+
+        #define SAVE_S(NM, PTR, N) do { \
+            float* _h = (float*)malloc((N)*4); \
+            cudaMemcpy(_h, (PTR), (N)*4, cudaMemcpyDeviceToHost); \
+            char _p[64]; snprintf(_p, sizeof(_p), "/tmp/ts_s%d_" NM ".bin", step); \
+            sv(_p, _h, (N)); free(_h); \
+        } while(0)
+        SAVE_S("wte",  dwte,  V*D);
+        SAVE_S("wpe",  dwpe,  TMAX*D);
+        SAVE_S("lnfg", dlnfg, D);
+        SAVE_S("lnfb", dlnfb, D);
+        SAVE_S("wq",   dWq,   L*sD);
+        SAVE_S("wk",   dWk,   L*sD);
+        SAVE_S("wv",   dWv,   L*sD);
+        SAVE_S("wo",   dWo,   L*sD);
+        SAVE_S("ln1g", dln1g, L*D);
+        SAVE_S("ln1b", dln1b, L*D);
+        SAVE_S("w1",   dW1,   L*sDFF);
+        SAVE_S("b1",   db1,   L*DFF);
+        SAVE_S("w2",   dW2,   L*sDFF);
+        SAVE_S("b2",   db2,   L*D);
+        SAVE_S("ln2g", dln2g, L*D);
+        SAVE_S("ln2b", dln2b, L*D);
+        #undef SAVE_S
+    }
 
     printf("Train step 1 done: T=%d D=%d L=%d V=%d\\n", T,D,L,V);
     return 0;

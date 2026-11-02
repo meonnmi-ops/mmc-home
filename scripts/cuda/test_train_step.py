@@ -159,6 +159,34 @@ b2_new   = [adamw_step(b2[b],  grads[b]['db2'])  for b in range(L)]
 ln2g_new = [adamw_step(ln2g[b], grads[b]['dln2g']) for b in range(L)]
 ln2b_new = [adamw_step(ln2b[b], grads[b]['dln2b']) for b in range(L)]
 
+def step2_for(w0, g, lr=1e-3, b1=0.9, b2=0.999, eps=1e-8, wd=0.01):
+    # Step 1
+    m1 = (1-b1)*g
+    v1 = (1-b2)*g*g
+    w1 = w0*(1-lr*wd) - lr*(m1/(1-b1)) / (np.sqrt(v1/(1-b2)) + eps)
+    # Step 2 (g2 = g1: shortcut to test m/v accumulation)
+    m2 = b1*m1 + (1-b1)*g
+    v2 = b2*v1 + (1-b2)*g*g
+    w2 = w1*(1-lr*wd) - lr*(m2/(1-b1**2)) / (np.sqrt(v2/(1-b2**2)) + eps)
+    return w2
+
+wte_2  = step2_for(wte,  dwte_ref)
+wpe_2  = step2_for(wpe,  dwpe_ref)
+lnfg_2 = step2_for(lnfg, dlnfg_ref)
+lnfb_2 = step2_for(lnfb, dlnfb_ref)
+Wq_2   = [step2_for(Wq[b],  grads[b]['dWq'])  for b in range(L)]
+Wk_2   = [step2_for(Wk[b],  grads[b]['dWk'])  for b in range(L)]
+Wv_2   = [step2_for(Wv[b],  grads[b]['dWv'])  for b in range(L)]
+Wo_2   = [step2_for(Wo[b],  grads[b]['dWo'])  for b in range(L)]
+ln1g_2 = [step2_for(ln1g[b], grads[b]['dln1g']) for b in range(L)]
+ln1b_2 = [step2_for(ln1b[b], grads[b]['dln1b']) for b in range(L)]
+W1_2   = [step2_for(W1[b],  grads[b]['dW1'])  for b in range(L)]
+b1_2   = [step2_for(b1[b],  grads[b]['db1'])  for b in range(L)]
+W2_2   = [step2_for(W2[b],  grads[b]['dW2'])  for b in range(L)]
+b2_2   = [step2_for(b2[b],  grads[b]['db2'])  for b in range(L)]
+ln2g_2 = [step2_for(ln2g[b], grads[b]['dln2g']) for b in range(L)]
+ln2b_2 = [step2_for(ln2b[b], grads[b]['dln2b']) for b in range(L)]
+
 r = subprocess.run(['/tmp/test_train_step'], capture_output=True, text=True)
 print(r.stdout)
 if r.returncode != 0: print("STDERR:", r.stderr); sys.exit(1)
@@ -191,7 +219,7 @@ ok = all([
 ])
 # --- Weight update checks (AdamW step 1) ---
 def chk_w(name, ref, shape):
-    got = np.fromfile(f'/tmp/ts_{name}.bin', dtype=np.float32).reshape(shape)
+    got = np.fromfile(f'/tmp/ts_s1_{name}.bin', dtype=np.float32).reshape(shape)
     d = np.abs(got - ref).max()
     print(f"  {name:8s} max_abs = {d:.3e}  {'PASS' if d < 1e-3 else 'FAIL'}")
     return d < 1e-3
@@ -218,4 +246,31 @@ ok_w = all([
 ])
 
 print("=" * 55)
-print("ALL PASS (grads + updated weights)" if (ok and ok_w) else "SOME FAILED")
+def chk_w2(name, ref, shape):
+    got = np.fromfile(f'/tmp/ts_s2_{name}.bin', dtype=np.float32).reshape(shape)
+    d = np.abs(got - ref).max()
+    print(f"  s2_{name:6s} max_abs = {d:.3e}  {'PASS' if d < 1e-3 else 'FAIL'}")
+    return d < 1e-3
+
+print()
+print("--- AdamW updated weights (step 2, m/v persisted) ---")
+ok_w2 = all([
+    chk_w2('wte',  wte_2,  (V, D)),
+    chk_w2('wpe',  wpe_2,  (TMAX, D)),
+    chk_w2('lnfg', lnfg_2, (D,)),
+    chk_w2('lnfb', lnfb_2, (D,)),
+    chk_w2('wq',   np.stack(Wq_2),   (L, D, D)),
+    chk_w2('wk',   np.stack(Wk_2),   (L, D, D)),
+    chk_w2('wv',   np.stack(Wv_2),   (L, D, D)),
+    chk_w2('wo',   np.stack(Wo_2),   (L, D, D)),
+    chk_w2('ln1g', np.stack(ln1g_2), (L, D)),
+    chk_w2('ln1b', np.stack(ln1b_2), (L, D)),
+    chk_w2('w1',   np.stack(W1_2),   (L, D, DFF)),
+    chk_w2('b1',   np.stack(b1_2),   (L, DFF)),
+    chk_w2('w2',   np.stack(W2_2),   (L, DFF, D)),
+    chk_w2('b2',   np.stack(b2_2),   (L, D)),
+    chk_w2('ln2g', np.stack(ln2g_2), (L, D)),
+    chk_w2('ln2b', np.stack(ln2b_2), (L, D)),
+])
+
+print("ALL PASS (grads + step1 + step2)" if (ok and ok_w and ok_w2) else "SOME FAILED")
