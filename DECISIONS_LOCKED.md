@@ -24,3 +24,31 @@ All operations: matmul, LN, GELU, softmax, AdamW, embedding, loss
 **Purpose:** မြန်မာစာနဲ့ မြန်မာတွေ အလွယ်တကူ နားလည်ပြီး မြန်မာ AI တည်ဆောက်နိုင်ဖို့
 
 **This name is fixed. Do not rename.**
+
+## 2026-11-02 — 100% MMC Standard (BINDING)
+
+### User's definition of "100% MMC"
+- Terminal မှာ ရိုက်တဲ့ command ကအစ
+- ငါ ရေးတဲ့ code ကအစ
+- run လုပ်တဲ့ output ကအစ
+- **အားလုံး မြန်မာစာ MMC**
+
+### Transition rule
+- လမ်းသွားလမ်းလာ မအောင်မြင်ချိန်ထိ C/CUDA/Python = "တုတ်ချောင်း"
+- လမ်းအောင်မြင်တဲ့ တစ်နေ့ — scaffolding အားလုံး ဖျက်
+- ဘာကုဒ်မှ မရှိမပါစေရ
+
+### 3 Phases
+- Phase 1 (1 month): Prove pathway (GPU training + 350M) with scaffolding
+- Phase 2 (2-3 months): Replace scaffolding (MMC --cuda, MMC tests)
+- Phase 3 (6-12 months): Native MMC (shell, file ops, codegen)
+
+### Current honest state
+- Compiler: 100% MMC
+- Training source: 100% MMC
+- Build: C + Python (scaffold)
+- GPU: CUDA C++ (scaffold)
+- Tests: Python (scaffold)
+- Shell: bash (scaffold)
+
+### This is LOCKED. Do not forget.
