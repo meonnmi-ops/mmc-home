@@ -760,3 +760,37 @@ Context: All GPU ops done except attention bwd. Then integration. Then Phase 1 s
 ### CONTEXT NOTE
 Session 31 ends here — context near full. Next session: start by reading
 this doc + `git log --oneline -10`, then continue with refactor above.
+
+
+## 32. 2-STEP ADAMW LOOP — m/v PERSISTENCE PASS (2026-11-02)
+
+### DONE
+- `test_train_step.cu/.py`: 2-step AdamW loop with persistent m/v
+- Step 1: 16 weights PASS (< 8.8e-07)
+- Step 2: 16 weights PASS (< 1.8e-06) — momentum verified
+- bc1/bc2 corrected per step: bc1 = 1-b1^step, bc2 = 1-b2^step
+
+### APPROACH NOTE
+- Step-2 reuses step-1 grads (shortcut, NOT real 2nd fwd+bwd)
+- Reason: full backward is still inline in main(), not a function yet
+- This is intentional — proves AdamW m/v math is correct before
+  the loop refactor
+
+### NEXT SESSION — pick up here
+1. **Refactor forward into function** (`model_fwd(...)`)
+2. **Refactor backward into function** (`model_bwd(...)`)
+   Currently both inline in test_train_step.cu main()
+3. **True 2-step loop**: call model_fwd + model_bwd + adamw_dev twice,
+   with real second step (not reused grads)
+4. **Checkpoint save/load** — all 16 tensors + m/v to dir
+5. **Real data loader** — corpus.bin -> ids/tg per step
+
+### KEY FILES
+- `scripts/cuda/test_train_step.cu` — 2-step loop (WORKING)
+- `scripts/cuda/test_full_model.cu` — single fwd+bwd (WORKING)
+- `scripts/cuda/block_ops.cu` — LN/GELU/add/bias/adamw_dev
+
+### LESSON LEARNED
+- Heredoc paste into bash is fragile (we saw 20+ syntax errors)
+- Use `cat > /tmp/script.py << 'PYEOF'` first, then `python3 /tmp/script.py`
+- The script validates anchors exist before writing — catches mismatch early
