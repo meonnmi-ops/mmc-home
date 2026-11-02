@@ -1157,3 +1157,63 @@ Levers left (in order of expected value):
 1. D=128, DFF=256, H=4 (capacity test, now measurable)
 2. Checkpoint save/load
 3. Longer N with tuned schedule
+
+## 44. SESSION HANDOFF — Run F pending (2026-11-03)
+
+### CURRENT STATE (do not lose)
+- Run E: val 0.8544 (n=256, sem 0.019) — VERIFIED, beats bigram 1.314
+- Run F: D=128 DFF=256 H=4 L=3 lr=1e-3 N=6000 B=8 NVAL=256
+  - First attempt: 6m19s ran, FAILED (loss_s*.bin = 0 bytes)
+  - ts_exp_debug.cu loss-write bug — NOT YET DIAGNOSED
+  - Second attempt started via run_acc.sh — status UNKNOWN
+
+### CHECK RUN F STATUS (first thing next session)
+  cd ~/mmc_wsl/mmc_publish
+  pgrep -f ts_exp >/dev/null && echo "STILL RUNNING" || echo "DONE"
+  tail -30 /tmp/run_F.txt
+  ls -la /tmp/loss_s*.bin 2>/dev/null | head -5
+  # If loss_s*.bin exist and >0 bytes → read_loss.py should work
+  # If missing/0 bytes → loss-write bug persists, diagnose below
+
+### IF RUN F FAILED AGAIN — loss-write bug
+  grep -n "loss_s\|sv(\|SAVE_W\|fwrite" scripts/cuda/ts_exp_debug.cu | head -20
+  sed -n '240,340p' scripts/cuda/ts_exp_debug.cu   # loss save section
+  # Hypothesis: buffer never populated, or sv() path wrong, or
+  # loop never reaches save point (early exit / crash before write)
+  # Compare to working single-step version: git show be710e6:scripts/cuda/test_train_step.cu
+
+### /tmp VOLATILITY — RECURRING BUG
+WSL restart wipes /tmp. Every session loses:
+  - /tmp/batch_*.bin (48256 files, ~5 min to regenerate)
+  - /tmp/init_*.bin
+  - /tmp/block_ops.o (rebuild: nvcc -O3 -arch=sm_75 -c scripts/cuda/block_ops.cu -o /tmp/block_ops.o)
+  - /tmp/loss_s*.bin (loss files from any run)
+FIX NEXT SESSION (priority before Run G):
+  mkdir -p experiments/run_F
+  modify run_acc.sh + ts_exp_debug.cu to write to experiments/run_F/
+  (30 min work, prevents all future losses)
+
+### DECISION TREE (from session 42)
+- If Run F val < 0.80: capacity WAS bottleneck → go D=256/DFF=512/H=8
+- If Run F val ≈ 0.85: capacity NOT bottleneck → data/steps bottleneck → raise N
+- If loss spikes: lower lr
+
+### FILES OF INTEREST
+- scripts/cuda/ts_exp_debug.cu       (training loop, 724 lines)
+- scripts/cuda/block_ops.cu          (LN/GELU/add/bias/adamw kernels)
+- scripts/cuda/run_acc.sh            (launcher script)
+- scripts/cuda/gen_batches.py        (data gen — 48k batches)
+- scripts/cuda/gen_init.py           (weight init)
+- scripts/cuda/read_loss.py          (loss parser — has the IndexError)
+- src/train_full.mmc                 (MMC-language orchestrator ref)
+
+### ENVIRONMENT
+- CUDA 12.8, GTX 1660 Ti (sm_75, 6GB)
+- GLIBC fix: NVCC_PREPEND_FLAGS via ~/.bashrc
+- node v20.20.2 (from nvm load in .bashrc)
+
+### LAST KNOWN-GOOD COMMITS
+- 98f1929  docs: session memory handoff (this file's predecessor)
+- 4c9b28d  docs: s42 — B8xN6000 val 0.854
+- 3438a7e  feat: NVAL + sem report
+- 4f1d885  feat: gradient accumulation
