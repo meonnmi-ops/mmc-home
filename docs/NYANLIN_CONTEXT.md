@@ -1274,3 +1274,65 @@ NEXT SESSION: `du -sh /tmp/* /tmp/.[!.]* 2>/dev/null | sort -rh | head`
 - Run F (433K params): train fast but val UNKNOWN
 - D=128 converges ~2x faster than D=64 (evidence from 2122-step partial)
 - /tmp tmpfs 3.9G limit is THE bottleneck for loss file dumps
+
+## 46. FIX: /tmp → experiments/ (2026-11-03)
+
+### ROOT CAUSE FOUND — wrong file edited first
+run_acc.sh line 9: `cp test_train_step.cu ts_exp.cu` → compiles from test_train_step.cu
+d854ada edited ts_exp_debug.cu — DEAD CODE, never compiled (wasted commit)
+Correct fix: 31d3a9e
+
+### ALL /tmp REFS MIGRATED (commit 31d3a9e)
+Files edited:
+- gen_batches.py  → experiments/run_F/data/batch_*.bin
+- gen_init.py     → experiments/run_F/data/fm_*.bin
+- test_train_step.cu → experiments/run_F/data/loss_*.bin + fm_*.bin
+- run_acc.sh      → experiments/run_F/data/{loss_*, block_ops.o, ts_exp, tmp}
+- read_loss.py    → experiments/run_F/data/loss_*
+
+nvcc TMPDIR → experiments/run_F/data/tmp (added line 4 to run_acc.sh)
+
+### VERIFIED (all 0 /tmp refs, all >0 experiments refs)
+### /tmp at commit: 0% used, 1 file (systemd only)
+
+### NEXT SESSION — FIRST THING
+  cd ~/mmc_wsl/mmc_publish
+  df -h /tmp                              # should be ~0%
+  ls experiments/run_F/data/              # should be empty (pre-run)
+  
+  # Run4 (the REAL Run F, clean now)
+  nohup bash scripts/cuda/run_acc.sh 128 256 4 1e-3 6000 8 256 \
+    > experiments/run_F/run4.log 2>&1 &
+  
+  # Watch (6 min, ~100 steps/10s for D=128)
+  while pgrep -f ts_exp >/dev/null; do
+    echo "$(date +%H:%M:%S) /tmp=$(df -h /tmp|tail -1|awk '{print $5}') \
+          steps=$(ls experiments/run_F/data/loss_s*.bin 2>/dev/null|wc -l)"
+    sleep 30
+  done
+  
+  python3 scripts/cuda/read_loss.py 6000 256
+
+### EXPECTED
+- /tmp stays <5% throughout (zero risk now)
+- 6000/6000 loss_s*.bin populated
+- 256/256 loss_val*.bin populated
+- Run complete in ~6-8 min
+- val loss from read_loss.py
+
+### DECISION TREE (final)
+- val < 0.80  → Run G: D=256, DFF=512, H=8 (capacity bottleneck confirmed)
+- val 0.80-0.87 → N=12000 (data/steps bottleneck, capacity OK)
+- val > 0.90  → debug (likely lr too high, check divergence)
+
+### PARTIAL DATA SAVED (do not delete)
+experiments/run_F/partial_2122/  — 6256 files from failed Run F
+  Valid train: steps 1-2122 (5.55 → 0.89)
+  No val. Not usable for capacity test, keep for reference.
+
+### COMMIT CHAIN (for context rebuild)
+- 31d3a9e  fix: redirect ALL data to experiments/ (THE working fix)
+- d854ada  fix: absolute paths (edited wrong file, superseded)
+- fe62280  docs: s45 /tmp full root cause
+- 6bcf119  docs: s44 Run F pending
+- 4c9b28d  docs: s42 val 0.854 (Run E, KEEP as reference)
