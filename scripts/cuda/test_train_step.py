@@ -1,6 +1,6 @@
 import numpy as np, subprocess, sys
 
-T, D, DFF, H, L, V, TMAX = 4, 32, 64, 2, 3, 256, 8
+T, D, DFF, H, L, V, TMAX = 8, 32, 64, 2, 3, 256, 8
 hd = D // H; eps = 1e-5
 np.random.seed(42)
 def rn(*s): return (np.random.randn(*s) * 0.3).astype(np.float32)
@@ -343,9 +343,9 @@ if len(losses) >= 2:
 
 # ===== Validation loss =====
 print()
-print("--- Validation loss (5 held-out batches) ---")
+print("--- Validation loss (30 held-out batches) ---")
 vals = []
-for v in range(1, 6):
+for v in range(1, 31):
     try:
         vv = np.fromfile(f'/tmp/loss_val{v}.bin', dtype=np.float32)
         if len(vv) > 0:
@@ -353,16 +353,21 @@ for v in range(1, 6):
     except FileNotFoundError:
         break
 for v, val in vals:
-    print(f"  val_{v} = {val:.6f}")
+    print(f"  val_{v:2d} = {val:.6f}")
 if len(vals) >= 1 and len(losses) >= 2:
+    arr = np.array([v for _, v in vals])
     print()
     print(f"  Train final: {losses[-1][1]:.6f}")
-    print(f"  Val mean:    {sum(v for _,v in vals)/len(vals):.6f}")
-    print(f"  Val min:     {min(v for _,v in vals):.6f}")
+    print(f"  Val mean:    {arr.mean():.6f}")
+    print(f"  Val median:  {np.median(arr):.6f}")
+    print(f"  Val std:     {arr.std():.6f}")
+    print(f"  Val min/max: {arr.min():.4f} / {arr.max():.4f}")
     print()
-    if losses[-1][1] < 4.0 and sum(v for _,v in vals)/len(vals) < 5.0:
-        print("  ✓ Generalization: val loss reasonable, not just memorization")
+    # Reasonable check: val_mean vs train_final gap < 2.0 is fine
+    gap = arr.mean() - losses[-1][1]
+    if gap < 2.0:
+        print(f"  ✓ Generalization OK (train->val gap = {gap:.3f})")
     else:
-        print("  ✗ Overfitting suspected: train dropped but val high")
+        print(f"  ✗ Gap too large: {gap:.3f}")
 
 print("ALL PASS (grads + step1 + step2)" if (ok and ok_w and ok_w2) else "SOME FAILED")

@@ -131,7 +131,7 @@ static void sv_loss(const char* path, const float* dloss, int T) {
 
 int main(){
     cublasCreate(&gb);
-    const int T=4, D=32, DFF=64, H=2, L=3, V=256, TMAX=8;
+    const int T=8, D=32, DFF=64, H=2, L=3, V=256, TMAX=8;
     const float eps=1e-5f;
     const float sc = 1.0f/sqrtf((float)(D/H));
     size_t sx=T*D, sh=T*DFF, sD=D*D, sDFF=D*DFF;
@@ -612,7 +612,7 @@ int main(){
 
     printf("Train %d steps done: T=%d D=%d L=%d V=%d\\n", N_STEPS, T, D, L, V);
     // ===== VALIDATION (forward-only on batches N+1..N+5) =====
-    for (int v = 1; v <= 5; v++) {
+    for (int v = 1; v <= 30; v++) {
         int gstep = N_STEPS + v;
         char _idp[64], _tgp[64];
         snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", gstep);
