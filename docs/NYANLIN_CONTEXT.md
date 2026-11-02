@@ -527,3 +527,30 @@ Total: ~100-160x speedup, ~2 hours setup
 - Real SFT (196 bytes): 1.53→0.86 (real learning)
 - GOLD 234K docs: current, expected 1.2-1.5
 
+
+## 26.1. SESSION UPDATE — 2026-11-02 (CPU optimize phase)
+
+### Completed this session
+- FP32+Blocked+AVX2+OpenMP: 2.44s → 0.88s (2.77x)
+- AdamW OMP: bit-exact (loss 0.9436 unchanged)
+- Multi-step N=100: 0.31s/step (7.87x total)
+- I/O elimination: sys 0.528s → 0.022s (24x reduction)
+- lr bug fixed (byte-level: 8-byte double read as 4-byte float32)
+- Real training verified: loss 1.0 → 0.84 (100 steps)
+
+### Batch=4 finding (LOCKED)
+- 14% SLOWER per-sample (not faster — matmul now only 3-5% of runtime)
+- 6x tighter gnorm (quality benefit)
+- 4x activation memory cost
+- Decision: batch=1 for 350M training (memory + speed constraints)
+
+### Next session
+- Option A: LN/GELU/Softmax AVX2 vectorize (1.5x expected)
+- Option B: Move to 350M training with batch=1
+- Option C: Verify optimizer state safety before long training run
+
+### Files
+- build/train_full_multi_fp32_omp_avx2 (working, N=100)
+- build/train_b4 (batch=4 variant, quality-tested)
+- scripts/gen_multi_batches.py, make_multi_c.py, make_batch4.py
+- Backup: ref/full_test_before_n100_*, ref/full_test_after_b4_*
