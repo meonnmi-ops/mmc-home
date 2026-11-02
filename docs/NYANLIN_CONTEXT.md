@@ -1217,3 +1217,60 @@ FIX NEXT SESSION (priority before Run G):
 - 4c9b28d  docs: s42 — B8xN6000 val 0.854
 - 3438a7e  feat: NVAL + sem report
 - 4f1d885  feat: gradient accumulation
+
+## 45. RUN F FAILURE — /tmp FULL (2026-11-03)
+
+### ROOT CAUSE: /tmp tmpfs 3.9G 100% full
+- Failure point: step 2122 (~2.2 min)
+- Steps 1-2122: train loss valid (5.55 → 0.89)
+- Steps 2123-6000: 0-byte files (write failed silently)
+- Val 1-256: 0-byte (never written)
+- Process continued running (compute OK, write failed)
+
+### PARTIAL RESULTS (steps 1-2122 valid)
+train means by 212-step window:
+  1-212:    2.5956
+  213-424:  1.3600
+  425-636:  1.1947
+  637-848:  1.0893
+  849-1060: 1.0240
+  1061-1272: 0.9762
+  1273-1484: 0.9641
+  1485-1696: 0.9332
+  1697-1908: 0.9174
+  1909-2120: 0.9084
+  2121-2122: 0.8811  ← final valid
+
+D=128 converges FASTER than D=64 (Run E step 2000 was ~0.90)
+but we have NO val loss for Run F. Capacity test incomplete.
+
+### /tmp FILLERS (suspected)
+- /tmp/loss_s*.bin + loss_val*.bin (copied but not deleted)
+- /tmp/fm_*.bin (weight dumps from prior runs)
+- /tmp/batch_*.bin (48256 files, ~40MB)
+- unknown — du -sh /tmp/* returns empty (permissions? hidden?)
+NEXT SESSION: `du -sh /tmp/* /tmp/.[!.]* 2>/dev/null | sort -rh | head`
+
+### SED FIX APPLIED (has bugs)
+- ts_exp_debug.cu: /tmp/loss_s → experiments/run_F/loss/loss_s (RELATIVE path — bug)
+- Must change to ABSOLUTE: $HOME/mmc_wsl/mmc_publish/experiments/run_F/loss/
+- read_loss.py NOT fixed yet — still reads /tmp/loss_*
+
+### IMMEDIATE NEXT STEPS (next session)
+1. Diagnose /tmp fillers: `du -sh /tmp/* /tmp/.[!.]* 2>/dev/null | sort -rh`
+2. Clean /tmp thoroughly (may need sudo for some files)
+3. Fix ts_exp_debug.cu to use ABSOLUTE paths in $HOME
+4. Rewrite read_loss.py with 0-byte handling
+5. Re-run Run F: `nohup bash scripts/cuda/run_acc.sh 128 256 4 1e-3 6000 8 256 > experiments/run_F/run3.log 2>&1 &`
+6. After: copy loss files, run read_loss.py, decide capacity conclusion
+
+### DECISION TREE (still pending)
+- If Run F val < 0.80: capacity bottleneck → Run G D=256/DFF=512/H=8
+- If Run F val ≈ 0.85: data/steps bottleneck → N=12000
+- If loss spikes / diverges: lower lr
+
+### KEY FACTS
+- Run E (118K params): val 0.854 — SAFE, committed
+- Run F (433K params): train fast but val UNKNOWN
+- D=128 converges ~2x faster than D=64 (evidence from 2122-step partial)
+- /tmp tmpfs 3.9G limit is THE bottleneck for loss file dumps
