@@ -1131,3 +1131,29 @@ Levers left (in order of expected value):
 1. Batch size > 1 (gradient accumulation) — decisive test
 2. More steps (10K+) once batch>1
 3. Checkpoint save/load, eval vs bigram per-position
+
+
+## 42. GRAD ACCUMULATION + LONGER RUNS — VAL 0.854 (2026-11-03)
+
+### RESULTS (D=64, DFF=128, H=2, lr 1.5e-3, T=32, warmup N/20, cosine)
+| Run | Batch | Steps | Tokens | Val mean | Note |
+|-----|-------|-------|--------|----------|------|
+| C   | 8     | 2000  | 512K   | 1.000    | n_val=30 (noisy) |
+| D   | 32    | 1000  | 1M     | 1.057    | n_val=30, cosine ended early |
+| E   | 8     | 6000  | 1.5M   | 0.854    | n_val=256, sem 0.019 |
+
+### INTERPRETATION
+- Val 0.854 << bigram entropy 1.314: model uses context (not bigram-level).
+- Step count matters more than batch size at this scale.
+- Val ~= train (0.847): no overfit at 118K params / ~1.5M tokens.
+- Train curve slowing (0.87 -> 0.85 over last 1200 steps); cosine floor 10%.
+
+### OPS NOTES
+- /tmp is lost when WSL restarts. Rebuild: nvcc -O3 -arch=sm_75 -c scripts/cuda/block_ops.cu -o /tmp/block_ops.o
+- Verify needs /tmp/fm_dy.bin (binary reads it, unused) + gen_batches.py 45 1 30.
+- Long runs: nohup bash scripts/cuda/run_acc.sh D DFF H LR N B NVAL > /tmp/run.txt 2>&1 &
+
+### NEXT
+1. D=128, DFF=256, H=4 (capacity test, now measurable)
+2. Checkpoint save/load
+3. Longer N with tuned schedule
