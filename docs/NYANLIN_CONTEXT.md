@@ -1068,3 +1068,34 @@ Levers left (in order of expected value):
 2. **Then: D=64** — model capacity, likely biggest lever
 3. **Checkpoint save/load** — needed for N=500+ runs
 4. **Data diversity** — random START per step, or fixed stride over corpus
+
+
+## 40. CAUSAL MASK + ADAMW BC FIX — NEW BASELINE (2026-11-03)
+
+### BUGS FIXED (sections 34-39 numbers are PRE-FIX, do not trust)
+- attn_fwd_k/attn_bwd_k had NO causal mask (future-token leak). Now c>row -> -1e30.
+- Python ref mhsa/mhsa_bwd: same lower-triangular mask. Step1/2 verify ALL PASS.
+- AdamW bc1/bc2 were frozen at step-2 values for step>=3. Now 1-b^step.
+
+### RESULTS (T=32, post-fix)
+| Run                                   | Val mean | Val std |
+|---------------------------------------|----------|---------|
+| N=45 fixed lr, narrow region (7KB)    | 3.58     | 0.27    |
+| N=200 sched, narrow region            | 3.25     | 0.21    |
+| N=500 sched (warmup 50), whole corpus | 2.955    | 0.43    |
+
+### BASELINES (20MB corpus sample, nats/byte)
+- unigram entropy: 2.410
+- bigram conditional entropy: 1.314
+- model val 2.955 -> compare: below bigram = model uses context
+
+### CAVEATS
+- Batch 1 loss (7.492045) identical across runs: python likely rewrites
+  /tmp/fm_ids.bin + fm_tg.bin, so step 1 is not a corpus batch. Check.
+- gen_diverse.py: random positions over 312MB, train 1..500, val 501..530.
+
+### NEXT
+1. Compare to baselines above; if close to bigram, model is not using context yet
+2. Fix step-1 batch source
+3. Checkpoint save/load
+4. D=64 after baselines understood
