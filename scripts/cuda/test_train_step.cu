@@ -8,6 +8,9 @@
 #ifndef N_STEPS
 #define N_STEPS 45
 #endif
+#ifndef BATCH
+#define BATCH 1
+#endif
 
 #ifndef USE_LR_SCHEDULE
 #define USE_LR_SCHEDULE 0
@@ -136,6 +139,7 @@ static void sv_loss(const char* path, const float* dloss, int T) {
 }
 #define ALLOC(ptr, sz) cudaMalloc(&ptr, (sz)*4)
 
+static float loss_mean(const float* dl, int n){ float* h=(float*)malloc(n*4); cudaMemcpy(h,dl,n*4,cudaMemcpyDeviceToHost); float s=0; for(int i=0;i<n;i++) s+=h[i]; free(h); return s/n; }
 static float lr_at(int step, int total, int warmup, float peak) {
     if (warmup <= 0 || step <= warmup) {
         return (warmup > 0) ? peak * (float)step / (float)warmup : peak;
@@ -286,7 +290,7 @@ int main(){
 
     // ============ BACKWARD ============
     // 5') dlogits from CE
-    float invT = 1.0f/T;
+    float invT = 1.0f/(T*BATCH);
     int dlg_b = (T*V + 255) / 256;
     softmax_ce_bwd<<<dlg_b, 256>>>(dprobs, dtg, dlogits, T, V, invT);
     cudaDeviceSynchronize();
@@ -432,6 +436,15 @@ int main(){
     // ===== ADAMW 2-STEP LOOP (persistent m/v, step-1 grads reused) =====
     float adamw_lr = 1e-3f, adamw_b1 = 0.9f, adamw_b2 = 0.999f;
     float adamw_eps = 1e-8f, adamw_wd = 0.01f;
+    // ===== grad accumulators (micro-batching) =====
+#define GLIST(G) \
+    G(dwte_g, V*D) G(dwpe_g, TMAX*D) G(dlnfg_g, D) G(dlnfb_g, D) \
+    G(dWq_g, L*sD) G(dWk_g, L*sD) G(dWv_g, L*sD) G(dWo_g, L*sD) \
+    G(dln1g_g, L*D) G(dln1b_g, L*D) G(dW1_g, L*sDFF) G(db1_g, L*DFF) \
+    G(dW2_g, L*sDFF) G(db2_g, L*D) G(dln2g_g, L*D) G(dln2b_g, L*D)
+#define G_ALLOC(n,sz) float* acc_##n; cudaMalloc(&acc_##n, (size_t)(sz)*4);
+    GLIST(G_ALLOC)
+#undef G_ALLOC
     for (int step = 1; step <= N_STEPS; step++) {
         float bc1 = 1.0f - powf(adamw_b1, (float)step);
         float bc2 = 1.0f - powf(adamw_b2, (float)step);
@@ -487,11 +500,16 @@ int main(){
 
         // ===== STEP 2: Re-run fwd+bwd with UPDATED weights =====
         if (step < N_STEPS) {
-            // --- Reload batch for next step ---
+#define G_ZERO(n,sz) cudaMemset(acc_##n, 0, (size_t)(sz)*4);
+            GLIST(G_ZERO)
+#undef G_ZERO
+            float lacc = 0.0f;
+            for (int mb = 0; mb < BATCH; mb++) {
+            // --- Reload batch (micro-batch mb) ---
             {
                 char _idp[64], _tgp[64];
-                snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", step+1);
-                snprintf(_tgp, sizeof(_tgp), "/tmp/batch_%d_tg.bin", step+1);
+                snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", step*BATCH+mb+1);
+                snprintf(_tgp, sizeof(_tgp), "/tmp/batch_%d_tg.bin", step*BATCH+mb+1);
                 ld(_idp, hids, T); ld(_tgp, htg, T);
                 cudaMemcpy(dids, hids, T*4, cudaMemcpyHostToDevice);
                 cudaMemcpy(dtg, htg, T*4, cudaMemcpyHostToDevice);
@@ -539,7 +557,7 @@ int main(){
             softmax_ce_fwd<<<T, sm_b, sm_sh>>>(dlogits, dtg, dprobs, dloss, T, V);
             cudaDeviceSynchronize();
 
-            { char _lp[64]; snprintf(_lp, sizeof(_lp), "/tmp/loss_s%d.bin", step+1); sv_loss(_lp, dloss, T); }
+            lacc += loss_mean(dloss, T);
 
             if (step == 1) {
             { float* h=(float*)malloc(sx*4); cudaMemcpy(h, dXs+L*sx, sx*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_y.bin",h,sx); free(h); }
@@ -619,6 +637,17 @@ int main(){
             }
             emb_bwd_k<<<T, D>>>(dids, dY_temp, dwte_g, dwpe_g, T, D);
             cudaDeviceSynchronize();
+#define G_ACC(n,sz) add_dev(acc_##n, n, (sz));
+            GLIST(G_ACC)
+#undef G_ACC
+            cudaDeviceSynchronize();
+            }  // end micro-batch loop
+            { char _lp[64]; snprintf(_lp, sizeof(_lp), "/tmp/loss_s%d.bin", step+1);
+              float _m = lacc / BATCH; FILE* _f = fopen(_lp, "wb"); if (_f) { fwrite(&_m, 4, 1, _f); fclose(_f); } }
+#define G_BACK(n,sz) cudaMemcpy(n, acc_##n, (size_t)(sz)*4, cudaMemcpyDeviceToDevice);
+            GLIST(G_BACK)
+#undef G_BACK
+            cudaDeviceSynchronize();
 
             if (step == 1) {
             { float* h=(float*)malloc(V*D*4); cudaMemcpy(h, dwte_g, V*D*4, cudaMemcpyDeviceToHost); sv("/tmp/fm_s2_dwte.bin",h,V*D); free(h); }
@@ -636,7 +665,7 @@ int main(){
     printf("Train %d steps done (lr_sched=%d, warmup=%d): T=%d D=%d L=%d V=%d\n", N_STEPS, (int)USE_LR_SCHEDULE, (int)WARMUP, T, D, L, V);
     // ===== VALIDATION (forward-only on batches N+1..N+5) =====
     for (int v = 1; v <= 30; v++) {
-        int gstep = N_STEPS + v;
+        int gstep = N_STEPS*BATCH + v;
         char _idp[64], _tgp[64];
         snprintf(_idp, sizeof(_idp), "/tmp/batch_%d_ids.bin", gstep);
         snprintf(_tgp, sizeof(_tgp), "/tmp/batch_%d_tg.bin", gstep);
