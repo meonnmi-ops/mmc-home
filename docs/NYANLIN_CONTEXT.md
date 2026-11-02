@@ -1099,3 +1099,35 @@ Levers left (in order of expected value):
 2. Fix step-1 batch source
 3. Checkpoint save/load
 4. D=64 after baselines understood
+
+
+## 41. INIT FIX (std 0.02) — VAL 2.15 -> 1.32 (2026-11-03)
+
+### FINDING
+- test_train_step.py init was N(0,0.3) for all weights (verify-only).
+  For training this is far too large: val plateaued at 2.15 (worse than
+  unigram 2.41 barely). New init (gen_init.py): std 0.02, residual-branch
+  out (wo, w2) scaled 0.02/sqrt(2L), LN gain 1 / bias 0.
+- Training scripts: scripts/cuda/gen_init.py, run_exp.sh, read_loss.py
+  (run_exp.sh builds ts_exp.cu copy, N=2000, warmup 100, training only).
+
+### RESULTS (T=32, N=2000, random corpus positions, batch=1)
+| Run                    | Val mean | Note                          |
+|------------------------|----------|-------------------------------|
+| old init D=32 lr3e-3   | 2.148    | plateau                       |
+| new init D=32 lr3e-3   | 1.318    |                               |
+| new init D=32 lr1e-3   | 1.323    |                               |
+| new init D=64 lr3e-3   | 1.949    | DIVERGED (loss spike @400-800)|
+| new init D=64 lr1e-3   | 1.326    |                               |
+| new init D=64 lr1.5e-3 | 1.310    | best, but same as D=32        |
+
+### INTERPRETATION
+- Val ~1.31 == bigram conditional entropy (1.314): model is at bigram level.
+- D=32 vs D=64 identical -> capacity is NOT the bottleneck.
+- Likely limits: only 64K tokens seen, batch=1 (noisy gradients).
+- Sections 34-39 and old-init runs are not comparable.
+
+### NEXT
+1. Batch size > 1 (gradient accumulation) — decisive test
+2. More steps (10K+) once batch>1
+3. Checkpoint save/load, eval vs bigram per-position
