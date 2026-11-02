@@ -752,7 +752,8 @@ Context: All GPU ops done except attention bwd. Then integration. Then Phase 1 s
 4. **Real data loader** — corpus.bin → ids/tg per step
 
 ### KEY FILES
-- `scripts/cuda/test_train_step.cu` — training step 1 (WORKING)
+- `scripts/cuda/test_train_step.cu` — training step 1 (WORKING, restored from be710e6)
+- NOTE: d7cbc0d accidentally committed a WIP 2-step loop; reverted at f8f62f0+
 - `scripts/cuda/test_full_model.cu` — fwd+bwd (WORKING)
 - `scripts/cuda/block_ops.cu` — LN/GELU/add/bias/adamw_dev
 

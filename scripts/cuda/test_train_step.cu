@@ -384,121 +384,60 @@ int main(){
     cudaMemcpy(h,dWo_g,L*sD*4,cudaMemcpyDeviceToHost);sv("/tmp/fm_dwo.bin",h,L*sD);
     free(h);
 
-    // ===== ADAMW 2-STEP LOOP =====
+    // ===== ADAMW STEP (step=1, m=v=0 init) =====
+    float bc1 = 1.0f - powf(0.9f, 1.0f);
+    float bc2 = 1.0f - powf(0.999f, 1.0f);
     float adamw_lr = 1e-3f, adamw_b1 = 0.9f, adamw_b2 = 0.999f;
     float adamw_eps = 1e-8f, adamw_wd = 0.01f;
-
-    // m/v state per tensor (persist across steps)
-    #define MK_MV(NM, N) float* mv_##NM##_m; float* mv_##NM##_v; \
-        cudaMalloc(&mv_##NM##_m, (N)*4); cudaMalloc(&mv_##NM##_v, (N)*4); \
-        cudaMemset(mv_##NM##_m, 0, (N)*4); cudaMemset(mv_##NM##_v, 0, (N)*4);
-    MK_MV(wte, V*D);   MK_MV(wpe, TMAX*D);
-    MK_MV(lnfg, D);    MK_MV(lnfb, D);
-    MK_MV(wq, L*sD);   MK_MV(wk, L*sD);   MK_MV(wv, L*sD);   MK_MV(wo, L*sD);
-    MK_MV(ln1g, L*D);  MK_MV(ln1b, L*D);
-    MK_MV(w1, L*sDFF); MK_MV(b1, L*DFF);
-    MK_MV(w2, L*sDFF); MK_MV(b2, L*D);
-    MK_MV(ln2g, L*D);  MK_MV(ln2b, L*D);
-    #undef MK_MV
-
-    #define RUN_STEP(STEP) do { \
-        float _bc1 = 1.0f - powf(adamw_b1, (float)(STEP)); \
-        float _bc2 = 1.0f - powf(adamw_b2, (float)(STEP)); \
-        adamw_dev(dwte,  dwte_g,  mv_wte_m,  mv_wte_v,  adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, V*D); \
-        adamw_dev(dwpe,  dwpe_g,  mv_wpe_m,  mv_wpe_v,  adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, TMAX*D); \
-        adamw_dev(dlnfg, dlnfg_g, mv_lnfg_m, mv_lnfg_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, D); \
-        adamw_dev(dlnfb, dlnfb_g, mv_lnfb_m, mv_lnfb_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, D); \
-        adamw_dev(dWq, dWq_g, mv_wq_m, mv_wq_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*sD); \
-        adamw_dev(dWk, dWk_g, mv_wk_m, mv_wk_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*sD); \
-        adamw_dev(dWv, dWv_g, mv_wv_m, mv_wv_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*sD); \
-        adamw_dev(dWo, dWo_g, mv_wo_m, mv_wo_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*sD); \
-        adamw_dev(dln1g, dln1g_g, mv_ln1g_m, mv_ln1g_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*D); \
-        adamw_dev(dln1b, dln1b_g, mv_ln1b_m, mv_ln1b_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*D); \
-        adamw_dev(dW1, dW1_g, mv_w1_m, mv_w1_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*sDFF); \
-        adamw_dev(db1, db1_g, mv_b1_m, mv_b1_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*DFF); \
-        adamw_dev(dW2, dW2_g, mv_w2_m, mv_w2_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*sDFF); \
-        adamw_dev(db2, db2_g, mv_b2_m, mv_b2_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*D); \
-        adamw_dev(dln2g, dln2g_g, mv_ln2g_m, mv_ln2g_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*D); \
-        adamw_dev(dln2b, dln2b_g, mv_ln2b_m, mv_ln2b_v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, _bc1, _bc2, L*D); \
-        cudaDeviceSynchronize(); \
+    #define ADAMW(W, G, N) do { \
+        float* _m; float* _v; \
+        cudaMalloc(&_m, (N)*4); cudaMalloc(&_v, (N)*4); \
+        cudaMemset(_m, 0, (N)*4); cudaMemset(_v, 0, (N)*4); \
+        adamw_dev((W), (G), _m, _v, adamw_lr, adamw_b1, adamw_b2, adamw_eps, adamw_wd, bc1, bc2, (N)); \
+        cudaFree(_m); cudaFree(_v); \
     } while(0)
+    ADAMW(dwte, dwte_g, V*D);
+    ADAMW(dwpe, dwpe_g, TMAX*D);
+    ADAMW(dlnfg, dlnfg_g, D);
+    ADAMW(dlnfb, dlnfb_g, D);
+    ADAMW(dWq, dWq_g, L*sD);
+    ADAMW(dWk, dWk_g, L*sD);
+    ADAMW(dWv, dWv_g, L*sD);
+    ADAMW(dWo, dWo_g, L*sD);
+    ADAMW(dln1g, dln1g_g, L*D);
+    ADAMW(dln1b, dln1b_g, L*D);
+    ADAMW(dW1, dW1_g, L*sDFF);
+    ADAMW(db1, db1_g, L*DFF);
+    ADAMW(dW2, dW2_g, L*sDFF);
+    ADAMW(db2, db2_g, L*D);
+    ADAMW(dln2g, dln2g_g, L*D);
+    ADAMW(dln2b, dln2b_g, L*D);
+    #undef ADAMW
+    cudaDeviceSynchronize();
 
-    #define SAVE_STEP(NM, PTR, N, STEP) do { \
+    #define SAVE_W(NM, PTR, N) do { \
         float* _h = (float*)malloc((N)*4); \
         cudaMemcpy(_h, (PTR), (N)*4, cudaMemcpyDeviceToHost); \
-        char _path[64]; snprintf(_path, sizeof(_path), "/tmp/ts2_s" STEP "_" NM ".bin"); \
-        sv(_path, _h, (N)); \
+        sv("/tmp/ts_" NM ".bin", _h, (N)); \
         free(_h); \
     } while(0)
-
-    #define SAVE_ALL(STEP) do { \
-        SAVE_STEP("wte",  dwte,  V*D,    STEP); \
-        SAVE_STEP("wpe",  dwpe,  TMAX*D, STEP); \
-        SAVE_STEP("lnfg", dlnfg, D,      STEP); \
-        SAVE_STEP("lnfb", dlnfb, D,      STEP); \
-        SAVE_STEP("wq",   dWq,   L*sD,   STEP); \
-        SAVE_STEP("wk",   dWk,   L*sD,   STEP); \
-        SAVE_STEP("wv",   dWv,   L*sD,   STEP); \
-        SAVE_STEP("wo",   dWo,   L*sD,   STEP); \
-        SAVE_STEP("ln1g", dln1g, L*D,    STEP); \
-        SAVE_STEP("ln1b", dln1b, L*D,    STEP); \
-        SAVE_STEP("w1",   dW1,   L*sDFF, STEP); \
-        SAVE_STEP("b1",   db1,   L*DFF,  STEP); \
-        SAVE_STEP("w2",   dW2,   L*sDFF, STEP); \
-        SAVE_STEP("b2",   db2,   L*D,    STEP); \
-        SAVE_STEP("ln2g", dln2g, L*D,    STEP); \
-        SAVE_STEP("ln2b", dln2b, L*D,    STEP); \
-    } while(0)
-
-    // --- STEP 1 ---
-    RUN_STEP(1);
-    SAVE_ALL("1");
-
-    // --- Re-run fwd+bwd with new weights for STEP 2 ---
-    // (need to redo forward from emb with updated params)
-    emb_fwd_k<<<T, D>>>(dids, dwte, dwpe, dXs, T, D);
-    cudaDeviceSynchronize();
-    for (int b = 0; b < L; b++) {
-        float *xin = dXs + b*sx, *xout = dXs + (b+1)*sx;
-        float *bWq=dWq+b*sD,*bWk=dWk+b*sD,*bWv=dWv+b*sD,*bWo=dWo+b*sD;
-        float *bln1g=dln1g+b*D,*bln1b=dln1b+b*D;
-        float *bW1=dW1+b*sDFF,*bb1=db1+b*DFF;
-        float *bW2=dW2+b*sDFF,*bb2=db2+b*D;
-        float *bln2g=dln2g+b*D,*bln2b=dln2b+b*D;
-        float *bh1=dh1+b*sx,*bQ=dQ+b*sx,*bK=dK+b*sx,*bV=dV+b*sx;
-        float *bA=dA+b*sx,*bO=dO+b*sx,*bX1=dX1_fwd+b*sx;
-        float *bh2=dh2+b*sx,*bpre=dpre+b*sh,*bpre_save=dpre_save+b*sh;
-        float *bm1=dm1+b*T,*br1=dr1+b*T,*bm2=dm2+b*T,*br2=dr2+b*T;
-        ln_fwd_dev(xin, bln1g, bln1b, bh1, bm1, br1, T, D, eps);
-        mm(bh1,bWq,bQ,T,D,D); mm(bh1,bWk,bK,T,D,D); mm(bh1,bWv,bV,T,D,D);
-        attn_fwd_k<<<grd,blk>>>(bQ,bK,bV,bA,T,D,H,sc); cudaDeviceSynchronize();
-        mm(bA,bWo,bO,T,D,D);
-        cudaMemcpy(bX1, xin, sx*4, cudaMemcpyDeviceToDevice); add_dev(bX1, bO, sx);
-        ln_fwd_dev(bX1, bln2g, bln2b, bh2, bm2, br2, T, D, eps);
-        mm(bh2,bW1,bpre,T,D,DFF); add_bias_dev(bpre,bb1,T,DFF);
-        cudaMemcpy(bpre_save, bpre, sh*4, cudaMemcpyDeviceToDevice);
-        gelu_fwd_dev(bpre_save, bpre, sh);
-        mm(bpre,bW2,xout,T,DFF,D); add_bias_dev(xout,bb2,T,D);
-        add_dev(xout, bX1, sx);
-    }
-    // Save step-2 forward output
-    { float* h=(float*)malloc(sx*4); cudaMemcpy(h, dXs+L*sx, sx*4, cudaMemcpyDeviceToHost); sv("/tmp/ts2_y_step2.bin",h,sx); free(h); }
-    // Recompute LNf + tied head + CE for step 2 backward
-    ln_fwd_dev(dXs+L*sx, dlnfg, dlnfb, dxnf_fwd, dmlf, drlf, T, D, eps);
-    tied_head_fwd<<<T,V>>>(dxnf_fwd, dwte, dlogits, T, V, D); cudaDeviceSynchronize();
-    softmax_ce_fwd<<<T, sm_b, sm_sh>>>(dlogits, dtg, dprobs, dloss, T, V); cudaDeviceSynchronize();
-    // (full backward code from step 1 would need to run again — skip for brevity,
-    //  use step-1 grads to advance m/v so we can test momentum)
-    // NOTE: this is approximate — real training loop refactors backward into a function.
-
-    // --- STEP 2 (using step-1 grads to test momentum accumulation) ---
-    RUN_STEP(2);
-    SAVE_ALL("2");
-
-    #undef RUN_STEP
-    #undef SAVE_STEP
-    #undef SAVE_ALL
-
+    SAVE_W("wte",  dwte,  V*D);
+    SAVE_W("wpe",  dwpe,  TMAX*D);
+    SAVE_W("lnfg", dlnfg, D);
+    SAVE_W("lnfb", dlnfb, D);
+    SAVE_W("wq",   dWq,   L*sD);
+    SAVE_W("wk",   dWk,   L*sD);
+    SAVE_W("wv",   dWv,   L*sD);
+    SAVE_W("wo",   dWo,   L*sD);
+    SAVE_W("ln1g", dln1g, L*D);
+    SAVE_W("ln1b", dln1b, L*D);
+    SAVE_W("w1",   dW1,   L*sDFF);
+    SAVE_W("b1",   db1,   L*DFF);
+    SAVE_W("w2",   dW2,   L*sDFF);
+    SAVE_W("b2",   db2,   L*D);
+    SAVE_W("ln2g", dln2g, L*D);
+    SAVE_W("ln2b", dln2b, L*D);
+    #undef SAVE_W
 
     printf("Train step 1 done: T=%d D=%d L=%d V=%d\\n", T,D,L,V);
     return 0;
