@@ -940,3 +940,42 @@ Smooth monotonic decay - typical of healthy training.
 - scripts/cuda/test_train_step.cu — N=45 train, 30 val, T=8
 - scripts/cuda/test_train_step.py — full verify + 30-batch val stats
 - ref/full_test/corpus.bin — 312MB UTF-8
+
+
+## 37. N=200 + LR SCHEDULE — VAL 4.15 (BEST) (2026-11-03)
+
+### THE MILESTONE
+- N=200 steps, warmup=20, cosine decay to 10% floor
+- Val mean: 4.15 (was 4.47 at N=45 fixed lr)
+- Val std: 0.40 (was 0.84) — model much more consistent
+- Val range: 3.39-4.96 (was 3.47-7.30) — no bad batches
+
+### CRITICAL COMPARISON
+| Run              | Train final | Val mean | Val std |
+|------------------|-------------|----------|---------|
+| N=45 fixed lr    | 3.56        | 4.47     | 0.84    |
+| N=45 sched ON    | 4.33        | 5.14     | 0.73    |
+| N=200 sched ON   | 4.47        | 4.15     | 0.40    |
+
+### LESSONS
+- Schedule needs enough steps: N=45 + warmup=10 leaves only 35 cosine
+  steps -> lr drops before model trains -> val 5.14 (worse)
+- N=200 + warmup=20 gives 180 cosine steps -> val 4.15 (best)
+- Val std halving (0.84 -> 0.40) = model consistently good on all batches
+- "Train final" not comparable across N (different last batch)
+
+### BATCHES NOW AVAILABLE
+- 230 batches total (T=8): train 1..200, val 201..230
+- Regenerated from START=1000, stride T=8
+
+### NEXT SESSION — pick up here
+1. **T=16 or 32** — context longer, need new wpe (2048B/4096B)
+   - Update TMAX, regenerate wpe weights, regenerate batches
+2. **Checkpoint save/load** — persist after N=200 for resume
+3. **N=500-1000** — see if loss floor keeps improving
+4. **T=16 w/ N=200 schedule** — combine best of both
+
+### KEY FILES
+- scripts/cuda/test_train_step.cu — N-step + schedule + 30 val
+- scripts/cuda/test_train_step.py — verify + val stats
+- Compile flags: -DUSE_LR_SCHEDULE=1 -DN_STEPS=200 -DWARMUP=20
