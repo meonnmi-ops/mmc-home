@@ -22,7 +22,7 @@ void add_bias_dev(float* d_y, const float* d_b, int T, int D);
 
 void adamw_dev(float* d_w, const float* d_g, float* d_m, float* d_v,
                float lr, float b1, float b2, float eps, float wd,
-               int step, int n);
+               float bc1, float bc2, int n);
 
 #ifdef __cplusplus
 }

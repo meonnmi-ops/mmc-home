@@ -124,9 +124,7 @@ void add_bias_dev(float* d_y, const float* d_b, int T, int D) {
 
 void adamw_dev(float* d_w, const float* d_g, float* d_m, float* d_v,
                float lr, float b1, float b2, float eps, float wd,
-               int step, int n) {
-    float bc1 = 1.0f - powf(b1, (float)step);
-    float bc2 = 1.0f - powf(b2, (float)step);
+               float bc1, float bc2, int n) {
     adamw_step_k<<<(n+255)/256, 256>>>(d_w, d_g, d_m, d_v, lr, b1, b2, eps, wd, bc1, bc2, n);
 }
 
