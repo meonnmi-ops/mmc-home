@@ -1336,3 +1336,33 @@ experiments/run_F/partial_2122/  — 6256 files from failed Run F
 - fe62280  docs: s45 /tmp full root cause
 - 6bcf119  docs: s44 Run F pending
 - 4c9b28d  docs: s42 val 0.854 (Run E, KEEP as reference)
+
+## 48. RUN F COMPLETE — val 0.8058 (2026-11-03)
+
+### RESULT
+- Run F: D=128 DFF=256 H=4 L=3 lr=1e-3 N=6000 B=8 NVAL=256
+- **VAL mean = 0.8058** (sem 0.0194, n=256)
+- Train final 0.7953, no overfitting (gap 0.01)
+- vs Run E (0.8544): -0.0486 (5.7% improvement)
+
+### VERDICT
+- Capacity IS a factor but NOT the main bottleneck
+- Under-trained: 1.54M tokens / 433K params = 3.5 tok/param
+- Chinchilla-optimal ~8.6M tokens (5.6x more needed)
+
+### FIX APPLIED
+- SAVE_S debug dump disabled via #if 0 (was 105k files/run → WSL crash)
+- run_acc.sh parameterized: RUN_NAME arg (default run_F)
+- gen_batches.py, gen_init.py, read_loss.py accept DATA_DIR arg
+
+### NEXT: RUN G
+- N=12000 (2x steps, same D)
+- Expected val ~0.78-0.79 if data-limited
+- If val plateaus at 0.80 → capacity becomes bottleneck again
+
+### LESSONS
+1. SAVE_S must stay behind #ifdef DEBUG_SAVE (never default-on)
+2. Never run read_loss.py DURING training (wait for finish)
+3. WSL is per-Windows-user: TikTo account has Debian, sshusr doesn't
+4. `wsl -d Debian` from TikTo PowerShell, not sshusr
+5. Extra #endif after removing #if 0 → preprocessor error (check after every sed)
