@@ -813,6 +813,7 @@
             cs->token_pos = cs->token_pos + 1
             တည်ဆောက် ASTNode* gfn = parse_func(cs)
             gfn->value_str = "gpu"
+            gfn->type_str = "void"
             mmc_array_push(program->children, gfn)
         } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_ENUM) {
             mmc_array_push(program->children, parse_enum(cs))
@@ -1841,6 +1842,9 @@
     ပြည့်အောင်(i < mmc_array_size(program->children)) {
         တည်ဆောက် ASTNode* node = mmc_array_get(program->children, i)
         သုံးသပ်ချက်အရ((node->kind == NK_FUNC_DEF) နှင့် (mmc_string_compare(node->data, "main") != 0)) {
+            သုံးသပ်ချက်အရ(mmc_string_compare(node->value_str, "gpu") == 0) {
+                output = mmc_string_concat(output, "__global__ ")
+            }
             output = mmc_string_concat(output, node->type_str)
             output = mmc_string_concat(output, " ")
             output = mmc_string_concat(output, node->data)
