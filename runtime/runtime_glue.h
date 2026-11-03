@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 /* runtime_glue.h - prototypes for the glue helpers provided by
    runtime_glue.c. Generated self-hosted code (v4+) includes this after
    runtime_v5.h so calls to these helpers compile cleanly. */
@@ -22,3 +25,8 @@ int mmc_array_size(MMCArray* arr);
 void* mmc_array_get(MMCArray* arr, int idx);
 
 #endif /* RUNTIME_GLUE_H */
+
+#ifdef __cplusplus
+}
+#endif
+int mmc_gpu_launch0(void (*kernel)(void));

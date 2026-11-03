@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 // runtime_v5.h — MMC Runtime Header
 #ifndef RUNTIME_V5_H
 #define RUNTIME_V5_H
@@ -109,4 +112,8 @@ void mmc_matrix_free(MMCMatrix* mat);
 int mmc_matrix_rows(MMCMatrix* mat);
 int mmc_matrix_cols(MMCMatrix* mat);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
