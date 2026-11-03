@@ -1366,3 +1366,36 @@ experiments/run_F/partial_2122/  — 6256 files from failed Run F
 3. WSL is per-Windows-user: TikTo account has Debian, sshusr doesn't
 4. `wsl -d Debian` from TikTo PowerShell, not sshusr
 5. Extra #endif after removing #if 0 → preprocessor error (check after every sed)
+
+## 49. RUN G COMPLETE — N=12000 (2026-11-03)
+
+### RESULT
+- Run G: D=128 DFF=256 H=4 L=3 lr=1e-3 N=12000 B=8 NVAL=256
+- 96256 batches generated, training completed in ~16 min
+- SAVE_S disabled → 5x faster than Run F (12ms/step vs 60ms/step)
+- val result: [FILL IN FROM read_loss.py]
+
+### MONITORING GOTCHA (fixed for future runs)
+Bad pattern: `pgrep -f 'experiments/run_G/data/ts_exp'`
+- ts_exp runs as relative path `./experiments/run_G/data/ts_exp`
+- gen_batches.py and nvcc don't match at all
+- Loop exits in <5s, false "DONE"
+
+Good pattern: `pgrep -f 'run_acc.sh|gen_batches|gen_init|ts_exp'`
+or `while kill -0 $PID` using the nohup PID.
+
+### READ_LOSS.PY FIX
+- Was hardcoded `Path('experiments/run_F/data')` and ignored 3rd arg
+- Fixed: `D = Path(sys.argv[3])` — accepts DATA_DIR
+- run_acc.sh already passed "$DATA" as 3rd arg → now it works
+
+### SPEED NOTE
+SAVE_S disabled: 750 steps/min (D=128, B=8)
+vs SAVE_S enabled (Run F): ~120 steps/min
+→ 6.25x speedup from disabling debug dumps
+
+### NEXT: RUN H (pending decision from read_loss output)
+- If val < 0.78 → Run H: N=24000 (data/steps)
+- If val 0.78-0.80 → still data-limited, N=24000
+- If val 0.80-0.81 → plateau, switch to capacity (D=256)
+- If val > 0.81 → regression, debug lr
