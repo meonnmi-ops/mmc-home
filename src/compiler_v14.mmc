@@ -105,6 +105,7 @@
 တည်ဆောက် ကိန်း TT_LABEL = 60     // အမှတ် (label)
 တည်ဆောက် ကိန်း TT_CHAR = 61     // character literal
 တည်ဆောက် ကိန်း TT_EXTERN = 69   // extern "C" (FFI)
+တည်ဆောက် ကိန်း TT_GLOBAL = 62    // ကမ္ဘာလုံး (GPU kernel)
 
 // === Constants: AST Node Kinds ===
 တည်ဆောက် ကိန်း NK_PROGRAM = 100
@@ -764,6 +765,9 @@
         ပြန်ပေး make_token(TT_AND, "&&", start_line, start_col)
     }
 
+    သုံးသပ်ချက်အရ(mmc_string_compare(buf, "ကမ္ဘာလုံး") == 0) {
+        ပြန်ပေး make_token(TT_GLOBAL, buf, start_line, start_col)
+    }
     // Not a keyword — return as identifier
     ပြန်ပေး make_token(TT_IDENT, buf, start_line, start_col)
 }
@@ -805,6 +809,11 @@
             mmc_array_push(program->children, parse_import(cs))
         } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_STRUCT) {
             mmc_array_push(program->children, parse_struct(cs))
+        } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_GLOBAL) {
+            cs->token_pos = cs->token_pos + 1
+            တည်ဆောက် ASTNode* gfn = parse_func(cs)
+            gfn->value_str = "gpu"
+            mmc_array_push(program->children, gfn)
         } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_ENUM) {
             mmc_array_push(program->children, parse_enum(cs))
         } မဟုတ်လျှင် သုံးသပ်ချက်အရ(current_type(cs) == TT_FUNC) {
@@ -1792,6 +1801,19 @@
     output = mmc_string_concat(output, "#include <math.h>\n")
     output = mmc_string_concat(output, "#include \"runtime_v5.h\"\n\n")
     output = mmc_string_concat(output, "#include \"runtime_glue.h\"\n")
+    // GPU support: add cuda_runtime.h if any ကမ္ဘာလုံး function exists
+    တည်ဆောက် ကိန်း gpu_count = 0
+    တည်ဆောက် ကိန်း gi = 0
+    ပြည့်အောင်(gi < mmc_array_size(program->children)) {
+        တည်ဆောက် ASTNode* gn = mmc_array_get(program->children, gi)
+        သုံးသပ်ချက်အရ((gn->kind == NK_FUNC_DEF) နှင့် (mmc_string_compare(gn->value_str, "gpu") == 0)) {
+            gpu_count = gpu_count + 1
+        }
+        gi = gi + 1
+    }
+    သုံးသပ်ချက်အရ(gpu_count > 0) {
+        output = mmc_string_concat(output, "#include <cuda_runtime.h>\n")
+    }
 
     // Forward declarations for struct types
     တည်ဆောက် ကိန်း i = 0
@@ -1952,6 +1974,9 @@
         result = mmc_string_concat(result, "};\n\n")
     } မဟုတ်လျှင် သုံးသပ်ချက်အရ(node->kind == NK_FUNC_DEF) {
         // Generate function definition
+        သုံးသပ်ချက်အရ(mmc_string_compare(node->value_str, "gpu") == 0) {
+            result = mmc_string_concat(result, "__global__ ")
+        }
         result = mmc_string_concat(result, mmc_string_concat(node->type_str, mmc_string_concat(" ", mmc_string_concat(node->data, "("))))
         // Params
         တည်ဆောက် စာရင်း params = node->children
