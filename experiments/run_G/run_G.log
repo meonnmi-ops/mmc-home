@@ -1,0 +1,18 @@
+nohup: ignoring input
+[run_acc] config: D=128 DFF=256 H=4 LR=1e-3 N=12000 B=8 NV=256 RUN=run_G
+[OK] 96256 batches (train 1..96000, val 96001..96256)
+[OK] init D=128 DFF=256, params ~ 433,024
+real	16m35.285s
+[read_loss] dir=experiments/run_G/data
+train 12000/12000  val 256/256
+  steps     1- 1200  train mean = 1.5100
+  steps  1201- 2400  train mean = 0.9379
+  steps  2401- 3600  train mean = 0.8794
+  steps  3601- 4800  train mean = 0.8569
+  steps  4801- 6000  train mean = 0.8314
+  steps  6001- 7200  train mean = 0.8233
+  steps  7201- 8400  train mean = 0.8088
+  steps  8401- 9600  train mean = 3.2304
+  steps  9601-10800  train mean = 3.7716
+  steps 10801-12000  train mean = 3.4379
+  VAL mean=3.1825  std=0.4094  sem=0.0256  n=256

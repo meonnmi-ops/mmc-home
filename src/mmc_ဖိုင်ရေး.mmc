@@ -1,0 +1,20 @@
+လုပ်ငန်း main() {
+    သုံးသပ်ချက်အရ(mmc_array_size(knowledge_base) < 2) {
+        printf("အသုံး: mmc_ဖိုင်ရေး <ဖိုင်>\n")
+        printf("  code ကို paste လုပ်ပါ။ ပြီးရင် Ctrl+D နှိပ်ပါ။\n")
+        ပြန်ပေး 1
+    }
+    တည်ဆောက် စာသား ဖိုင် = mmc_array_get(knowledge_base, 1)
+    တည်ဆောက် စာသား အကြောင်း = ""
+    ပြည့်အောင်(1) {
+        တည်ဆောက် စာသား buf = mmc_malloc(4096)
+        တည်ဆောက် စာသား result = fgets(buf, 4096, stdin)
+        သုံးသပ်ချက်အရ(result == NULL) {
+            ရပ်
+        }
+        အကြောင်း = mmc_string_concat(အကြောင်း, buf)
+    }
+    mmc_write_file(ဖိုင်, အကြောင်း)
+    printf("✅ ရေးပြီး: %s (%d bytes)\n", ဖိုင်, mmc_string_length(အကြောင်း))
+    ပြန်ပေး 0
+}

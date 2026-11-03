@@ -1,0 +1,16 @@
+nohup: ignoring input
+[OK] 48256 batches (train 1..48000, val 48001..48256)
+[OK] init D=128 DFF=256, params ~ 433,024
+real	6m59.525s
+train 6000/6000  val 256/256
+  steps     1-  600  train mean = 1.7517
+  steps   601- 1200  train mean = 1.0441
+  steps  1201- 1800  train mean = 0.9449
+  steps  1801- 2400  train mean = 0.9060
+  steps  2401- 3000  train mean = 0.8736
+  steps  3001- 3600  train mean = 0.8427
+  steps  3601- 4200  train mean = 0.8368
+  steps  4201- 4800  train mean = 0.8150
+  steps  4801- 5400  train mean = 0.8090
+  steps  5401- 6000  train mean = 0.7953
+  VAL mean=0.8058  std=0.3111  sem=0.0194  n=256

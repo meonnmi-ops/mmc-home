@@ -1898,7 +1898,6 @@
     output = mmc_string_concat(output, "int အဓိက(void);\nMMCArray* knowledge_base = NULL;\nint main(int argc, char** argv) {\n")
     output = mmc_string_concat(output, "knowledge_base = mmc_array_new();\n")
     output = mmc_string_concat(output, "for (int _i = 0; _i < argc; _i++) mmc_array_push(knowledge_base, argv[_i]);\n")
-    output = mmc_string_concat(output, "    return အဓိက();\n")
 
     // Global initializers as statements inside main
     i = 0

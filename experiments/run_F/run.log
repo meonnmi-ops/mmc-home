@@ -1,0 +1,9 @@
+nohup: ignoring input
+[OK] 48256 batches (train 1..48000, val 48001..48256)
+[OK] init D=128 DFF=256, params ~ 433,024
+real	6m2.026s
+Traceback (most recent call last):
+  File "/home/meonnmi-0ps/mmc_wsl/mmc_publish/scripts/cuda/read_loss.py", line 3, in <module>
+    tr = [float(np.fromfile(f'/tmp/loss_s{k}.bin', dtype=np.float32)[0]) for k in range(1, N+1)]
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+IndexError: index 0 is out of bounds for axis 0 with size 0

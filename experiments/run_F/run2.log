@@ -1,0 +1,4 @@
+nohup: ignoring input
+[OK] 48256 batches (train 1..48000, val 48001..48256)
+[OK] init D=128 DFF=256, params ~ 433,024
+real	0m28.209s

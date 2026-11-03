@@ -436,6 +436,7 @@ int main(){
     MK_MV(ln2g, L*D);  MK_MV(ln2b, L*D);
     #undef MK_MV
 
+extern "C" void clip_grad_dev(float* g, int n, float max_norm);
     // ===== ADAMW 2-STEP LOOP (persistent m/v, step-1 grads reused) =====
     float adamw_lr = 1e-3f, adamw_b1 = 0.9f, adamw_b2 = 0.999f;
     float adamw_eps = 1e-8f, adamw_wd = 0.01f;
@@ -454,6 +455,10 @@ int main(){
         float cur_lr = adamw_lr;
 #if USE_LR_SCHEDULE
         cur_lr = lr_at(step, N_STEPS, WARMUP, adamw_lr);
+        // --- Gradient clipping (norm=1.0) ---
+        #define G_CLIP(n, sz) clip_grad_dev((n), (int)(sz), 1.0f);
+        GLIST(G_CLIP)
+        #undef G_CLIP
 #endif
 
         #define ADAMW(W, G, NM, N) adamw_dev((W), (G), mv_##NM##_m, mv_##NM##_v, \
@@ -501,7 +506,6 @@ int main(){
         SAVE_S("ln2g", dln2g, L*D);
         SAVE_S("ln2b", dln2b, L*D);
         #undef SAVE_S
-#endif
 #endif
 
         // ===== STEP 2: Re-run fwd+bwd with UPDATED weights =====

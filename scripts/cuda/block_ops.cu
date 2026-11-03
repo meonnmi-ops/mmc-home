@@ -129,3 +129,47 @@ void adamw_dev(float* d_w, const float* d_g, float* d_m, float* d_v,
 }
 
 }  // extern "C"
+
+// ===== Gradient clipping =====
+__global__ void clip_scale_k(float* __restrict__ g, float scale, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) g[i] *= scale;
+}
+
+__global__ void norm_sq_partial_k(const float* __restrict__ g, float* __restrict__ out, int n) {
+    __shared__ float sd[256];
+    int tid = threadIdx.x;
+    float sum = 0.0f;
+    for (int i = blockIdx.x * blockDim.x + tid; i < n; i += blockDim.x * gridDim.x)
+        sum += g[i] * g[i];
+    sd[tid] = sum;
+    __syncthreads();
+    for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+        if (tid < s) sd[tid] += sd[tid + s];
+        __syncthreads();
+    }
+    if (tid == 0) out[blockIdx.x] = sd[0];
+}
+
+extern "C" float tensor_l2_norm(const float* g, int n) {
+    const int T = 256, B = 32;
+    float* d_partial = nullptr;
+    cudaMalloc(&d_partial, B * sizeof(float));
+    norm_sq_partial_k<<<B, T>>>(g, d_partial, n);
+    float h[B];
+    cudaMemcpy(h, d_partial, B * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaFree(d_partial);
+    float total = 0.0f;
+    for (int i = 0; i < B; i++) total += h[i];
+    return sqrtf(total);
+}
+
+extern "C" void clip_grad_dev(float* g, int n, float max_norm) {
+    float norm = tensor_l2_norm(g, n);
+    if (norm > max_norm && norm > 0.0f) {
+        float scale = max_norm / norm;
+        int threads = 256;
+        int blocks = (n + threads - 1) / threads;
+        clip_scale_k<<<blocks, threads>>>(g, scale, n);
+    }
+}
