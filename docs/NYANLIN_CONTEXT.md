@@ -1399,3 +1399,34 @@ vs SAVE_S enabled (Run F): ~120 steps/min
 - If val 0.78-0.80 → still data-limited, N=24000
 - If val 0.80-0.81 → plateau, switch to capacity (D=256)
 - If val > 0.81 → regression, debug lr
+
+## 50. RUN G DIVERGED at step ~8500 — no gradient clipping
+
+### ROOT CAUSE
+- grep 'clip\|norm\|max_norm' → EMPTY. No gradient clipping in code.
+- LR schedule OK (cosine decays to 0, at step 8400 LR ≈ 2.26e-4, not too high)
+- Divergence: gradient explosion at step ~8500 (mean 3.23 for 8401-9600)
+- Specific steps: 8350-8500 normal (0.6-1.0), then spike after 8500
+
+### RUN H FAILURE (also happened)
+- gen_batches.py and gen_init.py had run_G hardcoded (from sed'ing earlier)
+- run_acc.sh passes $DATA as argv[4]/argv[3] but scripts ignored it
+- ts_exp.cu sed'd to run_H → tried to read from run_H/data/ → file not found
+- KILLED before damage
+
+### FIXES APPLIED
+1. gen_batches.py: reads DATA = sys.argv[4]
+2. gen_init.py: reads DATA = sys.argv[3]
+3. TODO: add gradient clipping to test_train_step.cu
+
+### LESSONS
+1. Never assume LR is the cause — check gradient clipping first
+2. Cosine without floor is OK for short runs but dangerous at N>10000 without clipping
+3. sed'ing scripts breaks parameterization — scripts must use argv, not hardcoded paths
+4. After sed'ing paths, grep for original path to verify (we did this for run_F, forgot for run_G)
+5. Run H killed before failing — the file path bug would have wasted 16 min
+
+### NEXT: RUN H (after adding grad clipping)
+- Same as planned: N=8400, lr=5e-4
+- BUT with gradient clipping at norm=1.0
+- Expected val ~0.78-0.79
