@@ -477,6 +477,7 @@ int main(){
         #undef ADAMW
         cudaDeviceSynchronize();
 
+#if 0  // SAVE_S disabled: 105k debug files caused WSL crash
         #define SAVE_S(NM, PTR, N) do { \
             float* _h = (float*)malloc((N)*4); \
             cudaMemcpy(_h, (PTR), (N)*4, cudaMemcpyDeviceToHost); \
@@ -500,6 +501,8 @@ int main(){
         SAVE_S("ln2g", dln2g, L*D);
         SAVE_S("ln2b", dln2b, L*D);
         #undef SAVE_S
+#endif
+#endif
 
         // ===== STEP 2: Re-run fwd+bwd with UPDATED weights =====
         if (step < N_STEPS) {
