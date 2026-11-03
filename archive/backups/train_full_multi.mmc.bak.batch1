@@ -1,0 +1,444 @@
+// train_full.mmc — Phase 1: full 4.84M model training step
+//
+// Config: T=128  TMAX=128  D=256  DFF=1024  H=8  V=256  L=6
+// Params: 4,837,376
+//
+// ONE step: forward (emb -> 6 blocks -> LNf -> tied head) -> CE loss
+//           -> backward (head, LNf, blocks reverse, emb) -> AdamW update
+//
+// AdamW state (m, v) is PERSISTED across calls:
+//   loaded from m_<w>.bin / v_<w>.bin  (zeros if absent -> fresh start)
+//   saved to   out_m_<w>.bin / out_v_<w>.bin
+// lr + step read from lr.bin / step.bin so the orchestrator can drive a
+// warmup+cosine schedule WITHOUT recompiling.
+//
+// Orchestrator renames out_* -> * after each SUCCESSFUL step (crash-safe).
+
+extern "C" void* malloc(ကိန်း n)
+extern "C" void* calloc(ကိန်း n, ကိန်း sz)
+extern "C" void free(အစု p)
+extern "C" ဒသမ sqrt(ဒသမ x)
+extern "C" ဒသမ exp(ဒသမ x)
+extern "C" ဒသမ log(ဒသမ x)
+extern "C" ကိန်း printf(စာသား fmt, ...)
+extern "C" void* fopen(စာသား path, စာသား mode)
+extern "C" ကိန်း fread(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fwrite(အစု buf, ကိန်း sz, ကိန်း n, အစု stream)
+extern "C" ကိန်း fclose(အစု stream)
+
+extern "C" ကိန်း block_forward(အစု x2_out, အစု X, အစု Wqkv, အစု bqkv, အစု Wo, အစု bo, အစု W1, အစု b1, အစု W2, အစု b2, အစု ln1w, အစု ln1b, အစု ln2w, အစု ln2b, ကိန်း T, ကိန်း D, ကိန်း DFF, ကိန်း H)
+extern "C" ကိန်း block_fwd_bwd(အစု dx, အစု dWqkv, အစု dbqkv, အစု dWo, အစု dbo, အစု dW1, အစု db1, အစု dW2, အစု db2, အစု dln1w, အစု dln1b, အစု dln2w, အစု dln2b, အစု X, အစု Wqkv, အစု bqkv, အစု Wo, အစု bo, အစု W1, အစု b1, အစု W2, အစု b2, အစု ln1w, အစု ln1b, အစု ln2w, အစု ln2b, အစု dOut, ကိန်း T, ကိန်း D, ကိန်း DFF, ကိန်း H)
+extern "C" ကိန်း ln_fwd_row(အစု xn, အစု x, အစု g, အစု b, ကိန်း D, အစု mo, အစု io)
+extern "C" ကိန်း ln_bwd_row(အစု dx, အစု dg, အစု db, အစု dout, အစု x, အစု g, ကိန်း D, ကိန်း add)
+
+လုပ်ငန်း powi(ဒသမ b, ကိန်း e) ဒသမ {
+    တည်ဆောက် ဒသမ r = 1.0
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < e) { r = r * b  i = i + 1 }
+    ပြန်ပေး r
+}
+
+လုပ်ငန်း adamw(ဒသမ* w, ဒသမ* g, ဒသမ* m, ဒသမ* v, ကိန်း n, ကိန်း step, ဒသမ lr, ဒသမ b1, ဒသမ b2, ဒသမ eps, ဒသမ wd) ကိန်း {
+    တည်ဆောက် ဒသမ bc1 = 1.0 - powi(b1, step)
+    တည်ဆောက် ဒသမ bc2 = 1.0 - powi(b2, step)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        m[i] = b1 * m[i] + (1.0 - b1) * g[i]
+        v[i] = b2 * v[i] + (1.0 - b2) * g[i] * g[i]
+        တည်ဆောက် ဒသမ mh = m[i] / bc1
+        တည်ဆောက် ဒသမ vh = v[i] / bc2
+        w[i] = w[i] * (1.0 - lr * wd) - lr * mh / (sqrt(vh) + eps)
+        i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း ld64(စာသား p, ကိန်း n) အစု {
+    တည်ဆောက် အစု b = calloc(n, 8)
+    တည်ဆောက် အစု f = fopen(p, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { free(b) ပြန်ပေး 0 }
+    fread(b, 8, n, f)  fclose(f)
+    ပြန်ပေး b
+}
+
+// like ld64 but returns ZEROED buffer when the file is absent
+လုပ်ငန်း ld64_or_zeros(စာသား p, ကိန်း n) အစု {
+    တည်ဆောက် အစု b = calloc(n, 8)
+    တည်ဆောက် အစု f = fopen(p, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { ပြန်ပေး b }
+    fread(b, 8, n, f)  fclose(f)
+    ပြန်ပေး b
+}
+
+လုပ်ငန်း ld32(စာသား p, ကိန်း n) အစု {
+    တည်ဆောက် အစု b = calloc(n, 4)
+    တည်ဆောက် အစု f = fopen(p, "rb")
+    သုံးသပ်ချက်အရ(f == 0) { free(b) ပြန်ပေး 0 }
+    fread(b, 4, n, f)  fclose(f)
+    ပြန်ပေး b
+}
+
+လုပ်ငန်း sv64(စာသား p, အစု b, ကိန်း n) ကိန်း {
+    တည်ဆောက် အစု f = fopen(p, "wb")
+    သုံးသပ်ချက်အရ(f == 0) { ပြန်ပေး -1 }
+    fwrite(b, 8, n, f)  fclose(f)
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း sumsq(ဒသမ* p, ကိန်း n) ဒသမ {
+    တည်ဆောက် ဒသမ s = 0.0
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) { s = s + p[i] * p[i]  i = i + 1 }
+    ပြန်ပေး s
+}
+
+လုပ်ငန်း zero_double(ဒသမ* p, ကိန်း n) ကိန်း {
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+    p[i] = 0.0
+    i = i + 1
+    }
+    ပြန်ပေး 0
+}
+
+လုပ်ငန်း main() {
+    // ===== Config =====
+    တည်ဆောက် ကိန်း T = 128
+    တည်ဆောက် ကိန်း TMAX = 128
+    တည်ဆောက် ကိန်း D = 256
+    တည်ဆောက် ကိန်း DFF = 1024
+    တည်ဆောက် ကိန်း H = 8
+    တည်ဆောက် ကိန်း N_STEPS = 1
+    တည်ဆောက် ကိန်း V = 256
+    တည်ဆောက် ကိန်း L = 3
+    တည်ဆောက် ဒသမ b1c = 0.9
+    တည်ဆောက် ဒသမ b2c = 0.999
+    တည်ဆောက် ဒသမ eps = 0.00000001
+    တည်ဆောက် ဒသမ wd = 0.01
+
+    // ===== lr + step (written by orchestrator; defaults if absent) =====
+    တည်ဆောက် ဒသမ lr = 0.001
+    တည်ဆောက် ဒသမ* lr_p = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/lr.bin", 1)
+    သုံးသပ်ချက်အရ(lr_p != 0) { lr = lr_p[0] }
+    တည်ဆောက် ကိန်း step = 1
+    တည်ဆောက် ကိန်း* step_p = ld32("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/step.bin", 1)
+    သုံးသပ်ချက်အရ(step_p != 0) { step = step_p[0] }
+
+    // ===== Load weights (flat arrays, L blocks concatenated) =====
+    တည်ဆောက် ဒသမ* Wqkv_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/Wqkv.bin", L*3*D*D)
+    တည်ဆောက် ဒသမ* bqkv_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/bqkv.bin", L*3*D)
+    တည်ဆောက် ဒသမ* Wo_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/Wo.bin", L*D*D)
+    တည်ဆောက် ဒသမ* bo_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/bo.bin", L*D)
+    တည်ဆောက် ဒသမ* W1_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/W1.bin", L*DFF*D)
+    တည်ဆောက် ဒသမ* b1_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/b1.bin", L*DFF)
+    တည်ဆောက် ဒသမ* W2_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/W2.bin", L*D*DFF)
+    တည်ဆောက် ဒသမ* b2_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/b2.bin", L*D)
+    တည်ဆောက် ဒသမ* ln1w_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/ln1w.bin", L*D)
+    တည်ဆောက် ဒသမ* ln1b_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/ln1b.bin", L*D)
+    တည်ဆောက် ဒသမ* ln2w_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/ln2w.bin", L*D)
+    တည်ဆောက် ဒသမ* ln2b_all = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/ln2b.bin", L*D)
+    တည်ဆောက် ဒသမ* wte = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/wte.bin", V*D)
+    တည်ဆောက် ဒသမ* wpe = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/wpe.bin", TMAX*D)
+    တည်ဆောက် ဒသမ* lnfw = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/lnfw.bin", D)
+    တည်ဆောက် ဒသမ* lnfb = ld64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/lnfb.bin", D)
+
+    // ===== Load batch =====
+    တည်ဆောက် ကိန်း* ids_multi = ld32("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/ids_multi.bin", N_STEPS*T)
+    တည်ဆောက် ကိန်း* tg_multi = ld32("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/tg_multi.bin", N_STEPS*T)
+    တည်ဆောက် ကိန်း* ids = calloc(T, 4)
+    တည်ဆောက် ကိန်း* tg = calloc(T, 4)
+    
+
+    သုံးသပ်ချက်အရ(Wqkv_all == 0 သို့မဟုတ် bqkv_all == 0 သို့မဟုတ် Wo_all == 0 သို့မဟုတ် bo_all == 0 သို့မဟုတ် W1_all == 0 သို့မဟုတ် b1_all == 0 သို့မဟုတ် W2_all == 0 သို့မဟုတ် b2_all == 0) { printf("missing weight files\n") ပြန်ပေး 1 }
+    သုံးသပ်ချက်အရ(ln1w_all == 0 သို့မဟုတ် ln1b_all == 0 သို့မဟုတ် ln2w_all == 0 သို့မဟုတ် ln2b_all == 0 သို့မဟုတ် wte == 0 သို့မဟုတ် wpe == 0 သို့မဟုတ် lnfw == 0 သို့မဟုတ် lnfb == 0) { printf("missing ln/embed files\n") ပြန်ပေး 1 }
+    သုံးသပ်ချက်အရ(ids == 0 သို့မဟုတ် tg == 0) { printf("missing ids.bin / tg.bin\n") ပြန်ပေး 1 }
+
+    // ===== AdamW state (m, v) — persisted; zeros on fresh start =====
+    တည်ဆောက် ဒသမ* mWqkv = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_Wqkv.bin", L*3*D*D)  တည်ဆောက် ဒသမ* vWqkv = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_Wqkv.bin", L*3*D*D)
+    တည်ဆောက် ဒသမ* mbqkv = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_bqkv.bin", L*3*D)  တည်ဆောက် ဒသမ* vbqkv = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_bqkv.bin", L*3*D)
+    တည်ဆောက် ဒသမ* mWo = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_Wo.bin", L*D*D)  တည်ဆောက် ဒသမ* vWo = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_Wo.bin", L*D*D)
+    တည်ဆောက် ဒသမ* mbo = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_bo.bin", L*D)  တည်ဆောက် ဒသမ* vbo = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_bo.bin", L*D)
+    တည်ဆောက် ဒသမ* mW1 = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_W1.bin", L*DFF*D)  တည်ဆောက် ဒသမ* vW1 = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_W1.bin", L*DFF*D)
+    တည်ဆောက် ဒသမ* mb1 = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_b1.bin", L*DFF)  တည်ဆောက် ဒသမ* vb1 = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_b1.bin", L*DFF)
+    တည်ဆောက် ဒသမ* mW2 = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_W2.bin", L*D*DFF)  တည်ဆောက် ဒသမ* vW2 = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_W2.bin", L*D*DFF)
+    တည်ဆောက် ဒသမ* mb2 = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_b2.bin", L*D)  တည်ဆောက် ဒသမ* vb2 = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_b2.bin", L*D)
+    တည်ဆောက် ဒသမ* mln1w = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_ln1w.bin", L*D)  တည်ဆောက် ဒသမ* vln1w = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_ln1w.bin", L*D)
+    တည်ဆောက် ဒသမ* mln1b = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_ln1b.bin", L*D)  တည်ဆောက် ဒသမ* vln1b = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_ln1b.bin", L*D)
+    တည်ဆောက် ဒသမ* mln2w = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_ln2w.bin", L*D)  တည်ဆောက် ဒသမ* vln2w = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_ln2w.bin", L*D)
+    တည်ဆောက် ဒသမ* mln2b = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_ln2b.bin", L*D)  တည်ဆောက် ဒသမ* vln2b = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_ln2b.bin", L*D)
+    တည်ဆောက် ဒသမ* m_wte = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_wte.bin", V*D)  တည်ဆောက် ဒသမ* v_wte = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_wte.bin", V*D)
+    တည်ဆောက် ဒသမ* m_wpe = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_wpe.bin", TMAX*D)  တည်ဆောက် ဒသမ* v_wpe = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_wpe.bin", TMAX*D)
+    တည်ဆောက် ဒသမ* m_lnfw = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_lnfw.bin", D)  တည်ဆောက် ဒသမ* v_lnfw = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_lnfw.bin", D)
+    တည်ဆောက် ဒသမ* m_lnfb = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/m_lnfb.bin", D)  တည်ဆောက် ဒသမ* v_lnfb = ld64_or_zeros("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/v_lnfb.bin", D)
+
+    // ===== Grads =====
+    တည်ဆောက် ဒသမ* gWqkv = calloc(L*3*D*D, 8)  တည်ဆောက် ဒသမ* gbqkv = calloc(L*3*D, 8)
+    တည်ဆောက် ဒသမ* gWo = calloc(L*D*D, 8)  တည်ဆောက် ဒသမ* gbo = calloc(L*D, 8)
+    တည်ဆောက် ဒသမ* gW1 = calloc(L*DFF*D, 8)  တည်ဆောက် ဒသမ* gb1 = calloc(L*DFF, 8)
+    တည်ဆောက် ဒသမ* gW2 = calloc(L*D*DFF, 8)  တည်ဆောက် ဒသမ* gb2 = calloc(L*D, 8)
+    တည်ဆောက် ဒသမ* gln1w = calloc(L*D, 8)  တည်ဆောက် ဒသမ* gln1b = calloc(L*D, 8)
+    တည်ဆောက် ဒသမ* gln2w = calloc(L*D, 8)  တည်ဆောက် ဒသမ* gln2b = calloc(L*D, 8)
+    တည်ဆောက် ဒသမ* g_wte = calloc(V*D, 8)  တည်ဆောက် ဒသမ* g_wpe = calloc(TMAX*D, 8)
+    တည်ဆောက် ဒသမ* g_lnfw = calloc(D, 8)  တည်ဆောက် ဒသမ* g_lnfb = calloc(D, 8)
+
+    // ===== Activations =====
+    တည်ဆောက် ဒသမ* xs = calloc((L+1)*T*D, 8)
+    တည်ဆောက် ဒသမ* xnf = calloc(T*D, 8)
+    တည်ဆောက် ဒသမ* logits = calloc(T*V, 8)
+    တည်ဆောက် ဒသမ* dlogits = calloc(T*V, 8)
+    တည်ဆောက် ဒသမ* dxnf = calloc(T*D, 8)
+    တည်ဆောက် ဒသမ* dx_cur = calloc(T*D, 8)
+    တည်ဆောက် ဒသမ* dx_prev_buf = calloc(T*D, 8)
+    တည်ဆောက် ဒသမ* dm1 = calloc(1, 8)  တည်ဆောက် ဒသမ* di1 = calloc(1, 8)
+
+    // Loop vars (hoisted to function top per MMC scoping rules)
+    တည်ဆောက် ကိန်း t = 0  တည်ဆောက် ကိန်း d = 0  တည်ဆောက် ကိန်း v = 0  တည်ဆောက် ကိန်း i = 0
+
+        // ===== Multi-step loop =====
+    တည်ဆောက် ကိန်း s = 0
+    ပြည့်အောင်(s < N_STEPS) {
+    t = 0
+    ပြည့်အောင်(t < T) {
+    ids[t] = ids_multi[s*T + t]
+    tg[t] = tg_multi[s*T + t]
+    t = t + 1
+    }
+    zero_double(gWqkv, L*3*D*D)
+    zero_double(gbqkv, L*3*D)
+    zero_double(gWo, L*D*D)
+    zero_double(gbo, L*D)
+    zero_double(gW1, L*DFF*D)
+    zero_double(gb1, L*DFF)
+    zero_double(gW2, L*D*DFF)
+    zero_double(gb2, L*D)
+    zero_double(gln1w, L*D)
+    zero_double(gln1b, L*D)
+    zero_double(gln2w, L*D)
+    zero_double(gln2b, L*D)
+    zero_double(g_wte, V*D)
+    zero_double(g_wpe, TMAX*D)
+    zero_double(g_lnfw, D)
+    zero_double(g_lnfb, D)
+// ===== Forward: xs[0] = emb, xs[1..L] = block outputs =====
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) { xs[t*D+d] = wte[ids[t]*D+d] + wpe[t*D+d]  d = d + 1 }
+        t = t + 1
+    }
+    i = 0
+    ပြည့်အောင်(i < L) {
+        block_forward(xs + (i+1)*T*D, xs + i*T*D,
+            Wqkv_all+i*3*D*D, bqkv_all+i*3*D, Wo_all+i*D*D, bo_all+i*D,
+            W1_all+i*DFF*D, b1_all+i*DFF, W2_all+i*D*DFF, b2_all+i*D,
+            ln1w_all+i*D, ln1b_all+i*D, ln2w_all+i*D, ln2b_all+i*D,
+            T, D, DFF, H)
+        i = i + 1
+    }
+
+    // ===== LNf =====
+    t = 0
+    ပြည့်အောင်(t < T) { ln_fwd_row(xnf+t*D, xs+L*T*D+t*D, lnfw, lnfb, D, dm1, di1)  t = t + 1 }
+
+    // ===== Head (tied): logits = xnf @ wte.T =====
+    t = 0
+    ပြည့်အောင်(t < T) {
+        v = 0
+        ပြည့်အောင်(v < V) {
+            တည်ဆောက် ဒသမ s = 0.0
+            d = 0
+            ပြည့်အောင်(d < D) { s = s + xnf[t*D+d] * wte[v*D+d]  d = d + 1 }
+            logits[t*V+v] = s
+            v = v + 1
+        }
+        t = t + 1
+    }
+
+    // ===== CE loss + dlogits (mean over T) =====
+    တည်ဆောက် ဒသမ loss = 0.0
+    t = 0
+    ပြည့်အောင်(t < T) {
+        တည်ဆောက် ဒသမ mx = -1000000000.0
+        v = 0
+        ပြည့်အောင်(v < V) { သုံးသပ်ချက်အရ(logits[t*V+v] > mx) { mx = logits[t*V+v] }  v = v + 1 }
+        တည်ဆောက် ဒသမ se = 0.0
+        v = 0
+        ပြည့်အောင်(v < V) { se = se + exp(logits[t*V+v] - mx)  v = v + 1 }
+        loss = loss - ((logits[t*V+tg[t]] - mx) - log(se))
+        v = 0
+        ပြည့်အောင်(v < V) {
+            တည်ဆောက် ဒသမ p = exp(logits[t*V+v] - mx) / se
+            သုံးသပ်ချက်အရ(v == tg[t]) { dlogits[t*V+v] = (p - 1.0) / T }
+            သုံးသပ်ချက်အရ(v != tg[t]) { dlogits[t*V+v] = p / T }
+            v = v + 1
+        }
+        t = t + 1
+    }
+    loss = loss / T
+
+    // ===== Backward: head =====
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ s = 0.0
+            v = 0
+            ပြည့်အောင်(v < V) { s = s + dlogits[t*V+v] * wte[v*D+d]  v = v + 1 }
+            dxnf[t*D+d] = s
+            d = d + 1
+        }
+        t = t + 1
+    }
+    v = 0
+    ပြည့်အောင်(v < V) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            တည်ဆောက် ဒသမ s = 0.0
+            t = 0
+            ပြည့်အောင်(t < T) { s = s + dlogits[t*V+v] * xnf[t*D+d]  t = t + 1 }
+            g_wte[v*D+d] = s
+            d = d + 1
+        }
+        v = v + 1
+    }
+
+    // ===== Backward: LNf -> dx_L =====
+    t = 0
+    ပြည့်အောင်(t < T) { ln_bwd_row(dx_cur+t*D, g_lnfw, g_lnfb, dxnf+t*D, xs+L*T*D+t*D, lnfw, D, 0)  t = t + 1 }
+
+    // ===== Backward: blocks (reverse) =====
+    i = L - 1
+    ပြည့်အောင်(i >= 0) {
+        zero_double(dx_prev_buf, T*D)
+        block_fwd_bwd(dx_prev_buf,
+            gWqkv+i*3*D*D, gbqkv+i*3*D, gWo+i*D*D, gbo+i*D,
+            gW1+i*DFF*D, gb1+i*DFF, gW2+i*D*DFF, gb2+i*D,
+            gln1w+i*D, gln1b+i*D, gln2w+i*D, gln2b+i*D,
+            xs+i*T*D, Wqkv_all+i*3*D*D, bqkv_all+i*3*D, Wo_all+i*D*D, bo_all+i*D,
+            W1_all+i*DFF*D, b1_all+i*DFF, W2_all+i*D*DFF, b2_all+i*D,
+            ln1w_all+i*D, ln1b_all+i*D, ln2w_all+i*D, ln2b_all+i*D,
+            dx_cur, T, D, DFF, H)
+        တည်ဆောက် ဒသမ* dx_tmp = dx_cur
+        dx_cur = dx_prev_buf
+        dx_prev_buf = dx_tmp
+        i = i - 1
+    }
+    // dx_cur is now grad w.r.t. embedding output (xs[0])
+
+    // ===== Backward: emb =====
+    t = 0
+    ပြည့်အောင်(t < T) {
+        d = 0
+        ပြည့်အောင်(d < D) {
+            g_wte[ids[t]*D+d] = g_wte[ids[t]*D+d] + dx_cur[t*D+d]
+            g_wpe[t*D+d] = dx_cur[t*D+d]
+            d = d + 1
+        }
+        t = t + 1
+    }
+
+    // ===== Grad norm (monitoring) =====
+    တည်ဆောက် ဒသမ gtotal = 0.0
+    gtotal = gtotal + sumsq(gWqkv, L*3*D*D)
+    gtotal = gtotal + sumsq(gbqkv, L*3*D)
+    gtotal = gtotal + sumsq(gWo, L*D*D)
+    gtotal = gtotal + sumsq(gbo, L*D)
+    gtotal = gtotal + sumsq(gW1, L*DFF*D)
+    gtotal = gtotal + sumsq(gb1, L*DFF)
+    gtotal = gtotal + sumsq(gW2, L*D*DFF)
+    gtotal = gtotal + sumsq(gb2, L*D)
+    gtotal = gtotal + sumsq(gln1w, L*D)
+    gtotal = gtotal + sumsq(gln1b, L*D)
+    gtotal = gtotal + sumsq(gln2w, L*D)
+    gtotal = gtotal + sumsq(gln2b, L*D)
+    gtotal = gtotal + sumsq(g_wte, V*D)
+    gtotal = gtotal + sumsq(g_wpe, TMAX*D)
+    gtotal = gtotal + sumsq(g_lnfw, D)
+    gtotal = gtotal + sumsq(g_lnfb, D)
+    gtotal = sqrt(gtotal)
+
+    // ===== AdamW (step = global optimizer step for bias correction) =====
+    i = 0
+    ပြည့်အောင်(i < L) {
+        adamw(Wqkv_all+i*3*D*D, gWqkv+i*3*D*D, mWqkv+i*3*D*D, vWqkv+i*3*D*D, 3*D*D, step, lr, b1c, b2c, eps, wd)
+        adamw(bqkv_all+i*3*D, gbqkv+i*3*D, mbqkv+i*3*D, vbqkv+i*3*D, 3*D, step, lr, b1c, b2c, eps, wd)
+        adamw(Wo_all+i*D*D, gWo+i*D*D, mWo+i*D*D, vWo+i*D*D, D*D, step, lr, b1c, b2c, eps, wd)
+        adamw(bo_all+i*D, gbo+i*D, mbo+i*D, vbo+i*D, D, step, lr, b1c, b2c, eps, wd)
+        adamw(W1_all+i*DFF*D, gW1+i*DFF*D, mW1+i*DFF*D, vW1+i*DFF*D, DFF*D, step, lr, b1c, b2c, eps, wd)
+        adamw(b1_all+i*DFF, gb1+i*DFF, mb1+i*DFF, vb1+i*DFF, DFF, step, lr, b1c, b2c, eps, wd)
+        adamw(W2_all+i*D*DFF, gW2+i*D*DFF, mW2+i*D*DFF, vW2+i*D*DFF, D*DFF, step, lr, b1c, b2c, eps, wd)
+        adamw(b2_all+i*D, gb2+i*D, mb2+i*D, vb2+i*D, D, step, lr, b1c, b2c, eps, wd)
+        adamw(ln1w_all+i*D, gln1w+i*D, mln1w+i*D, vln1w+i*D, D, step, lr, b1c, b2c, eps, wd)
+        adamw(ln1b_all+i*D, gln1b+i*D, mln1b+i*D, vln1b+i*D, D, step, lr, b1c, b2c, eps, wd)
+        adamw(ln2w_all+i*D, gln2w+i*D, mln2w+i*D, vln2w+i*D, D, step, lr, b1c, b2c, eps, wd)
+        adamw(ln2b_all+i*D, gln2b+i*D, mln2b+i*D, vln2b+i*D, D, step, lr, b1c, b2c, eps, wd)
+        i = i + 1
+    }
+    adamw(wte, g_wte, m_wte, v_wte, V*D, step, lr, b1c, b2c, eps, wd)
+    adamw(wpe, g_wpe, m_wpe, v_wpe, TMAX*D, step, lr, b1c, b2c, eps, wd)
+    adamw(lnfw, g_lnfw, m_lnfw, v_lnfw, D, step, lr, b1c, b2c, eps, wd)
+    adamw(lnfb, g_lnfb, m_lnfb, v_lnfb, D, step, lr, b1c, b2c, eps, wd)
+
+    // ===== Report =====
+    printf("loss = %.10f  gnorm = %.6f  step = %d  lr = %.2e\n", loss, gtotal, step, lr)
+
+    
+    step = step + 1
+    s = s + 1
+    }
+
+// ===== Save updated weights (out_ prefix; orchestrator renames) =====
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_Wqkv.bin", Wqkv_all, L*3*D*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_bqkv.bin", bqkv_all, L*3*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_Wo.bin", Wo_all, L*D*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_bo.bin", bo_all, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_W1.bin", W1_all, L*DFF*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_b1.bin", b1_all, L*DFF)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_W2.bin", W2_all, L*D*DFF)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_b2.bin", b2_all, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_ln1w.bin", ln1w_all, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_ln1b.bin", ln1b_all, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_ln2w.bin", ln2w_all, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_ln2b.bin", ln2b_all, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_wte.bin", wte, V*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_wpe.bin", wpe, TMAX*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_lnfw.bin", lnfw, D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_lnfb.bin", lnfb, D)
+
+    // ===== Save AdamW state (out_m_ / out_v_ prefix) =====
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_Wqkv.bin", mWqkv, L*3*D*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_Wqkv.bin", vWqkv, L*3*D*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_bqkv.bin", mbqkv, L*3*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_bqkv.bin", vbqkv, L*3*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_Wo.bin", mWo, L*D*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_Wo.bin", vWo, L*D*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_bo.bin", mbo, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_bo.bin", vbo, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_W1.bin", mW1, L*DFF*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_W1.bin", vW1, L*DFF*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_b1.bin", mb1, L*DFF)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_b1.bin", vb1, L*DFF)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_W2.bin", mW2, L*D*DFF)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_W2.bin", vW2, L*D*DFF)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_b2.bin", mb2, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_b2.bin", vb2, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_ln1w.bin", mln1w, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_ln1w.bin", vln1w, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_ln1b.bin", mln1b, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_ln1b.bin", vln1b, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_ln2w.bin", mln2w, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_ln2w.bin", vln2w, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_ln2b.bin", mln2b, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_ln2b.bin", vln2b, L*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_wte.bin", m_wte, V*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_wte.bin", v_wte, V*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_wpe.bin", m_wpe, TMAX*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_wpe.bin", v_wpe, TMAX*D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_lnfw.bin", m_lnfw, D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_lnfw.bin", v_lnfw, D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_m_lnfb.bin", m_lnfb, D)
+    sv64("/home/meonnmi-0ps/mmc_wsl/mmc_publish/ref/full_test/out_v_lnfb.bin", v_lnfb, D)
+
+    printf("=== train_full DONE ===\n")
+    ပြန်ပေး 0
+}
