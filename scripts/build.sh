@@ -1,27 +1,10 @@
-#!/usr/bin/env bash
-# Build pure-MMC nyanlin runtime with -O2.  usage: scripts/build.sh [tag]
+#!/bin/sh
+# scripts/build.sh — MMC compiler rebuild + fixpoint verify (proven chain)
 set -e
 cd "$(dirname "$0")/.."
-V=${1:-runtime_current}
-./build/mmc_v13 src/runtime_mmc.mmc build/${V}.c
-sed '/#include "runtime_v5.h"/d; /#include "runtime_glue.h"/d' build/${V}.c > build/${V}_standalone.c
-python3 - "$V" << 'PY'
-import sys
-from pathlib import Path
-v = sys.argv[1]
-p = Path('build') / f'{v}_standalone.c'
-code = p.read_text()
-s = code.find('int main(int argc, char** argv)')
-if s >= 0:
-    bs = code.find('{', s); d = 0; e = -1
-    for i in range(bs, len(code)):
-        if code[i] == '{': d += 1
-        elif code[i] == '}':
-            d -= 1
-            if d == 0: e = i + 1; break
-    p.write_text(code[:s] + code[e:])
-    print('✅ main stripped')
-PY
-gcc -O2 -c build/${V}_standalone.c -I . -o build/${V}.o
-gcc -O2 src/cli.c build/${V}.o -o build/nyanlin -lm
-echo "✅ build/nyanlin  (MMC $V, -O2)"
+./bin/mmc src/compiler_v14.mmc build/compiler_gen.c
+gcc -O2 -I runtime build/compiler_gen.c runtime/runtime_v5.c runtime/runtime_glue.c -o build/mmc_build -lm
+./build/mmc_build src/compiler_v14.mmc build/compiler_verify.c
+diff -q build/compiler_gen.c build/compiler_verify.c || { echo "FIXPOINT FAIL"; exit 1; }
+cp build/mmc_build bin/mmc
+echo "=== bin/mmc updated — FIXPOINT OK ==="
