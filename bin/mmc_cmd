@@ -1,0 +1,122 @@
+#!/bin/bash
+# ============================================================
+#  mmc — မြန်မာကွန်မန့် ကိရိယာ v1
+#  မြန်မာဘာသာ Programming Language (MMC) ကို တိုက်ရိုက် ကိုင်တွယ်ရန်
+#  အတွင်းပိုင်း bash/gcc/git က ယာယီ — နောက် MMC နဲ့ ပြန်ရေးမယ်
+# ============================================================
+MMC_HOME="${MMC_HOME:-$HOME/mmc_wsl/mmc_publish}"
+CC="$MMC_HOME/bin/mmc"
+
+show_help() {
+cat <<'HELP_EOF'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  mmc — မြန်မာဘာသာ Programming Language ကိရိယာ (v1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  mmc အကူ                 → အသုံးပြုနည်း (ဒီစာ)
+  mmc အခြေ                → ပရောဂျက် လက်ရှိ အခြေအနေ ကြည့်
+  mmc ဆောက် <f.mmc>       → MMC ဖိုင်ကို ဆောက် (compile)
+  mmc ပြေး <f.mmc>        → ဆောက်ပြီး ချက်ချင်း ပြေးဆွဲ
+  mmc မြင် <f> <စ> <ဆုံး>  → ဖိုင်ထဲက လိုင်းများ ကြည့်
+  mmc ရှာ <စကားလုံး> <f>   → ဖိုင်ထဲမှာ စကားလုံး ရှာ
+  mmc စစ်                 → compiler က ကိုယ့်ကိုယ်ကို ပြန်ဆောက်နိုင်လား
+  mmc သိမ်း "<မှတ်ချက်>"   → အလုပ်တွေ သိမ်းဆည်း (commit)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HELP_EOF
+}
+
+cmd_status() {
+  echo "━━━ MMC ပရောဂျက် အခြေအနေ ━━━"
+  if [ -x "$CC" ]; then
+    echo "၁။ Compiler ရှိပြီ ($CC, $(du -h "$CC" | cut -f1))"
+  else
+    echo "၁။ Compiler မတွေ့ — ./scripts/build.sh နဲ့ အရင် ဆောက်ရမယ်"
+  fi
+  echo -n "၂။ နောက်ဆုံး သိမ်းဆည်းမှု: "
+  git -C "$MMC_HOME" log --oneline -1 2>/dev/null || echo "(မှတ်တမ်း မတွေ့)"
+  echo "၃။ မသိမ်းရသေးသော ပြောင်းလဲမှု: $(git -C "$MMC_HOME" status --porcelain 2>/dev/null | wc -l) ခု"
+  command -v nvidia-smi >/dev/null 2>&1 && echo "၄။ GPU: $(nvidia-smi -L 2>/dev/null | head -1)"
+  [ -f "$MMC_HOME/src/compiler_v14.mmc" ] && echo "၅။ Compiler source: $(wc -l < "$MMC_HOME/src/compiler_v14.mmc") လိုင်း (မြန်မာလို)"
+}
+
+cmd_build() {
+  local f="$1"
+  [ -f "$f" ] || { echo "ဖိုင် မတွေ့ပါ: $f"; return 1; }
+  if grep -q 'ကမ္ဘာလုံး' "$f"; then
+    echo "ဒီဖိုင်ထဲ GPU kernel (ကမ္ဘာလုံး) ပါနေတယ် — v1 နဲ့ ဆောက်လို့ မရသေး"
+    echo "(GPU ဖိုင်တွေကို ယာယီ နည်းနဲ့ ဆက်ပြေးပြမယ် — nvcc အဆင့် လိုအပ်)"
+    return 1
+  fi
+  local out="/tmp/mmc_run_$(basename "$f" .mmc)"
+  echo "၁။ MMC compiler နဲ့ ဘာသာပြန်နေတယ်: $f → ${out}.c"
+  if "$CC" "$f" "${out}.c" > /tmp/mmc_mc.log 2>&1; then
+    echo "    အောင်မြင် ($(wc -l < "${out}.c") လိုင်း)"
+  else
+    echo "    မအောင်မြင် — အသေးစိတ်:"; head -10 /tmp/mmc_mc.log; return 1
+  fi
+  echo "၂။ C ကို စက်နားလည်မယ့် ဘာသာ အဖြစ် ပြောင်းနေတယ် (gcc) ..."
+  if gcc -O2 "${out}.c" -o "$out" -lm 2> /tmp/mmc_gcc.log; then
+    echo "    အောင်မြင် → $out"
+    echo "ပြေးဖို့: mmc ပြေး $f"
+  else
+    echo "    မအောင်မြင် — အသေးစိတ်:"; head -15 /tmp/mmc_gcc.log; return 1
+  fi
+}
+
+cmd_run() {
+  cmd_build "$1" || return 1
+  local out="/tmp/mmc_run_$(basename "$1" .mmc)"
+  echo "၃။ ပြေးဆွဲနေတယ် ..."
+  echo "──────── ရလဒ် ────────"
+  "$out"
+  local rc=$?
+  echo "──────── ပြီး ────────"
+  [ $rc -eq 0 ] && echo "ပြေးဆွဲ အောင်မြင်" || echo "ပြေးဆွဲရင်း အမှား ထွက်ခဲ့ (code $rc)"
+  return $rc
+}
+
+cmd_view() {
+  local f="$1" a="${2:-1}" b="${3:-80}"
+  [ -f "$f" ] || { echo "ဖိုင် မတွေ့ပါ: $f"; return 1; }
+  if [ $((b - a + 1)) -gt 120 ]; then b=$((a + 119)); echo "(တစ်ခါ လိုင်း 120 ပဲ ပြလို့ — ဆက်ကြည့်ရန် နောက် အပိုင်း မေးပါ)"; fi
+  echo "── $f (လိုင်း $a ကနေ $b) ──"
+  awk -v s="$a" -v e="$b" 'NR>=s && NR<=e {printf "%d: %s\n", NR, $0}' "$f"
+}
+
+cmd_find() {
+  [ -n "$1" ] && [ -n "$2" ] || { echo 'သုံးပုံ: mmc ရှာ <စကားလုံး> <ဖိုင်>'; return 1; }
+  echo "── '$1' တွေ့သော နေရာများ ($2) ──"
+  grep -n "$1" "$2" | head -30
+}
+
+cmd_check() {
+  echo "Compiler က ကိုယ့်ကိုယ်ကို နှစ်ခေါက် ပြန်ဆောက်ပြီး အတိအကျ တူ/မတူ စစ်နေတယ်..."
+  if "$MMC_HOME/scripts/build.sh" > /tmp/mmc_fix.log 2>&1; then
+    echo "အောင်မြင် — compiler က ကိုယ့်ကိုယ်ကို အတိအကျ ပြန်ဆောက်နိုင်တယ် (fixpoint ပြီးပြီ)"
+  else
+    echo "မအောင်မြင် — စစ်ကြည့်ရန်: mmc မြင် /tmp/mmc_fix.log 1 40"
+  fi
+}
+
+cmd_save() {
+  local msg="$1"
+  [ -n "$msg" ] || { echo 'သုံးပုံ: mmc သိမ်း "<မှတ်ချက်>" — ဥပမာ: mmc သိမ်း "gelu kernel ပြင်ပြီ"'; return 1; }
+  git -C "$MMC_HOME" add -A
+  if git -C "$MMC_HOME" commit -m "$msg" > /dev/null 2>&1; then
+    echo "သိမ်းပြီး — မှတ်ချက်: $msg"
+    git -C "$MMC_HOME" push > /dev/null 2>&1 && echo "GitHub ကိုပါ တင်ပြီး" || echo "(GitHub တင်တာ မအောင်မြင် — internet ကြည့်ပါ၊ သိမ်းဆည်းမှုက လုံခြုံပြီးသား)"
+  else
+    echo "သိမ်းစရာ ပြောင်းလဲမှု မရှိ (ဒါမှမဟုတ် အမှား ရှိ)"
+  fi
+}
+
+case "$1" in
+  ""|အကူ|help|-h) show_help ;;
+  အခြေ|status) cmd_status ;;
+  ဆောက်|build) shift; cmd_build "$@" ;;
+  ပြေး|run) shift; cmd_run "$@" ;;
+  မြင်|view) shift; cmd_view "$@" ;;
+  ရှာ|find) shift; cmd_find "$@" ;;
+  စစ်|check) cmd_check ;;
+  သိမ်း|save) shift; cmd_save "$@" ;;
+  *) echo "မသိသော အမိန့်: $1"; echo ""; show_help; exit 1 ;;
+esac

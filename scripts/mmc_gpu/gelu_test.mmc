@@ -1,0 +1,35 @@
+ကမ္ဘာလုံး လုပ်ငန်း gelu_kernel(ဒသမ* x, ဒသမ* y, ကိန်း n) void {
+    တည်ဆောက် ကိန်း i = MMC_TID
+    သုံးသပ်ချက်အရ(i < n) {
+        တည်ဆောက် ဒသမ v = x[i]
+        y[i] = 0.5 * v * (1.0 + tanh(0.7978845608 * (v + 0.044715 * v * v * v)))
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ဒသမ* hx = mmc_malloc(64)
+    တည်ဆောက် ဒသမ* hy = mmc_malloc(64)
+    တည်ဆောက် ဒသမ* dx = mmc_gpu_malloc(64)
+    တည်ဆောက် ဒသမ* dy = mmc_gpu_malloc(64)
+    တည်ဆောက် ကိန်း n = 8
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        hx[i] = i * 0.5 - 1.5
+        i = i + 1
+    }
+    mmc_gpu_copy_to(dx, hx, 64)
+    mmc_gpu_launch2pi(gelu_kernel, dx, dy, n, 1, 8)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hy, dy, 64)
+    i = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(i < n) {
+        တည်ဆောက် ဒသမ r = 0.5 * hx[i] * (1.0 + tanh(0.7978845608 * (hx[i] + 0.044715 * hx[i] * hx[i] * hx[i])))
+        တည်ဆောက် ဒသမ diff = hy[i] - r
+        သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+        printf("%d: gpu=%f  cpu=%f\n", i, hy[i], r)
+        သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+        i = i + 1
+    }
+    သုံးသပ်ချက်အရ(bad == 0) { printf("GELU MATCH — GPU = CPU\n") }
+    ပြန်ပေး bad
+}

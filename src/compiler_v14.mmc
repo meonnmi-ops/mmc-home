@@ -2022,7 +2022,11 @@
         result = mmc_string_concat(result, node->value_str)
         သုံးသပ်ချက်အရ(mmc_array_size(node->children) > 0) {
             တည်ဆောက် ASTNode* init = mmc_array_get(node->children, 0)
-            result = mmc_string_concat(result, mmc_string_concat(" = ", gen_expr(init)))
+            သုံးသပ်ချက်အရ(mmc_string_length(node->type_str) > 0 နှင့် node->type_str[mmc_string_length(node->type_str) - 1] == '*') {
+                result = mmc_string_concat(result, mmc_string_concat(" = (", mmc_string_concat(node->type_str, mmc_string_concat(")(", mmc_string_concat(gen_expr(init), ")")))))
+            } မဟုတ်လျှင် {
+                result = mmc_string_concat(result, mmc_string_concat(" = ", gen_expr(init)))
+            }
         } မဟုတ်လျှင် {
             သုံးသပ်ချက်အရ(mmc_string_length(node->type_str) > 0 နှင့် node->type_str[mmc_string_length(node->type_str) - 1] == '*') {
                 result = mmc_string_concat(result, " = NULL")

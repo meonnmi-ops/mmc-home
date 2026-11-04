@@ -1,0 +1,92 @@
+ကမ္ဘာလုံး လုပ်ငန်း ln_fwd_row(ဒသမ* x, ဒသမ* g, ဒသမ* b, ဒသမ* y, ကိန်း D, ဒသမ eps) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    တည်ဆောက် ဒသမ sum = 0
+    တည်ဆောက် ဒသမ mean = 0
+    တည်ဆောက် ဒသမ var = 0
+    တည်ဆောက် ဒသမ rstd = 0
+    တည်ဆောက် ဒသမ d = 0
+    j = 0
+    ပြည့်အောင်(j < D) {
+        sum = sum + x[row * D + j]
+        j = j + 1
+    }
+    mean = sum / D
+    var = 0
+    j = 0
+    ပြည့်အောင်(j < D) {
+        d = x[row * D + j] - mean
+        var = var + d * d
+        j = j + 1
+    }
+    var = var / D
+    rstd = 1.0 / sqrt(var + eps)
+    j = 0
+    ပြည့်အောင်(j < D) {
+        y[row * D + j] = (x[row * D + j] - mean) * rstd * g[j] + b[j]
+        j = j + 1
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း M = 2
+    တည်ဆောက် ကိန်း D = 4
+    တည်ဆောက် ဒသမ* hx = mmc_malloc(64)
+    တည်ဆောက် ဒသမ* hg = mmc_malloc(32)
+    တည်ဆောက် ဒသမ* hb = mmc_malloc(32)
+    တည်ဆောက် ဒသမ* hy = mmc_malloc(64)
+    တည်ဆောက် ဒသမ* dx = mmc_gpu_malloc(64)
+    တည်ဆောက် ဒသမ* dg = mmc_gpu_malloc(32)
+    တည်ဆောက် ဒသမ* db = mmc_gpu_malloc(32)
+    တည်ဆောက် ဒသမ* dy = mmc_gpu_malloc(64)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < 8) {
+        hx[i] = i * 0.1
+        i = i + 1
+    }
+    i = 8
+    ပြည့်အောင်(i < 12) {
+        hg[i - 8] = 1.0
+        hb[i - 8] = 0.0
+        i = i + 1
+    }
+    mmc_gpu_copy_to(dx, hx, 64)
+    mmc_gpu_copy_to(dg, hg, 32)
+    mmc_gpu_copy_to(db, hb, 32)
+    mmc_gpu_launch_ln(ln_fwd_row, dx, dg, db, dy, D, 0.000001, M)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hy, dy, 64)
+    တည်ဆောက် ကိန်း r = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(r < M) {
+        တည်ဆောက် ဒသမ sum = 0
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < D) {
+            sum = sum + hx[r * D + j]
+            j = j + 1
+        }
+        တည်ဆောက် ဒသမ mean = sum / D
+        တည်ဆောက် ဒသမ var = 0
+        တည်ဆောက် ဒသမ d = 0
+        တည်ဆောက် ဒသမ ref = 0
+        j = 0
+        ပြည့်အောင်(j < D) {
+            d = hx[r * D + j] - mean
+            var = var + d * d
+            j = j + 1
+        }
+        var = var / D
+        တည်ဆောက် ဒသမ rstd = 1.0 / sqrt(var + 0.000001)
+        j = 0
+        ပြည့်အောင်(j < D) {
+            ref = (hx[r * D + j] - mean) * rstd * hg[j] + hb[j]
+            d = hy[r * D + j] - ref
+            သုံးသပ်ချက်အရ(d < 0) { d = 0 - d }
+            printf("%f %f\n", hy[r * D + j], ref)
+            သုံးသပ်ချက်အရ(d > 0.000001) { bad = bad + 1 }
+            j = j + 1
+        }
+        r = r + 1
+    }
+    သုံးသပ်ချက်အရ(bad == 0) { printf("LN MATCH — GPU = CPU\n") }
+    ပြန်ပေး bad
+}

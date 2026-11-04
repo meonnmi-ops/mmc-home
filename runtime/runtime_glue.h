@@ -30,3 +30,17 @@ void* mmc_array_get(MMCArray* arr, int idx);
 }
 #endif
 int mmc_gpu_launch0(void (*kernel)(void));
+#ifndef MMC_GLUE_GPU_EXTRA
+#define MMC_GLUE_GPU_EXTRA
+#define MMC_TID (((int)blockIdx.x) * ((int)blockDim.x) + ((int)threadIdx.x))
+void* mmc_gpu_malloc(int bytes);
+int mmc_gpu_copy_to(void* dst, void* src, int bytes);
+int mmc_gpu_copy_from(void* dst, void* src, int bytes);
+int mmc_gpu_launch2pi_impl(void* kern, void* a, void* b, int n, int grid, int block);
+#define mmc_gpu_launch2pi(kern, a, b, n, grid, block) mmc_gpu_launch2pi_impl((void*)(kern), (a), (b), (n), (grid), (block))
+#endif
+#ifndef MMC_BID
+#define MMC_BID ((int)blockIdx.x)
+#endif
+int mmc_gpu_launch_ln_impl(void* kern, void* x, void* g, void* b, void* y, int D, double eps, int M);
+#define mmc_gpu_launch_ln(kern, x, g, b, y, D, eps, M) mmc_gpu_launch_ln_impl((void*)(kern), (x), (g), (b), (y), (D), (eps), (M))
