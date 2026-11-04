@@ -41,6 +41,18 @@ int mmc_gpu_launch2pi_impl(void* kern, void* a, void* b, int n, int grid, int bl
 #endif
 #ifndef MMC_BID
 #define MMC_BID ((int)blockIdx.x)
+
+/* matmul kernel launch — 3 pointers + 3 ints */
+int mmc_gpu_launch3p3i_impl(void* kern, void* a, void* b, void* c, int d1, int d2, int d3, int grid, int block);
+#define mmc_gpu_launch3p3i(kern, a, b, c, d1, d2, d3, grid, block) mmc_gpu_launch3p3i_impl((void*)(kern), (a), (b), (c), (d1), (d2), (d3), (grid), (block))
+/* benchmark timing (ms) */
+#ifdef __cplusplus
+extern "C" {
+#endif
+double mmc_now_ms(void);
+#ifdef __cplusplus
+}
+#endif
 #endif
 int mmc_gpu_launch_ln_impl(void* kern, void* x, void* g, void* b, void* y, int D, double eps, int M);
 #define mmc_gpu_launch_ln(kern, x, g, b, y, D, eps, M) mmc_gpu_launch_ln_impl((void*)(kern), (x), (g), (b), (y), (D), (eps), (M))

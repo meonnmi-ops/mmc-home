@@ -1,0 +1,48 @@
+ကမ္ဘာလုံး လုပ်ငန်း gelu_kernel(ဒသမ* x, ဒသမ* y, ကိန်း n) void {
+    တည်ဆောက် ကိန်း i = MMC_TID
+    သုံးသပ်ချက်အရ(i < n) {
+        တည်ဆောက် ဒသမ v = x[i]
+        y[i] = 0.5 * v * (1.0 + tanh(0.7978845608 * (v + 0.044715 * v * v * v)))
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း n = 10000000
+    တည်ဆောက် ကိန်း bytes = 80000000
+    တည်ဆောက် ဒသမ* hx = mmc_malloc(bytes)
+    တည်ဆောက် ဒသမ* hy = mmc_malloc(bytes)
+    တည်ဆောက် ဒသမ* hyc = mmc_malloc(bytes)
+    တည်ဆောက် ဒသမ* dx = mmc_gpu_malloc(bytes)
+    တည်ဆောက် ဒသမ* dy = mmc_gpu_malloc(bytes)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        hx[i] = i * 0.000001 - 5.0
+        i = i + 1
+    }
+    mmc_gpu_copy_to(dx, hx, bytes)
+    တည်ဆောက် ဒသမ t0 = mmc_now_ms()
+    mmc_gpu_launch2pi(gelu_kernel, dx, dy, n, 10000, 1000)
+    cudaDeviceSynchronize()
+    တည်ဆောက် ဒသမ t1 = mmc_now_ms()
+    mmc_gpu_copy_from(hy, dy, bytes)
+    printf("GELU GPU: n=%d time=%f ms\n", n, t1 - t0)
+    တည်ဆောက် ဒသမ t2 = mmc_now_ms()
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < n) {
+        တည်ဆောက် ဒသမ v = hx[j]
+        hyc[j] = 0.5 * v * (1.0 + tanh(0.7978845608 * (v + 0.044715 * v * v * v)))
+        j = j + 1
+    }
+    တည်ဆောက် ဒသမ t3 = mmc_now_ms()
+    printf("GELU CPU: n=%d time=%f ms\n", n, t3 - t2)
+    printf("GELU speedup = %f x\n", (t3 - t2) / (t1 - t0))
+    တည်ဆောက် ကိန်း bad = 0
+    တည်ဆောက် ကိန်း c = 0
+    ပြည့်အောင်(c < n) {
+        တည်ဆောက် ဒသမ d = hy[c] - hyc[c]
+        သုံးသပ်ချက်အရ(d < 0) { d = 0 - d }
+        သုံးသပ်ချက်အရ(d > 0.000001) { bad = bad + 1 }
+        c = c + 1
+    }
+    သုံးသပ်ချက်အရ(bad == 0) { printf("GELU BENCH MATCH — GPU = CPU\n") }
+    ပြန်ပေး bad
+}

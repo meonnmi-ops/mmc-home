@@ -46,3 +46,14 @@ int mmc_gpu_launch_ln_impl(void* kern, void* x, void* g, void* b, void* y, int D
     }
     return 0;
 }
+
+/* matmul kernel launch — 3 pointers + 3 ints */
+int mmc_gpu_launch3p3i_impl(void* kern, void* a, void* b, void* c, int d1, int d2, int d3, int grid, int block) {
+    void* args[] = {&a, &b, &c, &d1, &d2, &d3};
+    cudaError_t err = cudaLaunchKernel(kern, dim3(grid), dim3(block), args, 0, 0);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "mmc_gpu_launch3p3i_impl error: %s\n", cudaGetErrorString(err));
+        return -1;
+    }
+    return 0;
+}
