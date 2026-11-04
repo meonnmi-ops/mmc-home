@@ -135,3 +135,56 @@ MIT — see LICENSE file.
 ## 🙏 Credits
 
 Built with love for the Myanmar developer community. 🇲🇲
+
+## 🚀 GPU လမ်းညွှန် (ကမ္ဘာလုံး = CUDA Kernel)
+
+MMC ကနေ NVIDIA GPU ပေါ် တိုက်ရိုက် ပြေးနိုင်တယ် — No Fake, No Simulate — အောက်မှာ ပြထားတဲ့ ရလဒ်အားလုံးကို GTX 1660 Ti (sm_75) ပေါ်မှာ တကယ်ပြေး အတည်ပြုပြီးသား။
+
+### ၁။ Kernel ရေးပုံ — ကမ္ဘာလုံး
+
+    ကမ္ဘာလုံး လုပ်ငန်း gelu_kernel(ဒသမ* x, ဒသမ* y, ကိန်း n) void {
+        တည်ဆောက် ကိန်း i = MMC_TID
+        သုံးသပ်ချက်အရ(i < n) {
+            တည်ဆောက် ဒသမ v = x[i]
+            y[i] = 0.5 * v * (1.0 + tanh(0.7978845608 * (v + 0.044715 * v * v * v)))
+        }
+    }
+
+- ကမ္ဘာလုံး လုပ်ငန်း → C code ထဲမှာ __global__ void ဖြစ်သွားတယ်
+- MMC_TID = thread အညွှန်း (blockIdx.x × blockDim.x + threadIdx.x)
+- MMC_BID = block အညွှန်း — row အလိုက် လုပ်ငန်း (LayerNorm) အတွက်
+
+### ၂။ GPU runtime လုပ်ငန်းများ
+
+| လုပ်ငန်း | အလုပ် |
+|---|---|
+| mmc_gpu_malloc(bytes) | GPU memory ချုပ် |
+| mmc_gpu_copy_to(dev, host, bytes) | host → GPU ကူး |
+| mmc_gpu_copy_from(host, dev, bytes) | GPU → host ကူး |
+| mmc_gpu_launch2pi(kern, a, b, n, grid, block) | kernel ဖွင့် (pointer ၂ + int ၁) |
+| mmc_gpu_launch_ln(kern, x, g, b, y, D, eps, M) | LayerNorm kernel ဖွင့် (M = row အရေအတွက်) |
+| mmc_gpu_launch3p3i(kern, a, b, c, M, N, K, grid, block) | Matmul kernel ဖွင့် |
+| cudaDeviceSynchronize() | GPU ပြီးအောင် စောင့် |
+| mmc_now_ms() | အချိန်တိုင်း (ms) — benchmark အတွက် |
+
+### ၃။ ပြေးပုံ — အဆင့် ၃ ဆင့်
+
+    ./bin/mmc my_gpu.mmc my_gpu.c
+    cp my_gpu.c my_gpu.cu
+    nvcc -O2 -arch=sm_75 -I runtime my_gpu.cu runtime/runtime_v5.c runtime/runtime_glue.c runtime/runtime_gpu.cu -o my_gpu -lm
+    ./my_gpu
+
+လိုအပ်တာ — WSL ထဲမှာ CUDA toolkit (nvcc --version) နဲ့ NVIDIA driver (nvidia-smi) ရှိရမယ်။
+
+### ၄။ စမ်းသပ်မှု ရလဒ်များ — GPU = CPU အားလုံး
+
+| စမ်းသပ်မှု | အရွယ်အစား | ရလဒ် |
+|---|---|---|
+| GELU | ၈ တန်ဖိုး | GPU = CPU ✓ |
+| LayerNorm | ၂ row × ၄ | GPU = CPU ✓ |
+| Softmax | row လိုက် | GPU = CPU ✓ |
+| Matmul | 64×64×64 | GPU = CPU ✓ |
+| GELU Benchmark | ၁၀,၀၀၀,၀၀၀ | GPU 8.6ms vs CPU 406ms — 47.4x မြန် ✓ |
+| LayerNorm Benchmark | 50,000×256 | GPU 43.8ms vs CPU 228ms — 5.2x မြန် ✓ |
+
+စမ်းသပ်ဖိုင်များ — scripts/mmc_gpu/ ထဲမှာ — gelu_test.mmc, ln_row_test.mmc, sm_row_test.mmc, mm_row_test.mmc, bench_gelu.mmc, bench_ln.mmc
