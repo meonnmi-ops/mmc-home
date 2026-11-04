@@ -1,0 +1,47 @@
+ကမ္ဘာလုံး လုပ်ငန်း relu_kernel(ဒသမ* x, ဒသမ* y, ကိန်း n) void {
+    တည်ဆောက် ကိန်း i = MMC_TID
+    သုံးသပ်ချက်အရ(i < n) {
+        သုံးသပ်ချက်အရ(x[i] > 0) {
+            y[i] = x[i]
+        } မဟုတ်လျှင် {
+            y[i] = 0
+        }
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း n = 1000000
+    တည်ဆောက် ဒသမ* hx = mmc_malloc(8000000)
+    တည်ဆောက် ဒသမ* hy = mmc_malloc(8000000)
+    တည်ဆောက် ဒသမ* dx = mmc_gpu_malloc(8000000)
+    တည်ဆောက် ဒသမ* dy = mmc_gpu_malloc(8000000)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        hx[i] = i * 0.001 - 500.0
+        i = i + 1
+    }
+    mmc_gpu_copy_to(dx, hx, 8000000)
+    mmc_gpu_launch2pi(relu_kernel, dx, dy, n, 1000, 1000)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hy, dy, 8000000)
+    i = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(i < n) {
+        တည်ဆောက် ဒသမ ref = 0
+        သုံးသပ်ချက်အရ(hx[i] > 0) {
+            ref = hx[i]
+        }
+        တည်ဆောက် ဒသမ diff = hy[i] - ref
+        သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+        သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+        i = i + 1
+    }
+    တည်ဆောက် ကိန်း k = 0
+    ပြည့်အောင်(k < 4) {
+        printf("%d: gpu=%f cpu=%f\n", 499999 + k, hy[499999 + k], hx[499999 + k])
+        k = k + 1
+    }
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("RELU MATCH — GPU = CPU (1000000 တန်ဖိုး)\n")
+    }
+    ပြန်ပေး bad
+}

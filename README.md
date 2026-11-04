@@ -132,9 +132,6 @@ MIT — see LICENSE file.
 
 ---
 
-## 🙏 Credits
-
-Built with love for the Myanmar developer community. 🇲🇲
 
 ## 🚀 GPU လမ်းညွှန် (ကမ္ဘာလုံး = CUDA Kernel)
 
@@ -188,3 +185,8 @@ MMC ကနေ NVIDIA GPU ပေါ် တိုက်ရိုက် ပြေ�
 | LayerNorm Benchmark | 50,000×256 | GPU 43.8ms vs CPU 228ms — 5.2x မြန် ✓ |
 
 စမ်းသပ်ဖိုင်များ — scripts/mmc_gpu/ ထဲမှာ — gelu_test.mmc, ln_row_test.mmc, sm_row_test.mmc, mm_row_test.mmc, bench_gelu.mmc, bench_ln.mmc
+
+## 🙏 Credits
+
+Built with love for the Myanmar developer community. 🇲🇲
+

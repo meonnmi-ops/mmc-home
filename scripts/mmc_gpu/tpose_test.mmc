@@ -1,0 +1,47 @@
+ကမ္ဘာလုံး လုပ်ငန်း tpose_row(ဒသမ* a, ဒသမ* b, ကိန်း n) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < n) {
+        b[j * n + row] = a[row * n + j]
+        j = j + 1
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း n = 512
+    တည်ဆောက် ကိန်း nn = 262144
+    တည်ဆောက် ဒသမ* ha = mmc_malloc(2097152)
+    တည်ဆောက် ဒသမ* hb = mmc_malloc(2097152)
+    တည်ဆောက် ဒသမ* da = mmc_gpu_malloc(2097152)
+    တည်ဆောက် ဒသမ* db = mmc_gpu_malloc(2097152)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < nn) {
+        ha[i] = i * 0.01
+        i = i + 1
+    }
+    mmc_gpu_copy_to(da, ha, 2097152)
+    mmc_gpu_launch2pi(tpose_row, da, db, n, 512, 1)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hb, db, 2097152)
+    တည်ဆောက် ကိန်း r = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(r < n) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < n) {
+            တည်ဆောက် ဒသမ ref = ha[r * n + j]
+            တည်ဆောက် ဒသမ diff = hb[j * n + r] - ref
+            သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+            သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+            j = j + 1
+        }
+        r = r + 1
+    }
+    တည်ဆောက် ကိန်း k = 0
+    ပြည့်အောင်(k < 4) {
+        printf("%d: gpu=%f cpu=%f\n", k, hb[k * n], ha[k])
+        k = k + 1
+    }
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("TRANSPOSE MATCH — GPU = CPU (512x512 = 262144 တန်ဖိုး)\n")
+    }
+    ပြန်ပေး bad
+}

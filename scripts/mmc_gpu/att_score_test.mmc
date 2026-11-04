@@ -1,0 +1,63 @@
+ကမ္ဘာလုံး လုပ်ငန်း att_row(ဒသမ* q, ဒသမ* k, ဒသမ* s, ကိန်း m, ကိန်း n, ကိန်း d) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < n) {
+        တည်ဆောက် ဒသမ acc = 0
+        တည်ဆောက် ကိန်း t = 0
+        ပြည့်အောင်(t < d) {
+            acc = acc + q[row * d + t] * k[j * d + t]
+            t = t + 1
+        }
+        s[row * n + j] = acc * 0.25
+        j = j + 1
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း m = 64
+    တည်ဆောက် ကိန်း d = 16
+    တည်ဆောက် ဒသမ* hq = mmc_malloc(8192)
+    တည်ဆောက် ဒသမ* hk = mmc_malloc(8192)
+    တည်ဆောက် ဒသမ* hs = mmc_malloc(32768)
+    တည်ဆောက် ဒသမ* dq = mmc_gpu_malloc(8192)
+    တည်ဆောက် ဒသမ* dk = mmc_gpu_malloc(8192)
+    တည်ဆောက် ဒသမ* ds = mmc_gpu_malloc(32768)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < 1024) {
+        hq[i] = i * 0.01 - 5.0
+        hk[i] = i * 0.02 - 10.0
+        i = i + 1
+    }
+    mmc_gpu_copy_to(dq, hq, 8192)
+    mmc_gpu_copy_to(dk, hk, 8192)
+    mmc_gpu_launch3p3i(att_row, dq, dk, ds, m, m, d, m, 1)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hs, ds, 32768)
+    တည်ဆောက် ကိန်း r = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(r < m) {
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < m) {
+            တည်ဆောက် ဒသမ acc = 0
+            တည်ဆောက် ကိန်း t = 0
+            ပြည့်အောင်(t < d) {
+                acc = acc + hq[r * d + t] * hk[j * d + t]
+                t = t + 1
+            }
+            တည်ဆောက် ဒသမ ref = acc * 0.25
+            တည်ဆောက် ဒသမ diff = hs[r * m + j] - ref
+            သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+            သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+            j = j + 1
+        }
+        r = r + 1
+    }
+    တည်ဆောက် ကိန်း k2 = 0
+    ပြည့်အောင်(k2 < 4) {
+        printf("%d: gpu=%f\n", k2, hs[k2])
+        k2 = k2 + 1
+    }
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("ATTENTION MATCH — GPU = CPU (64x64 scores, d=16)\n")
+    }
+    ပြန်ပေး bad
+}
