@@ -3,6 +3,8 @@
 > မြန်မာစာ keyword တွေနဲ့ ရေးထားတဲ့ programming language —
 > C ကို compile လုပ်တယ်။ **Self-hosting** (fixpoint verified)။
 
+> 🚀 **GPU ပေါ် ပြေးချင်ပါသလား?** — GPU လမ်းညွှန် (မြန်မာလို) ဒီ README ထဲမှာ ရှိပါတယ် — GTX 1660 Ti: GELU 47.4x, LayerNorm 5.2x ✅
+
 ---
 
 ## 🏆 Self-Hosting Proof
