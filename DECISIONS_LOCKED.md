@@ -111,3 +111,11 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - row 0 ရဲ့ dS တွေ အားလုံး 0 — position 0 က ကိုယ့်ကိုယ်ကိုပဲ မြင်လို့ softmax gradient သုံ (သင်္ချာအရ မှန်)
 - dQ (128), dK (128), dV (128), dS (64) အားလုံး GPU = CPU ✓ (1e-6)
 - run_all.sh — test ၁၇ ဖိုင် အားလုံး PASS
+## 2026-11-05 — Attention with learnable projections (GPU=CPU)
+- Q = x·Wq, K = x·Wk, V = x·Wv (locked mm_k) — Wq Wk Wv က learnable weight (16×16 စီ)
+- ပြီးမှ locked causal attention chain — att_row → mask_row → softmax_row → O = A·V
+- kernel အသစ် ၀ — locked ၄ ခုရဲ့ သန့်သန့် ပေါင်းစပ် (composition)
+- Q (128), K (128), V (128), S (64), A (64), O (128) အားလုံး GPU = CPU ✓ (1e-6)
+- A အပေါ်တြိဂံ 28/28 = 0, row sum 1.0, O[0] = V[0] အတိအကျ — projection တွေကြားထဲမှာလည်း causal မှန်
+- နောက် task — Wq Wk Wv ကို AdamW နဲ့ train (task-q — attention ၁ ဆင့် training)
+- run_all.sh — test ၁၈ ဖိုင် အားလုံး PASS
