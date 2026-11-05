@@ -130,3 +130,12 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - loss 1.274930 → 1.210640 — LOSS DECREASED — attention တစ်ခုလုံးကို GPU ပေါ်မှာ train လို့ရပြီ
 - dS အပေါ်တြိဂံ 28/28 = 0, dQ row 0 အားလုံး 0 — causal gradient block ဆက်တည်ရှိ
 - run_all.sh — test ၁၉ ဖိုင် အားလုံး PASS
+## 2026-11-06 — Attention training loop (GPU=CPU)
+- task-q ရဲ့ ၁ ဆင့်ကို ၁၀ ဆင့် loop အဖြစ် တိုးချဲ့ — kernel အသစ် ၀ ခု၊ locked kernels အားလုံး ပြန်သုံး
+- AdamW state (m v) GPU ပေါ်မှာ step တွေကြား တည်ရှိ — adamw_k recurrence m=0.9m+0.1g, v=0.999v+0.001g²
+- tstep 1→10 — bias correction pow(0.9,t) pow(0.999,t) တစ်ဆင့်ချင်း ပြောင်း
+- forward + backward + update တစ်ပတ်လုံး MMC loop ထဲမှာ — ၂၂ launch × ၁၀ ဆင့်
+- loss တစ်ဆင့်ချင်း GPU = CPU ✓ (1e-6) — final Wq Wk Wv + m v + step-10 dO dW အားလုံး GPU = CPU ✓
+- loss 1.274930 → 0.958722 — ၁၀ ဆင့်လုံး ဆင့်ချင်းကျ — step 1/2 တန်ဖိုးတွေ task-q နဲ့ အတိကျတူ
+- bug fix — hOs copy မှာ byte ၁၂၈ (တန်ဖိုး ၁၆) ပဲကူးမိ — ၁၀၂၄ နဲ့ ပြင် — GPU compute က အစကတည်းက မှန်ခဲ့
+- run_all.sh — test ၂၀ ဖိုင် အားလုံး PASS
