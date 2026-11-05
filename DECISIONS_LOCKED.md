@@ -83,3 +83,9 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - ဒုတိယ forward: Y2 = X·W_new → P2 — CE loss ကျဆင်းမှု စစ်ဆေး (loss0 → loss1 ကျ)
 - Y, P, dP, dW, W_new, mv, Y2, P2 အားလုံး GPU = CPU ✓
 - run_all.sh — test ၁၃ ဖိုင် အားလုံး PASS
+## 2026-11-05 — Training loop ၁၀ အဆင့် (တစ်ဆင့်ချင်း GPU=CPU)
+- task-k training step ကို loop အဖြစ် တိုး — step ၁ ကနေ ၁၀
+- တစ်ဆင့်ချင်းစီမှာ P, dW, W_new, mv အားလုံး GPU = CPU ✓ (1e-6, 2304 တန်ဖိုး/step)
+- AdamW t = step (1..10) — mv momentum သည် step တွေကြား ဆက်တည်ရှိ
+- CE loss ကို တစ်ဆင့်ချင်း ပရင့် — ကျဆင်းမှု curve မြင်ရ + နောက်ဆုံး gate
+- run_all.sh — test ၁၄ ဖိုင် အားလုံး PASS
