@@ -3,7 +3,7 @@
 > မြန်မာစာ keyword တွေနဲ့ ရေးထားတဲ့ programming language —
 > C ကို compile လုပ်တယ်။ **Self-hosting** (fixpoint verified)။
 
-> 🚀 **GPU ပေါ် ပြေးချင်ပါသလား?** — GPU လမ်းညွှန် (မြန်မာလို) ဒီ README ထဲမှာ ရှိပါတယ် — GTX 1660 Ti: GELU 47.4x, LayerNorm 5.2x ✅
+> 🚀 **GPU ပေါ် ပြေးချင်ပါသလား?** — GPU op ၁၀ မျိုး စစ်ဆေးပြီး — အားလုံး GPU = CPU MATCH ✅ (GTX 1660 Ti: GELU 47.4x, LayerNorm 5.2x)
 
 ---
 
@@ -183,10 +183,16 @@ MMC ကနေ NVIDIA GPU ပေါ် တိုက်ရိုက် ပြေ�
 | LayerNorm | ၂ row × ၄ | GPU = CPU ✓ |
 | Softmax | row လိုက် | GPU = CPU ✓ |
 | Matmul | 64×64×64 | GPU = CPU ✓ |
+| ReLU | 1,000,000 တန်ဖိုး | GPU = CPU ✓ |
+| Transpose | 512x512 | GPU = CPU ✓ |
+| Attention score | 64x64, d=16 | GPU = CPU ✓ |
+| Embedding | 32 rows x V=100 x D=16 | GPU = CPU ✓ |
+| AdamW | 65536 params x 3 steps | GPU = CPU ✓ |
+| Cross-Entropy loss | 16 rows x V=32 | GPU = CPU ✓ |
 | GELU Benchmark | ၁၀,၀၀၀,၀၀၀ | GPU 8.6ms vs CPU 406ms — 47.4x မြန် ✓ |
 | LayerNorm Benchmark | 50,000×256 | GPU 43.8ms vs CPU 228ms — 5.2x မြန် ✓ |
 
-စမ်းသပ်ဖိုင်များ — scripts/mmc_gpu/ ထဲမှာ — gelu_test.mmc, ln_row_test.mmc, sm_row_test.mmc, mm_row_test.mmc, bench_gelu.mmc, bench_ln.mmc
+စမ်းသပ်ဖိုင်များ — scripts/mmc_gpu/ ထဲမှာ — gelu_test.mmc, ln_row_test.mmc, relu_test.mmc, tpose_test.mmc, att_score_test.mmc, embed_test.mmc, adamw_test.mmc, loss_test.mmc, bench_gelu.mmc, bench_ln.mmc — အားလုံး တစ်ခါပြေးရန် run_all.sh
 
 ## 🙏 Credits
 

@@ -52,3 +52,17 @@ All operations: matmul, LN, GELU, softmax, AdamW, embedding, loss
 - Shell: bash (scaffold)
 
 ### This is LOCKED. Do not forget.
+## 2026-11-05 — Full GPU support: ပြီးစီး (GPU=CPU သက်သေအားလုံး)
+Locked list (2026-11-02): matmul, LN, GELU, softmax, AdamW, embedding, loss — ၇ မျိုးလုံး ပြီး
+- matmul 64x64x64 — GPU = CPU ✓
+- LayerNorm — GPU = CPU ✓ (benchmark 50,000x256: 5.2x)
+- GELU — GPU = CPU ✓ (benchmark 10,000,000: 47.4x)
+- softmax — GPU = CPU ✓
+- ReLU 1,000,000 တန်ဖိုး — GPU = CPU ✓
+- Transpose 512x512 — GPU = CPU ✓
+- Attention score 64x64, d=16 — GPU = CPU ✓
+- Embedding 32 rows, V=100, D=16 — GPU = CPU ✓ (commit 7c6389c)
+- AdamW 65536 params, 3 steps — GPU = CPU ✓ (commit 7c6389c)
+- Cross-Entropy loss 16 rows, V=32 — GPU = CPU ✓ (commit 7c6389c)
+Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55b7d36f2e811455b9aa6bfae277df3fde8
+တစ်ခါပြေး စစ်ဆေးရန် — scripts/mmc_gpu/run_all.sh
