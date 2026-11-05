@@ -1,0 +1,67 @@
+ကမ္ဘာလုံး လုပ်ငန်း mm_k(ဒသမ* a, ဒသမ* b, ဒသမ* c, ကိန်း M, ကိန်း N, ကိန်း K) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    သုံးသပ်ချက်အရ(row < M) {
+        တည်ဆောက် ကိန်း col = 0
+        ပြည့်အောင်(col < N) {
+            တည်ဆောက် ဒသမ sum = 0
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < K) {
+                sum = sum + a[row * K + k] * b[k * N + col]
+                k = k + 1
+            }
+            c[row * N + col] = sum
+            col = col + 1
+        }
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း M = 64
+    တည်ဆောက် ကိန်း N = 64
+    တည်ဆောက် ကိန်း K = 64
+    တည်ဆောက် ဒသမ* ha = mmc_malloc(32768)
+    တည်ဆောက် ဒသမ* hb = mmc_malloc(32768)
+    တည်ဆောက် ဒသမ* hc = mmc_malloc(32768)
+    တည်ဆောက် ဒသမ* hr = mmc_malloc(32768)
+    တည်ဆောက် ဒသမ* da = mmc_gpu_malloc(32768)
+    တည်ဆောက် ဒသမ* db = mmc_gpu_malloc(32768)
+    တည်ဆောက် ဒသမ* dc = mmc_gpu_malloc(32768)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < 4096) {
+        ha[i] = (i % 9) * 0.1 - 0.4
+        hb[i] = (i % 7) * 0.1 - 0.3
+        i = i + 1
+    }
+    တည်ဆောက် ကိန်း r = 0
+    ပြည့်အောင်(r < M) {
+        တည်ဆောက် ကိန်း c2 = 0
+        ပြည့်အောင်(c2 < N) {
+            တည်ဆောက် ဒသမ sum = 0
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < K) {
+                sum = sum + ha[r * K + k] * hb[k * N + c2]
+                k = k + 1
+            }
+            hr[r * N + c2] = sum
+            c2 = c2 + 1
+        }
+        r = r + 1
+    }
+    mmc_gpu_copy_to(da, ha, 32768)
+    mmc_gpu_copy_to(db, hb, 32768)
+    mmc_gpu_launch3p3i(mm_k, da, db, dc, M, N, K, M, 1)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hc, dc, 32768)
+    တည်ဆောက် ကိန်း i3 = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(i3 < 4096) {
+        တည်ဆောက် ဒသမ diff = hc[i3] - hr[i3]
+        သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+        သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+        i3 = i3 + 1
+    }
+    printf("sample: gpu=%.10f cpu=%.10f\n", hc[0], hr[0])
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("MATMUL MATCH — GPU = CPU (64x64x64)\n")
+    }
+    ပြန်ပေး bad
+}

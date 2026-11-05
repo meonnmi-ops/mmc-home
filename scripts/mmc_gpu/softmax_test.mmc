@@ -1,0 +1,74 @@
+ကမ္ဘာလုံး လုပ်ငန်း softmax_row(ဒသမ* x, ဒသမ* out, ဒသမ* pad, ကိန်း V, ကိန်း M, ကိန်း pad2) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    သုံးသပ်ချက်အရ(row < M) {
+        တည်ဆောက် ဒသမ mx = x[row * V]
+        တည်ဆောက် ကိန်း j = 1
+        ပြည့်အောင်(j < V) {
+            သုံးသပ်ချက်အရ(x[row * V + j] > mx) { mx = x[row * V + j] }
+            j = j + 1
+        }
+        တည်ဆောက် ဒသမ sum = 0
+        j = 0
+        ပြည့်အောင်(j < V) {
+            sum = sum + exp(x[row * V + j] - mx)
+            j = j + 1
+        }
+        j = 0
+        ပြည့်အောင်(j < V) {
+            out[row * V + j] = exp(x[row * V + j] - mx) / sum
+            j = j + 1
+        }
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း m = 16
+    တည်ဆောက် ကိန်း V = 32
+    တည်ဆောက် ဒသမ* hx = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* hout = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* ref = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* dx = mmc_gpu_malloc(4096)
+    တည်ဆောက် ဒသမ* dout = mmc_gpu_malloc(4096)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < 512) {
+        hx[i] = (i % 13) * 0.3 - 1.9
+        i = i + 1
+    }
+    တည်ဆောက် ကိန်း r = 0
+    ပြည့်အောင်(r < m) {
+        တည်ဆောက် ဒသမ mx = hx[r * V]
+        တည်ဆောက် ကိန်း j = 1
+        ပြည့်အောင်(j < V) {
+            သုံးသပ်ချက်အရ(hx[r * V + j] > mx) { mx = hx[r * V + j] }
+            j = j + 1
+        }
+        တည်ဆောက် ဒသမ sum = 0
+        j = 0
+        ပြည့်အောင်(j < V) {
+            sum = sum + exp(hx[r * V + j] - mx)
+            j = j + 1
+        }
+        j = 0
+        ပြည့်အောင်(j < V) {
+            ref[r * V + j] = exp(hx[r * V + j] - mx) / sum
+            j = j + 1
+        }
+        r = r + 1
+    }
+    mmc_gpu_copy_to(dx, hx, 4096)
+    mmc_gpu_launch3p3i(softmax_row, dx, dout, dx, V, m, 0, m, 1)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hout, dout, 4096)
+    တည်ဆောက် ကိန်း i3 = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(i3 < 512) {
+        တည်ဆောက် ဒသမ diff = hout[i3] - ref[i3]
+        သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+        သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+        i3 = i3 + 1
+    }
+    printf("sample: gpu=%.10f cpu=%.10f\n", hout[0], ref[0])
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("SOFTMAX MATCH — GPU = CPU (16 rows, V=32)\n")
+    }
+    ပြန်ပေး bad
+}

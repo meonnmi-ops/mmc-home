@@ -66,3 +66,8 @@ Locked list (2026-11-02): matmul, LN, GELU, softmax, AdamW, embedding, loss — 
 - Cross-Entropy loss 16 rows, V=32 — GPU = CPU ✓ (commit 7c6389c)
 Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55b7d36f2e811455b9aa6bfae277df3fde8
 တစ်ခါပြေး စစ်ဆေးရန် — scripts/mmc_gpu/run_all.sh
+## 2026-11-05 — Backward pass အဆင့် ၁ (GPU=CPU)
+- matmul 64x64x64 — GPU = CPU ✓ (test file archive ပြန်သိမ်း)
+- softmax 16 rows, V=32 — GPU = CPU ✓ (test file archive ပြန်သိမ်း)
+- Backward linear: dW = X^T dY, dX = dY W^T (R=32, K=16, N=32) — GPU = CPU ✓
+- run_all.sh — test ၁၁ ဖိုင် အားလုံး PASS (ဒီ commit မတိုင်မီ စစ်ဆေးပြီး)
