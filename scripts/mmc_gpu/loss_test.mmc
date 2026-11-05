@@ -1,0 +1,53 @@
+ကမ္ဘာလုံး လုပ်ငန်း loss_row(ဒသမ* probs, ဒသမ* tgt, ဒသမ* out, ကိန်း V, ကိန်း pad1, ကိန်း pad2) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း ti = tgt[row]
+    out[row] = 0 - log(probs[row * V + ti])
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း m = 16
+    တည်ဆောက် ကိန်း V = 32
+    တည်ဆောက် ဒသမ* hp = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* ht = mmc_malloc(128)
+    တည်ဆောက် ဒသမ* hl = mmc_malloc(128)
+    တည်ဆောက် ဒသမ* dp = mmc_gpu_malloc(4096)
+    တည်ဆောက် ဒသမ* dt = mmc_gpu_malloc(128)
+    တည်ဆောက် ဒသမ* dl = mmc_gpu_malloc(128)
+    တည်ဆောက် ကိန်း r = 0
+    ပြည့်အောင်(r < m) {
+        တည်ဆောက် ဒသမ sum = 0
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < V) {
+            တည်ဆောက် ဒသမ raw = ((r * V + j) * 13 % 97) * 0.01 + 0.01
+            hp[r * V + j] = raw
+            sum = sum + raw
+            j = j + 1
+        }
+        j = 0
+        ပြည့်အောင်(j < V) {
+            hp[r * V + j] = hp[r * V + j] / sum
+            j = j + 1
+        }
+        ht[r] = r % V
+        r = r + 1
+    }
+    mmc_gpu_copy_to(dp, hp, 4096)
+    mmc_gpu_copy_to(dt, ht, 128)
+    mmc_gpu_launch3p3i(loss_row, dp, dt, dl, V, 0, 0, m, 1)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hl, dl, 128)
+    တည်ဆောက် ကိန်း r2 = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(r2 < m) {
+        တည်ဆောက် ကိန်း ti = ht[r2]
+        တည်ဆောက် ဒသမ ref = 0 - log(hp[r2 * V + ti])
+        တည်ဆောက် ဒသမ diff = hl[r2] - ref
+        သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+        သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+        r2 = r2 + 1
+    }
+    printf("sample: gpu=%f cpu=%f\n", hl[0], 0 - log(hp[0 * V + 0]))
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("LOSS MATCH — GPU = CPU (16 rows CE loss, V=32)\n")
+    }
+    ပြန်ပေး bad
+}

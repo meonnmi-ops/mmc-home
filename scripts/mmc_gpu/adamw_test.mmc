@@ -1,0 +1,74 @@
+ကမ္ဘာလုံး လုပ်ငန်း adamw_k(ဒသမ* w, ဒသမ* g, ဒသမ* mv, ကိန်း n, ကိန်း t, ကိန်း pad) void {
+    တည်ဆောက် ကိန်း i = MMC_TID
+    သုံးသပ်ချက်အရ(i < n) {
+        တည်ဆောက် ဒသမ m = mv[2 * i]
+        တည်ဆောက် ဒသမ v = mv[2 * i + 1]
+        တည်ဆောက် ဒသမ gi = g[i]
+        m = 0.9 * m + 0.1 * gi
+        v = 0.999 * v + 0.001 * gi * gi
+        mv[2 * i] = m
+        mv[2 * i + 1] = v
+        တည်ဆောက် ဒသမ mhat = m / (1.0 - pow(0.9, t))
+        တည်ဆောက် ဒသမ vhat = v / (1.0 - pow(0.999, t))
+        w[i] = w[i] - 0.01 * mhat / (sqrt(vhat) + 0.00000001)
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း n = 65536
+    တည်ဆောက် ဒသမ* hw = mmc_malloc(524288)
+    တည်ဆောက် ဒသမ* hg = mmc_malloc(524288)
+    တည်ဆောက် ဒသမ* hmv = mmc_malloc(1048576)
+    တည်ဆောက် ဒသမ* rw = mmc_malloc(524288)
+    တည်ဆောက် ဒသမ* rmv = mmc_malloc(1048576)
+    တည်ဆောက် ဒသမ* dw = mmc_gpu_malloc(524288)
+    တည်ဆောက် ဒသမ* dg = mmc_gpu_malloc(524288)
+    တည်ဆောက် ဒသမ* dmv = mmc_gpu_malloc(1048576)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < n) {
+        hw[i] = 0.0
+        rw[i] = 0.0
+        hg[i] = (i % 100) * 0.001 - 0.05
+        hmv[2 * i] = 0.0
+        hmv[2 * i + 1] = 0.0
+        rmv[2 * i] = 0.0
+        rmv[2 * i + 1] = 0.0
+        i = i + 1
+    }
+    mmc_gpu_copy_to(dw, hw, 524288)
+    mmc_gpu_copy_to(dg, hg, 524288)
+    mmc_gpu_copy_to(dmv, hmv, 1048576)
+    တည်ဆောက် ကိန်း step = 1
+    ပြည့်အောင်(step < 4) {
+        mmc_gpu_launch3p3i(adamw_k, dw, dg, dmv, n, step, 0, 256, 256)
+        cudaDeviceSynchronize()
+        တည်ဆောက် ကိန်း i2 = 0
+        ပြည့်အောင်(i2 < n) {
+            တည်ဆောက် ဒသမ m = rmv[2 * i2]
+            တည်ဆောက် ဒသမ v = rmv[2 * i2 + 1]
+            တည်ဆောက် ဒသမ gi = hg[i2]
+            m = 0.9 * m + 0.1 * gi
+            v = 0.999 * v + 0.001 * gi * gi
+            rmv[2 * i2] = m
+            rmv[2 * i2 + 1] = v
+            တည်ဆောက် ဒသမ mhat = m / (1.0 - pow(0.9, step))
+            တည်ဆောက် ဒသမ vhat = v / (1.0 - pow(0.999, step))
+            rw[i2] = rw[i2] - 0.01 * mhat / (sqrt(vhat) + 0.00000001)
+            i2 = i2 + 1
+        }
+        step = step + 1
+    }
+    mmc_gpu_copy_from(hw, dw, 524288)
+    တည်ဆောက် ကိန်း i3 = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(i3 < n) {
+        တည်ဆောက် ဒသမ diff = hw[i3] - rw[i3]
+        သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+        သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+        i3 = i3 + 1
+    }
+    printf("sample: gpu=%.10f cpu=%.10f\n", hw[0], rw[0])
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("ADAMW MATCH — GPU = CPU (65536 params, 3 steps, beta1=0.9 beta2=0.999)\n")
+    }
+    ပြန်ပေး bad
+}

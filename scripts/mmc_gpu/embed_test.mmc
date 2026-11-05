@@ -1,0 +1,54 @@
+ကမ္ဘာလုံး လုပ်ငန်း embed_row(ဒသမ* w, ဒသမ* tok, ဒသမ* out, ကိန်း d, ကိန်း pad1, ကိန်း pad2) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း t = tok[row]
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < d) {
+        out[row * d + j] = w[t * d + j]
+        j = j + 1
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း m = 32
+    တည်ဆောက် ကိန်း V = 100
+    တည်ဆောက် ကိန်း d = 16
+    တည်ဆောက် ဒသမ* hw = mmc_malloc(12800)
+    တည်ဆောက် ဒသမ* htok = mmc_malloc(256)
+    တည်ဆောက် ဒသမ* hout = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* dw = mmc_gpu_malloc(12800)
+    တည်ဆောက် ဒသမ* dtok = mmc_gpu_malloc(256)
+    တည်ဆောက် ဒသမ* dout = mmc_gpu_malloc(4096)
+    တည်ဆောက် ကိန်း i = 0
+    ပြည့်အောင်(i < 1600) {
+        hw[i] = i * 0.05 - 10.0
+        i = i + 1
+    }
+    i = 0
+    ပြည့်အောင်(i < m) {
+        htok[i] = (i * 7) % V
+        i = i + 1
+    }
+    mmc_gpu_copy_to(dw, hw, 12800)
+    mmc_gpu_copy_to(dtok, htok, 256)
+    mmc_gpu_launch3p3i(embed_row, dw, dtok, dout, d, 0, 0, m, 1)
+    cudaDeviceSynchronize()
+    mmc_gpu_copy_from(hout, dout, 4096)
+    တည်ဆောက် ကိန်း r = 0
+    တည်ဆောက် ကိန်း bad = 0
+    ပြည့်အောင်(r < m) {
+        တည်ဆောက် ကိန်း t = htok[r]
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < d) {
+            တည်ဆောက် ဒသမ ref = hw[t * d + j]
+            တည်ဆောက် ဒသမ diff = hout[r * d + j] - ref
+            သုံးသပ်ချက်အရ(diff < 0) { diff = 0 - diff }
+            သုံးသပ်ချက်အရ(diff > 0.000001) { bad = bad + 1 }
+            j = j + 1
+        }
+        r = r + 1
+    }
+    printf("sample: gpu=%f cpu=%f\n", hout[0], hw[0 * d + 0])
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("EMBED MATCH — GPU = CPU (32 rows, V=100, D=16)\n")
+    }
+    ပြန်ပေး bad
+}
