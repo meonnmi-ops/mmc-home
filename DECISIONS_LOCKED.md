@@ -119,3 +119,14 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - A အပေါ်တြိဂံ 28/28 = 0, row sum 1.0, O[0] = V[0] အတိအကျ — projection တွေကြားထဲမှာလည်း causal မှန်
 - နောက် task — Wq Wk Wv ကို AdamW နဲ့ train (task-q — attention ၁ ဆင့် training)
 - run_all.sh — test ၁၈ ဖိုင် အားလုံး PASS
+## 2026-11-05 — Attention training step (GPU=CPU)
+- Wq Wk Wv ကို AdamW နဲ့ ၁ ဆင့် train — forward + loss + backward + update + second forward အားလုံး GPU ပေါ်မှာ
+- forward — Q = x·Wq, K = x·Wk, V = x·Wv → att_row → mask_row → softmax_row → O = A·V (locked အားလုံး)
+- loss = 0.5·Σ(O−Y)² — dO = O−Y — kernel အသစ် mse_bwd ၁ ခုပဲ (MMC_TID elementwise)
+- backward — dV = A^T·dO, dA = dO·V^T, dS = A·(dA−rowdot)·0.25, dQ = dS·K, dK = dS^T·Q (task-o chain)
+- dWq = X^T·dQ, dWk = X^T·dK, dWv = X^T·dV — locked bwd_dw (task-k) ပြန်သုံး
+- locked AdamW t=1 — Wq Wk Wv သုံးခုလုံး update, mv interleaved zero-init
+- A (64), O (128), dO (128), dW ×3 (768), mv ×3 (1536), W_new ×3 (768), O2 (128) — စုစုပေါင်း 3520 တန်ဖိုး GPU = CPU ✓ (1e-6)
+- loss 1.274930 → 1.210640 — LOSS DECREASED — attention တစ်ခုလုံးကို GPU ပေါ်မှာ train လို့ရပြီ
+- dS အပေါ်တြိဂံ 28/28 = 0, dQ row 0 အားလုံး 0 — causal gradient block ဆက်တည်ရှိ
+- run_all.sh — test ၁၉ ဖိုင် အားလုံး PASS
