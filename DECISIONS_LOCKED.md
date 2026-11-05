@@ -148,3 +148,12 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - FD check က GPU=CPU ထက် တစ်ဆင့် နက် — formula ကိုယ်တိုင်က သင်္ချာမှန်ကြောင်း သက်သေ (self-consistent မဟုတ်)
 - negative control (sandbox) — scale_row ဖယ် → dWq/dWk 4× မှား → mismatch ၁၂၃ ခု ဖမ်းမိ — စစ်ဆေးချက်မှာ စွမ်းအားရှိ
 - run_all.sh — test ၂၁ ဖိုင် အားလုံး PASS
+## 2026-11-06 — Mini-batch training B=4 (gradient accumulation, one AdamW per step)
+- task-t — sample ၄ ခု တစ်လောတည်း — per-sample gradient ကို GPU ပေါ်မှာ ထုတ် — host မှာ ပေါင်း — mean ×0.25 — AdamW ၁ ခေါက်တည်း
+- kernel အသစ် ၀ — locked ၁၁ ခုတည်း — bwd_dw က overwrite ဖြစ်လို့ accumulation က host-side (loss sum လုပ်နည်းအတိုင်း)
+- T=4, K=8, d=8 — sample ၄ ခု data မတူ ((i+3b)%7, (3i+b)%5) — weight တစ်စုတည်း Wq Wk Wv (၆၄ ခုစီ)
+- step တိုင်း sample တိုင်း dWq dWk dWv GPU=CPU — ၇၆၈၀ တန်း (tol 0.000001) — per-sample loss လည်း GPU=CPU
+- batch loss = ၄ ခု ပေါင်း ×0.25 — GPU=CPU ၁၀ ဆင့် — loss 0.321258 → 0.267066 တိကျတိကျ ကျဆင်း (min drop 0.0045)
+- AdamW m v GPU ပေါ်မှာ persist — နောက်ဆုံး Wq Wk Wv m v အားလုံး GPU=CPU (tol 0.000001)
+- sandbox: python replica ဂဏန်းတိတိကျ — negative control (scale_row ပိတ် → exit 236) — စစ်ဆေးချက်မှာ စွမ်းအားရှိ
+- run_all.sh — test ၂၂ ဖိုင် အားလုံး PASS
