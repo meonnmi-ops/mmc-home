@@ -77,3 +77,9 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - Backward: dW = X^T·dP, dX = dP·W (bwd_dx က W layout K×V နဲ့ကိုက်အောင် ချိန်) — R=8, K=16, V=32
 - Y, P, dP, dW, dX အားလုံး GPU = CPU ✓
 - run_all.sh — test ၁၂ ဖိုင် အားလုံး PASS
+## 2026-11-05 — Training step ပထမဆုံး အပြည့်အစုံ (GPU=CPU + loss ကျ)
+- Forward: Y = X·W → P = softmax(Y) → CE gradient dP = P - onehot → dW = X^T·dP
+- Update: AdamW locked kernel (lr=0.01, beta1=0.9, beta2=0.999, t=1) — W, mv in-place update
+- ဒုတိယ forward: Y2 = X·W_new → P2 — CE loss ကျဆင်းမှု စစ်ဆေး (loss0 → loss1 ကျ)
+- Y, P, dP, dW, W_new, mv, Y2, P2 အားလုံး GPU = CPU ✓
+- run_all.sh — test ၁၃ ဖိုင် အားလုံး PASS
