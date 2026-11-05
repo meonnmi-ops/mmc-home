@@ -139,3 +139,12 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - loss 1.274930 → 0.958722 — ၁၀ ဆင့်လုံး ဆင့်ချင်းကျ — step 1/2 တန်ဖိုးတွေ task-q နဲ့ အတိကျတူ
 - bug fix — hOs copy မှာ byte ၁၂၈ (တန်ဖိုး ၁၆) ပဲကူးမိ — ၁၀၂၄ နဲ့ ပြင် — GPU compute က အစကတည်းက မှန်ခဲ့
 - run_all.sh — test ၂၀ ဖိုင် အားလုံး PASS
+## 2026-11-06 — Finite-difference gradient check (calculus verifies backward)
+- task-s — backward chain ကို သင်္ချာ finite-difference နဲ့ စစ် — kernel အသစ် ၀ ခု၊ locked ၁၁ ခုတည်း
+- T=4, K=8, d=8 — weight ၁၉၂ ခုလုံး (Wq ၆၄ + Wk ၆၄ + Wv ၆၄) — central difference eps 0.0001
+- weight တစ်ခုချင်း ±0.0001 ခေါက် — forward ကို GPU ပေါ်မှာ ပြန်ပြေး — fd = (L+ − L−)/0.0002
+- analytic chain (mse_bwd tpose mm_k smax_bwd_row scale_row bwd_dw) vs fd — tol 0.000001
+- ၁၉၂/၁၉၂ အတိကျ — max err ~1e-12 (Wq 1e-12, Wk 1e-12, Wv 0) — restore ပြန်စစ် loss အတိတူ 0.325346
+- FD check က GPU=CPU ထက် တစ်ဆင့် နက် — formula ကိုယ်တိုင်က သင်္ချာမှန်ကြောင်း သက်သေ (self-consistent မဟုတ်)
+- negative control (sandbox) — scale_row ဖယ် → dWq/dWk 4× မှား → mismatch ၁၂၃ ခု ဖမ်းမိ — စစ်ဆေးချက်မှာ စွမ်းအားရှိ
+- run_all.sh — test ၂၁ ဖိုင် အားလုံး PASS
