@@ -71,3 +71,9 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - softmax 16 rows, V=32 — GPU = CPU ✓ (test file archive ပြန်သိမ်း)
 - Backward linear: dW = X^T dY, dX = dY W^T (R=32, K=16, N=32) — GPU = CPU ✓
 - run_all.sh — test ၁၁ ဖိုင် အားလုံး PASS (ဒီ commit မတိုင်မီ စစ်ဆေးပြီး)
+## 2026-11-05 — Backward chain အပြည့်အစုံ (GPU=CPU)
+- တစ်ဖိုင်ထဲမှာ GPU kernel ၅ ခု — mm_k, softmax_row, ce_bwd (အသစ်: dP = P - onehot), bwd_dw, bwd_dx
+- Forward: Y = X·W → P = softmax(Y); CE gradient dP = P - onehot(label)
+- Backward: dW = X^T·dP, dX = dP·W (bwd_dx က W layout K×V နဲ့ကိုက်အောင် ချိန်) — R=8, K=16, V=32
+- Y, P, dP, dW, dX အားလုံး GPU = CPU ✓
+- run_all.sh — test ၁၂ ဖိုင် အားလုံး PASS
