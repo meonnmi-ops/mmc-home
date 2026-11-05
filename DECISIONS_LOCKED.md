@@ -103,3 +103,11 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - သက်သေ — O[0] = -0.4 = V[0] အတိအကျ (position 0 က ကိုယ့်ကိုယ်ကိုပဲ မြင်လို့ ကိုယ့် V ပဲ ရ)
 - S (64), A (64), O (128) အားလုံး GPU = CPU ✓ (1e-6)
 - run_all.sh — test ၁၆ ဖိုင် အားလုံး PASS
+## 2026-11-05 — Attention backward (GPU=CPU)
+- kernel အသစ် ၃ ခု — smax_bwd_row (dS = A·(dA − rowdot) — softmax backward), scale_row (×0.25 — locked att_row ရဲ့ scale နဲ့အတူ), tpose_rc (R×C non-square transpose — V^T အတွက်)
+- locked ၅ ခု မူရင်းအတိုင်း ပြန်သုံး — att_row, mask_row, softmax_row, mm_k, tpose_row (square)
+- gradient chain — dV = A^T·dO, dA = dO·V^T, dS = A·(dA−rowdot)·0.25, dQ = dS·K, dK = dS^T·Q
+- dS အပေါ်တြိဂံ 28/28 = 0 အတိအကျ — causal mask က gradient ပိတ် (autoregressive ✓)
+- row 0 ရဲ့ dS တွေ အားလုံး 0 — position 0 က ကိုယ့်ကိုယ်ကိုပဲ မြင်လို့ softmax gradient သုံ (သင်္ချာအရ မှန်)
+- dQ (128), dK (128), dV (128), dS (64) အားလုံး GPU = CPU ✓ (1e-6)
+- run_all.sh — test ၁၇ ဖိုင် အားလုံး PASS
