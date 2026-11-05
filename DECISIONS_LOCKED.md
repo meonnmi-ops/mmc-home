@@ -96,3 +96,10 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - A row sum = 1.0 — attention weight တွေက probability ဖြစ်နေတာ မြင်ရ
 - causal mask မပါသေး — autoregressive LM အတွက် နောက် task
 - run_all.sh — test ၁၅ ဖိုင် အားလုံး PASS
+## 2026-11-05 — Causal mask attention (autoregressive path)
+- mask_row kernel အသစ် — S ရဲ့ အပေါ်တြိဂံ (j > row) ကို -1e9 ထား — att_row (locked) ပြီးချင်း တိုက်ရိုက်ဆက်
+- mask → softmax_row (locked) → O = A·V — masked score တွေက softmax ပြီးရင် အတိအကျ 0 ဖြစ်သွား
+- A အပေါ်တြိဂံ 28/28 = 0 အတိအကျ — row sum တွေ အားလုံး 1.0 — position ရှေ့ကအရာ မမြင်ရ (causal ✓)
+- သက်သေ — O[0] = -0.4 = V[0] အတိအကျ (position 0 က ကိုယ့်ကိုယ်ကိုပဲ မြင်လို့ ကိုယ့် V ပဲ ရ)
+- S (64), A (64), O (128) အားလုံး GPU = CPU ✓ (1e-6)
+- run_all.sh — test ၁၆ ဖိုင် အားလုံး PASS
