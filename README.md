@@ -193,10 +193,11 @@ MMC ကနေ NVIDIA GPU ပေါ် တိုက်ရိုက် ပြေ�
 | Backward chain (Y, P, dP, dW, dX) | R=8, K=16, V=32 | GPU = CPU ✓ |
 | Training step (fwd + bwd + AdamW) | R=8, K=16, V=32 | GPU = CPU ✓ |
 | Training loop (10 AdamW steps) | R=8, K=16, V=32 | GPU = CPU ✓ |
+| Attention forward (S, A, O) | T=8 seq, d=16 | GPU = CPU ✓ |
 | GELU Benchmark | ၁၀,၀၀၀,၀၀၀ | GPU 8.6ms vs CPU 406ms — 47.4x မြန် ✓ |
 | LayerNorm Benchmark | 50,000×256 | GPU 43.8ms vs CPU 228ms — 5.2x မြန် ✓ |
 
-စမ်းသပ်ဖိုင်အားလုံး — scripts/mmc_gpu/ ထဲမှာ (test ၁၄ ဖိုင် + bench ၂ ဖိုင်) — အားလုံး တစ်ခါပြေးရန် run_all.sh
+စမ်းသပ်ဖိုင်အားလုံး — scripts/mmc_gpu/ ထဲမှာ (test ၁၅ ဖိုင် + bench ၂ ဖိုင်) — အားလုံး တစ်ခါပြေးရန် run_all.sh
 
 ## 🙏 Credits
 

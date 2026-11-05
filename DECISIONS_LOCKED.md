@@ -89,3 +89,10 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - AdamW t = step (1..10) — mv momentum သည် step တွေကြား ဆက်တည်ရှိ
 - CE loss ကို တစ်ဆင့်ချင်း ပရင့် — ကျဆင်းမှု curve မြင်ရ + နောက်ဆုံး gate
 - run_all.sh — test ၁၄ ဖိုင် အားလုံး PASS
+## 2026-11-05 — Attention forward block (GPU=CPU)
+- att_row (locked, scale 0.25 = 1/√16) → softmax_row → mm_k — kernel အသစ်မလို၊ ပေါင်းစပ်အသစ်
+- S = (Q·K^T)·0.25, A = softmax row လိုက်, O = A·V — T=8 seq, d=16 head
+- S (64), A (64), O (128) အားလုံး GPU = CPU ✓ (1e-6)
+- A row sum = 1.0 — attention weight တွေက probability ဖြစ်နေတာ မြင်ရ
+- causal mask မပါသေး — autoregressive LM အတွက် နောက် task
+- run_all.sh — test ၁၅ ဖိုင် အားလုံး PASS
