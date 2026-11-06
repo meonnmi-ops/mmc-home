@@ -226,3 +226,13 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - step-1 anchors = task-x/task-y အတိတူ — step-2 mvq0 0.0000201815 = task-y exact — true-gradient m/v သက်သေ
 - sandbox — C sha 34b2f2de, stub = replica 36 လိုင်း digit-for-digit, NC-1 mirror-sync break → bad=20950 exit 214, NC-2 schedule-off → bad=2 exit 2 (loss gate သီးသန့် — schedule causality သက်သေ)
 - run_all.sh — test ၂၈ ဖိုင် အားလုံး PASS
+## 2026-11-07 — 16-step long-run scheduled training (GPU=CPU)
+- task-z ရဲ့ 8-step ကို 16-step အထိ ချဲ့ — long-run stability သက်သေ — patch ၃ ချက်တည်း (bound 17, capture 16, banners) — kernel အသစ် ၀, array အသစ် ၀
+- schedule variant trials ၅ မျိုး (stub 16T) — pure 1/step final 1.603134 (locked) — geo γ=0.9 1.603946, 8/step² 1.612124, γ=0.85 1.609186, γ=0.8 1.614165 — အားလုံး 15/15 ဆင့်ချင်းကျ — decay variants final ပိုမြင့် (ဒီ surface မှာ decay အလွန်အကျွံ) → switch line မထည့်ဘဲ pure 1/step lock
+- freeze-after-8 control (lr 0.00125 constant, steps 9-16) ပါ ကျဆင်း (1.593528) — schedule ရဲ့ မဖြစ်မနေလိုအပ်ချက်က early steps မှာသာ — 1/step က principle + task-z continuity
+- loss 2.970168 → 1.658970 (step 8 = task-z byte-exact) → 1.603134 — 15 transition လုံး ဆင့်ချင်းကျ — final Wq -0.3338694686, mvq 0.0003213240
+- step-1 anchors = task-x/y/z အတိတူ — step-8 anchors = task-z final အတိတူ (dWq0 0.0003021588 / Wq -0.3268881026 / mvq 0.0001095598) — chain continuity သက်သေ
+- NC-1 fixed-lr (lrs=1.0) — step-5/6 မှာ 1.783667/1.788007 ပြန်တက် (= task-y overshoot အတိတူ) → bad=2 exit 2 — schedule causality သက်သေ (loss gate သီးသန့် — gpu=cpu sync ဆက်ရှိ)
+- NC-2 mirror-sync break (aw1 lrs·0.01→0.01) — mirror full-step → interp base hWq ကနေ GPU ပါ step-3 ကနေ ပြန့် → bad=51235 exit 35 (51235&0xFF=35) fail-closed
+- sandbox — dual regen byte-identical (patcher task-z base + generator task-x master ၂ လမ်းကြောင်း) — C sha a49fabae 1808/51383 — stub = replica 68 ဂဏန်းလိုင်း digit-for-digit — trials ၆ ခု archive
+- run_all.sh — test ၂၉ ဖိုင် အားလုံး PASS
