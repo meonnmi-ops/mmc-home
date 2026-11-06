@@ -157,3 +157,13 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - AdamW m v GPU ပေါ်မှာ persist — နောက်ဆုံး Wq Wk Wv m v အားလုံး GPU=CPU (tol 0.000001)
 - sandbox: python replica ဂဏန်းတိတိကျ — negative control (scale_row ပိတ် → exit 236) — စစ်ဆေးချက်မှာ စွမ်းအားရှိ
 - run_all.sh — test ၂၂ ဖိုင် အားလုံး PASS
+## 2026-11-06 — Full Transformer block forward (GPU=CPU)
+- embed(+PE) → QKV → causal attention → softmax → attn-out → residual → LN → W1 → GELU → W2 → residual → LN → logits → MSE loss — full block forward တစ်ခုလုံး ဆက်တိုက်
+- kernel အသစ် ၀ — locked ၆ ခုရဲ့ သန့်သန့်ပေါင်းစပ် (mm_k att_row mask_row softmax_row gelu_kernel ln_fwd_row)
+- dims — T=8 seq, K=8, d=8, H=32 (MLP hidden), V=11 vocab — embed table 11×8 + positional encoding + learnable Wq Wk Wv W1 W2 Wo
+- GPU မှာ matmul/attention/softmax/LN/GELU အားလုံး — host မှာ embed+PE တပ်ဆင် + residual ၂ ခု + loss ပေါင်း (task-t အစဉ်အလာ)
+- elementwise 984 (S A Att H1 F1 G F2 H3 logits) + loss + masked-zero 28 + rowsum 4 — စုစုပေါင်း 1017 စစ်ဆေးချက် GPU = CPU ✓ (1e-6)
+- loss = 2.970168 — sandbox CPU stub, python replica (ဂဏန်းတိတိကျ), real GPU သုံးခုလုံး 10dp အတိကျတူ
+- A အပေါ်တြိဂံ 28/28 = 0, row sum 1.000000000000 — LN ၂ ဆင့် + GELU ကြားထဲမှာလည်း causal မှန်
+- negative control — mask_row ပစ်ရင် bad=855 → exit 87 — စစ်ဆေးချက် ဖမ်းမိတာ အတည်ပြု
+- run_all.sh — test ၂၃ ဖိုင် အားလုံး PASS

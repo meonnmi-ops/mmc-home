@@ -201,6 +201,7 @@ MMC ကနေ NVIDIA GPU ပေါ် တိုက်ရိုက် ပြေ�
 | Attention training loop (10 AdamW steps) | T=8, K=16, d=16 | GPU = CPU ✓ |
 | FD gradient check (analytic = finite-difference, 192 weights) | T=4, K=8, d=8 | GPU = CPU ✓ |
 | Mini-batch training (B=4, batch grad = mean x0.25, AdamW state persists) | T=4, K=8, d=8, B=4 | GPU = CPU ✓ |
+| Full Transformer block forward (embed attn residual LN GELU MLP residual LN logits) | T=8, K=8, d=8, H=32, V=11 | GPU = CPU ✓ |
 | GELU Benchmark | ၁၀,၀၀၀,၀၀၀ | GPU 8.6ms vs CPU 406ms — 47.4x မြန် ✓ |
 | LayerNorm Benchmark | 50,000×256 | GPU 43.8ms vs CPU 228ms — 5.2x မြန် ✓ |
 
