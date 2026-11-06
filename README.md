@@ -208,10 +208,11 @@ MMC ကနေ NVIDIA GPU ပေါ် တိုက်ရိုက် ပြေ�
 | Full block multi-step training (4 AdamW steps, persistent m/v) | T=8, K=8, d=8, H=32, V=11 | GPU = CPU ✓ |
 | Block training with lr schedule (8 AdamW steps, lr 0.01/step) | T=8, K=8, d=8, H=32, V=11 | GPU = CPU ✓ |
 | 16-step long-run scheduled training (inverse-step lr 0.01/step, variant trials) | T=8, K=8, d=8, H=32, V=11 | GPU = CPU ✓ |
+| L=2 chained two-block training (deep supervision, chain backprop, 12 AdamW matrices) | T=8, K=8, d=8, H=32, V=11 | GPU = CPU ✓ |
 | GELU Benchmark | ၁၀,၀၀၀,၀၀၀ | GPU 8.6ms vs CPU 406ms — 47.4x မြန် ✓ |
 | LayerNorm Benchmark | 50,000×256 | GPU 43.8ms vs CPU 228ms — 5.2x မြန် ✓ |
 
-စမ်းသပ်ဖိုင်အားလုံး — scripts/mmc_gpu/ ထဲမှာ (test ၂၉ ဖိုင် + bench ၂ ဖိုင်) — အားလုံး တစ်ခါပြေးရန် run_all.sh
+စမ်းသပ်ဖိုင်အားလုံး — scripts/mmc_gpu/ ထဲမှာ (test ၃၀ ဖိုင် + bench ၂ ဖိုင်) — အားလုံး တစ်ခါပြေးရန် run_all.sh
 
 ## 🙏 Credits
 
