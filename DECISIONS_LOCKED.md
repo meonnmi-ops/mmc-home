@@ -214,3 +214,15 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - sandbox — generated C byte-identical c64ecf0d, CPU stub output = WSL GPU run byte-for-byte, python replica ဂဏန်းအားလုံး ၁၀ ဒသမ အတိကျ
 - negative control ၂ ခု fail-closed — m/v persistence break → bad=5954 exit 66, bias correction break → bad=7540 exit 116
 - run_all.sh — test ၂၇ ဖိုင် အားလုံး PASS
+## 2026-11-06 — Block training with lr schedule (GPU=CPU)
+- task-y ရဲ့ step-5 overshoot (lr 0.01 fixed — loss 1.783667 ပြန်တက်) ကို lr schedule နဲ့ ဖြေရှင်း — 8-step training
+- schedule — full AdamW step (true-gradient m/v) ပြီးမှ update ကို interpolate: w += lrs·(w_full − w), lrs = 1/step ≡ lr 0.01/step
+- pre-scale trial ၁ — root gradient ကို lrs နဲ့ ကြိုမြှောက် (GPU host round-trip) — 1/step → bad=4 exit 4, 1/step² → bad=5 exit 5
+- အကြောင်း — time-varying pre-scale က AdamW v-memory (0.999, 1000-step) ထဲ schedule ရောသွား — √v က အရင် scale မှာ ငြိ — direction က stale gradient ဆီ လမ်းလွဲ — gradient-domain schedule က AdamW မှာ မရ
+- GPU ဘက် — adamw_k full step → hWq2 (AGPU copy_from) → host interp loop → copy_to — kernel အသစ် ၀, array အသစ် ၀
+- mirror ဘက် — update line တစ်ကြောင်းစီ − 0.01·U → − (lrs·0.01)·U — m/v recurrence မထိ (true gradient ဆက်စု)
+- loss 2.970168 → 2.104753 → 1.909574 → 1.800022 → 1.737641 → 1.700229 → 1.675945 → 1.658970 — ၈ ဆင့်လုံး ဆင့်ချင်းကျ
+- final 1.658970 < task-y 4-step 1.757844 — schedule က fixed-lr ထက် ပိုကျ — overshoot ဖြေရှင်းပြီး
+- step-1 anchors = task-x/task-y အတိတူ — step-2 mvq0 0.0000201815 = task-y exact — true-gradient m/v သက်သေ
+- sandbox — C sha 34b2f2de, stub = replica 36 လိုင်း digit-for-digit, NC-1 mirror-sync break → bad=20950 exit 214, NC-2 schedule-off → bad=2 exit 2 (loss gate သီးသန့် — schedule causality သက်သေ)
+- run_all.sh — test ၂၈ ဖိုင် အားလုံး PASS

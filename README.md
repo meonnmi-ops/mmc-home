@@ -206,10 +206,11 @@ MMC ကနေ NVIDIA GPU ပေါ် တိုက်ရိုက် ပြေ�
 | LayerNorm backward (ln_bwd_row dX dgamma dbeta FD) | T=8, D=8 | GPU = CPU ✓ |
 | Full block backward + AdamW (attention bwd + gelu_bwd + ln_bwd_row x2 — zero new kernels) | T=8, K=8, d=8, H=32, V=11 | GPU = CPU ✓ |
 | Full block multi-step training (4 AdamW steps, persistent m/v) | T=8, K=8, d=8, H=32, V=11 | GPU = CPU ✓ |
+| Block training with lr schedule (8 AdamW steps, lr 0.01/step) | T=8, K=8, d=8, H=32, V=11 | GPU = CPU ✓ |
 | GELU Benchmark | ၁၀,၀၀၀,၀၀၀ | GPU 8.6ms vs CPU 406ms — 47.4x မြန် ✓ |
 | LayerNorm Benchmark | 50,000×256 | GPU 43.8ms vs CPU 228ms — 5.2x မြန် ✓ |
 
-စမ်းသပ်ဖိုင်အားလုံး — scripts/mmc_gpu/ ထဲမှာ (test ၂၇ ဖိုင် + bench ၂ ဖိုင်) — အားလုံး တစ်ခါပြေးရန် run_all.sh
+စမ်းသပ်ဖိုင်အားလုံး — scripts/mmc_gpu/ ထဲမှာ (test ၂၈ ဖိုင် + bench ၂ ဖိုင်) — အားလုံး တစ်ခါပြေးရန် run_all.sh
 
 ## 🙏 Credits
 
