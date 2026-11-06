@@ -167,3 +167,15 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - A အပေါ်တြိဂံ 28/28 = 0, row sum 1.000000000000 — LN ၂ ဆင့် + GELU ကြားထဲမှာလည်း causal မှန်
 - negative control — mask_row ပစ်ရင် bad=855 → exit 87 — စစ်ဆေးချက် ဖမ်းမိတာ အတည်ပြု
 - run_all.sh — test ၂၃ ဖိုင် အားလုံး PASS
+
+## 2026-11-06 — MLP half-block training step (GPU=CPU)
+
+- gelu_bwd kernel အသစ် ၁ ခု — dF1 = dG .* gelu'(F1) — tanh-approx derivative 0.5(1+t) + 0.5x(1-t*t)*0.7978845608*(1+3*0.044715*x*x), t = tanh(0.7978845608*(x+0.044715*x*x*x)) — launch3p3i, mse_bwd signature အတူ (pad ၂ ခု)
+- MLP backward တစ်ခုလုံး GPU ပေါ်မှာ — dF2 = mse_bwd(F2-Y) → dG = dF2·W2^T (mm_k) → dF1 = gelu_bwd(dG, F1) → dW1 = H1^T·dF1, dW2 = G^T·dF2 (bwd_dw)
+- gradient T=8 အပေါ် sum (mean မဟုတ်) — loss = 0.5*sum sq, တန်ဖိုး 64 (T·d)
+- AdamW t=1 — W1 (256) W2 (256) နှစ်ခုလုံး — lr=0.01, beta1=0.9, beta2=0.999, eps=1e-8, bias correction, mv interleaved — locked adamw_k ပြန်သုံး
+- second forward — W1n W2n နဲ့ F1b = H1·W1n → Gb = gelu_kernel → F2b = Gb·W2n — H1 (LN1 output) မပြောင်း
+- LOSS DECREASED gate — loss2 < loss1 မဖြစ်ရင် bad++ — loss 0.534658 → 0.513591
+- 3776 elementwise (10×256 + 3×64 + 2×512) + 2 loss GPU = CPU ✓ (1e-6) — GPU / sandbox stub / python replica ၃ ခုလုံး 10 ဂဏန်းအတိတူ
+- negative control — gelu_bwd launch ပိတ်လိုက် → MISMATCH bad=1493, exit 213 — check က အလုပ်လုပ်တယ်
+- run_all.sh — test ၂၄ ဖိုင် အားလုံး PASS
