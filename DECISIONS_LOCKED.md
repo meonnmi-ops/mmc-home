@@ -202,3 +202,15 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - sample ၁၃ ခု — dX0_0 -1.2257127092, dWq0 0.0001309928, Wq_new -0.3099992367 — GPU = sandbox CPU stub = python replica ဂဏန်း ၁၀ လုံး တူ
 - sandbox သက်သေ — generated C byte-identical (a487d778) — NC: loss2 scale 1.5 ပျက်စေရင် MISMATCH bad=1 exit 1 — fail-closed
 - dims — T=8, K=8, d=8, H=32, V=11, eps 0.000001 — run_all.sh 26/26 PASS (glob ကြောင့် run_all ပြင်စရာမလို) — GPU test record w 25 → x 26
+## 2026-11-06 — Full block multi-step training (GPU=CPU)
+- task-x ရဲ့ block backward ၁ ဆင့်ကို ၄ ဆင့် training loop အဖြစ် တိုးချဲ့ — kernel အသစ် ၀ ခု၊ locked ၁၆ ခု အားလုံး ပြန်သုံး
+- outer loop ပြည့်အောင်(step < 5) — 4 forward losses + 4 AdamW steps t=1..4 — AdamW launch t = step (task-r pattern)
+- m v persistent — dmv* zero လုပ်တာ loop အပြင်မှာ ၁ ခါတည်း — step တွေကြား m v တည်ရှိ (NC-1 က ဒါကို စစ်)
+- bias correction pow(0.9, step) / pow(0.999, step) — step=1 မှာ task-x ရဲ့ fixed t=1 နဲ့ အတိကျတူ (dWq0 0.0001309928, Wq_new -0.3099992367, mvq0 0.0000130993)
+- mirror weight in-place update — rwq2[aw1] = hWq[aw1] အစား hWq[aw1] = hWq[aw1] — mirror forward က နောက်ဆုံး weight နဲ့ ပြေး
+- loss 2.970168 → 2.104753 → 1.818429 → 1.757844 — ၄ ဆင့်လုံး ဆင့်ချင်းကျ — LOSS DECREASED gate ၃ ခု
+- lr 0.01 fixed — gradient တစ်ဆင့်ကြား ၂ ဆ ကြီးလာတာကြောင့် step 5 မှာ loss 1.783667 ပြန်တက် (gate bad=1 က ဖမ်း — fail-closed) — ၄ ဆင့် lock
+- 22592 elementwise + 4 loss + 112 masked-zero + 16 rowsum — အားလုံး GPU = CPU ✓ (1e-6) — final Wq -0.3388375739, mvq 0.0000560896
+- sandbox — generated C byte-identical c64ecf0d, CPU stub output = WSL GPU run byte-for-byte, python replica ဂဏန်းအားလုံး ၁၀ ဒသမ အတိကျ
+- negative control ၂ ခု fail-closed — m/v persistence break → bad=5954 exit 66, bias correction break → bad=7540 exit 116
+- run_all.sh — test ၂၇ ဖိုင် အားလုံး PASS
