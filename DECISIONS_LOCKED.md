@@ -190,3 +190,15 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - sandbox negative control — ln_bwd_row ထဲက xh*s2/D term ဖြတ်လိုက် → dX0 gpu=-8.9189782549 — bad=128 (mirror 64 + FD 64) exit 128 — mean/var gradient term သီးသန့်သက်သေ — dgamma/dbeta FD မထိခိုင်
 - T=8, D=8, eps 0.000001 — ln_fwd_row + ln_bwd_row locked — GPU test record task-r ၂၀ → s ၂၁ → t ၂၂ → u ၂၃ → v ၂၄ → w ၂၅
 - run_all.sh — test ၂၅ ဖိုင် အားလုံး PASS
+
+## 2026-11-06 — Full block backward (GPU=CPU)
+
+- block_bwd_test.mmc — transformer block တစ်ခုလုံး (forward + backward + AdamW + second forward) GPU ပေါ်မှာ တစ်ဆို့က် — kernel အသစ် ၀ — locked kernels ၁၆ ခု စုစည်းသုံး
+- backward chain — mse_bwd → ln_bwd_row (LN2) → gelu_bwd → ln_bwd_row (LN1) → smax_bwd_row + scale_row → dQ dK dV → bwd_dw (dWq dWk dWv dWo dW1 dW2)
+- residual gradient — dHt = dHm + dH2g — dXt = dHt + dXq + dXk + dXv — CPU mirror နဲ့ GPU တူ
+- AdamW ၆ ခု — Wq Wk Wv Wo W1 W2 (64/64/64/88/256/256) — m/v interleaved — bias correction — lr 0.01, beta1 0.9, beta2 0.999, eps 1e-8
+- second forward (updated weights) — loss1 2.970168 → loss2 2.104753 — LOSS DECREASED gate
+- စစ်ဆေးချက် — elementwise ၅၆၄၈ (forward ၉၈၄ + backward ၄၆၆၄) + loss ၂ + causal mask ၂၈ + rowsum ၄ — gate 1e-6 — bad=0, exit 0
+- sample ၁၃ ခု — dX0_0 -1.2257127092, dWq0 0.0001309928, Wq_new -0.3099992367 — GPU = sandbox CPU stub = python replica ဂဏန်း ၁၀ လုံး တူ
+- sandbox သက်သေ — generated C byte-identical (a487d778) — NC: loss2 scale 1.5 ပျက်စေရင် MISMATCH bad=1 exit 1 — fail-closed
+- dims — T=8, K=8, d=8, H=32, V=11, eps 0.000001 — run_all.sh 26/26 PASS (glob ကြောင့် run_all ပြင်စရာမလို) — GPU test record w 25 → x 26
