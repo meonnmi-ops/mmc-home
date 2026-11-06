@@ -179,3 +179,14 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - 3776 elementwise (10×256 + 3×64 + 2×512) + 2 loss GPU = CPU ✓ (1e-6) — GPU / sandbox stub / python replica ၃ ခုလုံး 10 ဂဏန်းအတိတူ
 - negative control — gelu_bwd launch ပိတ်လိုက် → MISMATCH bad=1493, exit 213 — check က အလုပ်လုပ်တယ်
 - run_all.sh — test ၂၄ ဖိုင် အားလုံး PASS
+
+## 2026-11-06 — LayerNorm backward (GPU=CPU)
+- ln_bwd_row kernel အသစ် ၁ ခု — dX က kernel ထဲမှာ — dgamma dbeta က CPU mirror + GPU finite-difference နှစ်ခါစစ်
+- mean/var gradient အပြည့်အစုံ — dx = rstd*(dy*g - s1/D - xh*s2/D) — s1 = sum(dy*g) — s2 = sum(dy*g*xh) — kernel ထဲ mean/var/rstd ပြန်တွက် (forward အတိုင်း)
+- dgamma[j] = sum_t(dy*xh) — dbeta[j] = sum_t(dy) — CPU mirror တွက် — GPU finite-difference နဲ့ တိုက်စစ်
+- GPU = CPU ✓ 1e-6 — 208 elementwise — y 64 + dX 64 + FD dX 64 + FD dgamma 8 + FD dbeta 8 + restore gate 1 (lossr = loss0, 1e-9)
+- finite-difference central diff h=0.0001 — dgamma/dbeta FD တစ်ဆယ်လုံးအတိတူ — dX fd=0.1625031119 vs 0.1625031334 (truncation 2.2e-8, gate 1e-6 အတွင်း)
+- sample — dX0 0.1625031334 — dgamma0 5.8291892698 — dbeta0 -4.3069359836 — loss 32.022148
+- sandbox negative control — ln_bwd_row ထဲက xh*s2/D term ဖြတ်လိုက် → dX0 gpu=-8.9189782549 — bad=128 (mirror 64 + FD 64) exit 128 — mean/var gradient term သီးသန့်သက်သေ — dgamma/dbeta FD မထိခိုင်
+- T=8, D=8, eps 0.000001 — ln_fwd_row + ln_bwd_row locked — GPU test record task-r ၂၀ → s ၂၁ → t ၂၂ → u ၂၃ → v ၂၄ → w ၂၅
+- run_all.sh — test ၂၅ ဖိုင် အားလုံး PASS
