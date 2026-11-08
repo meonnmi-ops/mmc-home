@@ -245,3 +245,13 @@ Fixpoint binary sha256 မပြောင်း: bf78d0515e0c429083a03d16ea46a55
 - NC-2 mirror chain-break (rdH3 += rdXtB splice ကို 0.0* လုပ်) — bad=74175 exit 191 fail-closed — chain gradient က load-bearing
 - sandbox — gen double-run byte-identical, wsl patcher = generator byte-identical, C sha 31099e3f, stub = python replica = expected 74 လိုင်း digit-for-digit
 - run_all.sh — test ၃၀ ဖိုင် အားလုံး PASS
+## 2026-11-08 — Sequence CE token-target training (GPU=CPU)
+- task-ab ရဲ့ MSE deep supervision ကို real LM shape ပြောင်း — trainable embedding (wte V×K + wpe T×d, AdamW ထဲ တရားဝင်) — tied head (logits = H @ wte^T via dEt = tpose_rc(dE)) — Wo/WoB (MSE heads) ဖျက် — 12 AdamW matrices = {Wq Wk Wv W1 W2}×2 + wte + wpe
+- CE loss = -(1/T)·Σ_t log P[t,y_t] — softmax_row (locked kernel) နဲ့ vocab softmax — shift-by-one targets (x_t=(3t+1) mod 11, y_t = x_((t+1) mod T)) — CE gradient (P−Y)/T host compute — log() = MMC builtin (verified)
+- embedding = one-hot matmul (E = M@wte + MP@wpe via mm_k) — embedding backward = bwd_dw on one-hots (dgwEemb = M^T@dX0, dgwPEemb = MP^T@dX0) — wte grad = emb path + block-1 head path + block-2 head path (host sum) — zero new kernels — mse_bwd retired
+- step-1 CE = ln(11) = 2.397895 byte-exact (uniform softmax — separable wte init a_v + b·k + centered LN ကြောင့် logits v-independent) — anchor gate အသစ် (m1 mask) — task-x/y/z/aa MSE anchor lineage ပြတ် (loss definition ပြောင်း — by design)
+- loss 4.795791 (CE1+CE2) → 4.599460 — 7/7 ဆင့်ချင်းကျ — gates: 55400 conditions/8 steps (2144 fwd + 4704 bwd elementwise + 56 masked-zero + 16 rowsum + 3 loss-sync + 1 anchor + 1 LOSS DECREASED per step) — L=2 chain + task-ab splice အပြည့်အစုံ ဆက်ရှိ
+- NC-1 mirror CE-grad-scale break (rdLB loop /T ဖျက်) — step-2 ကနေ cpu divergence → bad=68598 exit 246 fail-closed — NC-2 mirror tied-head break (rdH3B loop 0.0*) — step-3 ကနေ → bad=64730 exit 218 fail-closed — tied-head + CE gradient paths load-bearing
+- sandbox — gen double-run byte-identical, wsl gen = sandbox gen byte-identical, C sha 75307a8c, stub = expected 128 လိုင်း byte-exact — python replica = 1e-8 numeric (AdamW ε-division က numpy 1-ulp ကို 5e-10 အထိ ချဲ့ — non-sample lines byte-exact)
+- WSL real GPU (GTX 1660 Ti sm_75) — GPU_EXIT=0, 55400 gates all green, run_all ၃၁/၃၁ — sandbox expected နဲ့ diff = ၁၂၂/၁၂၈ byte-exact, GPU-side sample 6 လိုင်း 1e-10 အတန်း (dWte_0 step 2-4, dWpe_0 step 4, dWq2_0/mvq2_0 step-1 -0.0→+0.0) — cpu= column byte-exact ၁၂၈/၁၂၈ — max |gpu-cpu| = 1e-10 ≪ 1e-6 gate — အကြောင်း = CE path အသစ်မှာ CUDA expf/logf vs host libm 1-ulp — matmul path အားလုံး byte-exact ဆက်ရှိ — byte-exact contract = sandbox, WSL contract = gates + cpu column byte-exact + gpu column 1e-8
+- run_all.sh — test ၃၁ ဖိုင် အားလုံး PASS
