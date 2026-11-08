@@ -36,3 +36,5 @@ ref/full_test/out_*
 src/*.bak.*
 src/*.mmc.bak*
 experiments/**/loss/*.bin
+.ac_state/
+.ad_state/

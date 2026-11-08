@@ -1,0 +1,4272 @@
+ကမ္ဘာလုံး လုပ်ငန်း mm_k(ဒသမ* a, ဒသမ* b, ဒသမ* c, ကိန်း M, ကိန်း N, ကိန်း K) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    သုံးသပ်ချက်အရ(row < M) {
+        တည်ဆောက် ကိန်း col = 0
+        ပြည့်အောင်(col < N) {
+            တည်ဆောက် ဒသမ sum = 0
+            တည်ဆောက် ကိန်း k = 0
+            ပြည့်အောင်(k < K) {
+                sum = sum + a[row * K + k] * b[k * N + col]
+                k = k + 1
+            }
+            c[row * N + col] = sum
+            col = col + 1
+        }
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း att_row(ဒသမ* q, ဒသမ* k, ဒသမ* s, ကိန်း m, ကိန်း n, ကိန်း d) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < n) {
+        တည်ဆောက် ဒသမ acc = 0
+        တည်ဆောက် ကိန်း t = 0
+        ပြည့်အောင်(t < d) {
+            acc = acc + q[row * d + t] * k[j * d + t]
+            t = t + 1
+        }
+        s[row * n + j] = acc * 0.25
+        j = j + 1
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း mask_row(ဒသမ* s, ဒသမ* pad1, ဒသမ* pad2, ကိန်း n, ကိန်း pad3, ကိန်း pad4) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < n) {
+        သုံးသပ်ချက်အရ(j > row) {
+            s[row * n + j] = 0 - 1000000000.0
+        }
+        j = j + 1
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း softmax_row(ဒသမ* x, ဒသမ* out, ဒသမ* pad, ကိန်း V, ကိန်း M, ကိန်း pad2) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    သုံးသပ်ချက်အရ(row < M) {
+        တည်ဆောက် ဒသမ mx = x[row * V]
+        တည်ဆောက် ကိန်း j = 1
+        ပြည့်အောင်(j < V) {
+            သုံးသပ်ချက်အရ(x[row * V + j] > mx) { mx = x[row * V + j] }
+            j = j + 1
+        }
+        တည်ဆောက် ဒသမ sum = 0
+        j = 0
+        ပြည့်အောင်(j < V) {
+            sum = sum + exp(x[row * V + j] - mx)
+            j = j + 1
+        }
+        j = 0
+        ပြည့်အောင်(j < V) {
+            out[row * V + j] = exp(x[row * V + j] - mx) / sum
+            j = j + 1
+        }
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း tpose_row(ဒသမ* a, ဒသမ* b, ကိန်း n) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < n) {
+        b[j * n + row] = a[row * n + j]
+        j = j + 1
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း tpose_rc(ဒသမ* x, ဒသမ* out, ဒသမ* pad, ကိန်း R, ကိန်း C, ကိန်း pad2) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    သုံးသပ်ချက်အရ(row < C) {
+        တည်ဆောက် ကိန်း i = 0
+        ပြည့်အောင်(i < R) {
+            out[row * R + i] = x[i * C + row]
+            i = i + 1
+        }
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း smax_bwd_row(ဒသမ* a, ဒသမ* g, ဒသမ* out, ကိန်း n, ကိန်း m, ကိန်း pad2) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    သုံးသပ်ချက်အရ(row < m) {
+        တည်ဆောက် ဒသမ dot = 0
+        တည်ဆောက် ကိန်း k = 0
+        ပြည့်အောင်(k < n) {
+            dot = dot + g[row * n + k] * a[row * n + k]
+            k = k + 1
+        }
+        တည်ဆောက် ကိန်း j = 0
+        ပြည့်အောင်(j < n) {
+            out[row * n + j] = a[row * n + j] * (g[row * n + j] - dot)
+            j = j + 1
+        }
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း scale_row(ဒသမ* x, ဒသမ* out, ဒသမ* pad, ကိန်း n, ကိန်း m, ကိန်း pad2) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    ပြည့်အောင်(j < n) {
+        out[row * n + j] = x[row * n + j] * 0.25
+        j = j + 1
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း mse_bwd(ဒသမ* o, ဒသမ* y, ဒသမ* out, ကိန်း n, ကိန်း pad1, ကိန်း pad2) void {
+    တည်ဆောက် ကိန်း i = MMC_TID
+    သုံးသပ်ချက်အရ(i < n) {
+        out[i] = o[i] - y[i]
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း bwd_dw(ဒသမ* x, ဒသမ* g, ဒသမ* out, ကိန်း N, ကိန်း K, ကိန်း R) void {
+    တည်ဆောက် ကိန်း kk = MMC_BID
+    သုံးသပ်ချက်အရ(kk < K) {
+        တည်ဆောက် ကိန်း nn = 0
+        ပြည့်အောင်(nn < N) {
+            တည်ဆောက် ဒသမ sum = 0
+            တည်ဆောက် ကိန်း r = 0
+            ပြည့်အောင်(r < R) {
+                sum = sum + x[r * K + kk] * g[r * N + nn]
+                r = r + 1
+            }
+            out[kk * N + nn] = sum
+            nn = nn + 1
+        }
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း adamw_k(ဒသမ* w, ဒသမ* g, ဒသမ* mv, ကိန်း n, ကိန်း t, ကိန်း pad) void {
+    တည်ဆောက် ကိန်း i = MMC_TID
+    သုံးသပ်ချက်အရ(i < n) {
+        တည်ဆောက် ဒသမ m = mv[2 * i]
+        တည်ဆောက် ဒသမ v = mv[2 * i + 1]
+        တည်ဆောက် ဒသမ gi = g[i]
+        m = 0.9 * m + 0.1 * gi
+        v = 0.999 * v + 0.001 * gi * gi
+        mv[2 * i] = m
+        mv[2 * i + 1] = v
+        တည်ဆောက် ဒသမ mhat = m / (1.0 - pow(0.9, t))
+        တည်ဆောက် ဒသမ vhat = v / (1.0 - pow(0.999, t))
+        w[i] = w[i] - 0.01 * mhat / (sqrt(vhat) + 0.00000001)
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း gelu_kernel(ဒသမ* x, ဒသမ* y, ကိန်း n) void {
+    တည်ဆောက် ကိန်း i = MMC_TID
+    သုံးသပ်ချက်အရ(i < n) {
+        တည်ဆောက် ဒသမ v = x[i]
+        y[i] = 0.5 * v * (1.0 + tanh(0.7978845608 * (v + 0.044715 * v * v * v)))
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း gelu_bwd(ဒသမ* dg, ဒသမ* f1, ဒသမ* dof1, ကိန်း n, ကိန်း pad2, ကိန်း pad3) void {
+    တည်ဆောက် ကိန်း i = MMC_TID
+    သုံးသပ်ချက်အရ(i < n) {
+        တည်ဆောက် ဒသမ dgi = dg[i]
+        တည်ဆောက် ဒသမ v = f1[i]
+        တည်ဆောက် ဒသမ th = tanh(0.7978845608 * (v + 0.044715 * v * v * v))
+        dof1[i] = dgi * (0.5 * (1.0 + th) + v * 0.5 * (1.0 - th * th) * 0.7978845608 * (1.0 + 3.0 * 0.044715 * v * v))
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း ln_fwd_row(ဒသမ* x, ဒသမ* g, ဒသမ* b, ဒသမ* y, ကိန်း D, ဒသမ eps) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    တည်ဆောက် ဒသမ sum = 0
+    တည်ဆောက် ဒသမ mean = 0
+    တည်ဆောက် ဒသမ var = 0
+    တည်ဆောက် ဒသမ rstd = 0
+    တည်ဆောက် ဒသမ d = 0
+    j = 0
+    ပြည့်အောင်(j < D) {
+        sum = sum + x[row * D + j]
+        j = j + 1
+    }
+    mean = sum / D
+    var = 0
+    j = 0
+    ပြည့်အောင်(j < D) {
+        d = x[row * D + j] - mean
+        var = var + d * d
+        j = j + 1
+    }
+    var = var / D
+    rstd = 1.0 / sqrt(var + eps)
+    j = 0
+    ပြည့်အောင်(j < D) {
+        y[row * D + j] = (x[row * D + j] - mean) * rstd * g[j] + b[j]
+        j = j + 1
+    }
+}
+ကမ္ဘာလုံး လုပ်ငန်း ln_bwd_row(ဒသမ* dy, ဒသမ* x, ဒသမ* g, ဒသမ* dx, ကိန်း D, ဒသမ eps) void {
+    တည်ဆောက် ကိန်း row = MMC_BID
+    တည်ဆောက် ကိန်း j = 0
+    တည်ဆောက် ဒသမ sum = 0
+    တည်ဆောက် ဒသမ mean = 0
+    တည်ဆောက် ဒသမ var = 0
+    တည်ဆောက် ဒသမ rstd = 0
+    တည်ဆောက် ဒသမ d = 0
+    တည်ဆောက် ဒသမ s1 = 0
+    တည်ဆောက် ဒသမ s2 = 0
+    တည်ဆောက် ဒသမ a = 0
+    တည်ဆောက် ဒသမ xh = 0
+    j = 0
+    ပြည့်အောင်(j < D) {
+        sum = sum + x[row * D + j]
+        j = j + 1
+    }
+    mean = sum / D
+    var = 0
+    j = 0
+    ပြည့်အောင်(j < D) {
+        d = x[row * D + j] - mean
+        var = var + d * d
+        j = j + 1
+    }
+    var = var / D
+    rstd = 1.0 / sqrt(var + eps)
+    s1 = 0
+    s2 = 0
+    j = 0
+    ပြည့်အောင်(j < D) {
+        a = dy[row * D + j] * g[j]
+        xh = (x[row * D + j] - mean) * rstd
+        s1 = s1 + a
+        s2 = s2 + a * xh
+        j = j + 1
+    }
+    j = 0
+    ပြည့်အောင်(j < D) {
+        a = dy[row * D + j] * g[j]
+        xh = (x[row * D + j] - mean) * rstd
+        dx[row * D + j] = rstd * (a - s1 / D - xh * s2 / D)
+        j = j + 1
+    }
+}
+လုပ်ငန်း main() {
+    တည်ဆောက် ကိန်း T = 8
+    တည်ဆောက် ကိန်း K = 8
+    တည်ဆောက် ကိန်း d = 8
+    တည်ဆောက် ကိန်း H = 32
+    တည်ဆောက် ကိန်း V = 11
+    တည်ဆောက် ကိန်း bad = 0
+    တည်ဆောက် ဒသမ* hE = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hPE = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hX0 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWq = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWk = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWv = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hW1 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hW2 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hGam = mmc_malloc(64)
+    တည်ဆောက် ဒသမ* hBet = mmc_malloc(64)
+    တည်ဆောက် ဒသမ* hY = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hS = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hA = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hAtt = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH1 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hF1 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hG = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hF2 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH2 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH3 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hLg = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rQ = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rK = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rV = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rS = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rA = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rAtt = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH1 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rF1 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rG = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rF2 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH2 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH3 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rLg = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDL = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDH3 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDH2g = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDW2 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDG = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDF1 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDH1 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDW1 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDHm = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDHt = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDV = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDA = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDS = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDQ = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDK = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWq = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWk = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWv = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXq = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXk = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXv = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXt = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWq2 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWk2 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWv2 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hW12 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hW22 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hmvq = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvk = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvv = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvo = mmc_malloc(1408)
+    တည်ဆောက် ဒသမ* hmv1 = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* hmv2 = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* rdL = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rdH3 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdH2g = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdW2 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdG = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdF1 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdH1 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdW1 = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdHm = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdHt = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdV = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdA = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdS = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdQ = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdK = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWq = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWk = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWv = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXq = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXk = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXv = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXt = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rmvq = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvk = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvv = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvo = mmc_malloc(1408)
+    တည်ဆောက် ဒသမ* rmv1 = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* rmv2 = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* hWqB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWkB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWvB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hW1B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hW2B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hSB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hAB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hAttB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hHB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH1B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hF1B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hGB = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hF2B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH2B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH3B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hLgB = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rQB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rKB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rVB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rSB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rAB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rAttB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rHB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH1B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rF1B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rGB = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rF2B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH2B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH3B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rLgB = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDLB = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDH3B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDH2gB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDW2B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDGB = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDF1B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDH1B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDW1B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDHmB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDHtB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDVB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDAB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDSB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDQB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDKB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWqB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWkB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWvB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXqB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXkB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXvB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXtB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWq2B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWk2B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWv2B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hW12B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hW22B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hmvqB = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvkB = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvvB = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvoB = mmc_malloc(1408)
+    တည်ဆောက် ဒသမ* hmv1B = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* hmv2B = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* rdLB = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rdH3B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdH2gB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdW2B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdGB = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdF1B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdH1B = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdW1B = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdHmB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdHtB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdVB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdAB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdSB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdQB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdKB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWqB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWkB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWvB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXqB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXkB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXvB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXtB = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rmvqB = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvkB = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvvB = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvoB = mmc_malloc(1408)
+    တည်ဆောက် ဒသမ* rmv1B = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* rmv2B = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* hWqC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWkC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWvC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hW1C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hW2C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hSC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hAC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hAttC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hHC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH1C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hF1C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hGC = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hF2C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH2C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hH3C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hLgC = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rQC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rKC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rVC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rSC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rAC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rAttC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rHC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH1C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rF1C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rGC = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rF2C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH2C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rH3C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rLgC = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDLC = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDH3C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDH2gC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDW2C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDGC = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDF1C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDH1C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDW1C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hDHmC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDHtC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDVC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDAC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDSC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDQC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDKC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWqC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWkC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWvC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXqC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXkC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXvC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDXtC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWq2C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWk2C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hWv2C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hW12C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hW22C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* hmvqC = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvkC = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvvC = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmvoC = mmc_malloc(1408)
+    တည်ဆောက် ဒသမ* hmv1C = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* hmv2C = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* rdLC = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rdH3C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdH2gC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdW2C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdGC = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdF1C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdH1C = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdW1C = mmc_malloc(2048)
+    တည်ဆောက် ဒသမ* rdHmC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdHtC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdVC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdAC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdSC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdQC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdKC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWqC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWkC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWvC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXqC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXkC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXvC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdXtC = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rmvqC = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvkC = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvvC = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* rmvoC = mmc_malloc(1408)
+    တည်ဆောက် ဒသမ* rmv1C = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* rmv2C = mmc_malloc(4096)
+    တည်ဆောက် ဒသမ* hP3 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rP3 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDWE3 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rdWte3 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hM = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hMP = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hP1 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hP2 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rP1 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rP2 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rX0 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hX0e = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hX0p = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hE2 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hPE2 = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWte = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDWpe = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* hDWEe = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDWE1 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDWE2 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* hDWPe = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWte = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rdWpe = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rdWteE = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rdWte1 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rdWte2 = mmc_malloc(704)
+    တည်ဆောက် ဒသမ* rdWpeE = mmc_malloc(512)
+    တည်ဆောက် ဒသမ* rmve = mmc_malloc(1408)
+    တည်ဆောက် ဒသမ* rmvpe = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* hmve = mmc_malloc(1408)
+    တည်ဆောက် ဒသမ* hmvpe = mmc_malloc(1024)
+    တည်ဆောက် ဒသမ* dx0 = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwq = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwk = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwv = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dw1 = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw2 = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dgam = mmc_gpu_malloc(64)
+    တည်ဆောက် ဒသမ* dbet = mmc_gpu_malloc(64)
+    တည်ဆောက် ဒသမ* dmvq = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvk = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvv = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvo = mmc_gpu_malloc(1408)
+    တည်ဆောက် ဒသမ* dmv1 = mmc_gpu_malloc(4096)
+    တည်ဆောက် ဒသမ* dmv2 = mmc_gpu_malloc(4096)
+    တည်ဆောက် ဒသမ* dq = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dk = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dv = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* ds = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* da = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* datt = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh1 = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* df1 = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dg1 = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* df2 = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh2 = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh3 = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dlog = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* ddlog = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dh3g = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh2g = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgw2 = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw2t = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dgG = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dF1g = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw1t = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dgw1 = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dh1g = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dhm = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* ddo = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* at = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gv = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* vt = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* ga = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gst = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gq = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gk = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwq = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwk = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwv = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwqt = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwkt = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwvt = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0q = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0k = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0v = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwqB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwkB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwvB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dw1B = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw2B = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dmvqB = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvkB = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvvB = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvoB = mmc_gpu_malloc(1408)
+    တည်ဆောက် ဒသမ* dmv1B = mmc_gpu_malloc(4096)
+    တည်ဆောက် ဒသမ* dmv2B = mmc_gpu_malloc(4096)
+    တည်ဆောက် ဒသမ* dqB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dkB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dvB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dsB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* daB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dattB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dhB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh1B = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* df1B = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dg1B = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* df2B = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh2B = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh3B = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dlogB = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* ddlogB = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dh3gB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh2gB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgw2B = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw2tB = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dgGB = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dF1gB = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw1tB = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dgw1B = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dh1gB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dhmB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* ddoB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* atB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gvB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* vtB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gaB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gstB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gqB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gkB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwqB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwkB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwvB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwqtB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwktB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwvtB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0qB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0kB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0vB = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dM = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dMP = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dE = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dPE = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dEt = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dX0e = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dX0p = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dP1 = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dP2 = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dX0g = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwE = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dgwPE = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwEemb = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dgwPEemb = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwEB1 = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dgwEB2 = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dmve = mmc_gpu_malloc(1408)
+    တည်ဆောက် ဒသမ* dmvpe = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dwqC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwkC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwvC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dw1C = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw2C = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dmvqC = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvkC = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvvC = mmc_gpu_malloc(1024)
+    တည်ဆောက် ဒသမ* dmvoC = mmc_gpu_malloc(1408)
+    တည်ဆောက် ဒသမ* dmv1C = mmc_gpu_malloc(4096)
+    တည်ဆောက် ဒသမ* dmv2C = mmc_gpu_malloc(4096)
+    တည်ဆောက် ဒသမ* dqC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dkC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dvC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dsC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* daC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dattC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dhC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh1C = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* df1C = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dg1C = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* df2C = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh2C = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh3C = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dlogC = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* ddlogC = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dh3gC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dh2gC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgw2C = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw2tC = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dgGC = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dF1gC = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dw1tC = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dgw1C = mmc_gpu_malloc(2048)
+    တည်ဆောက် ဒသမ* dh1gC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dhmC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* ddoC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* atC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gvC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* vtC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gaC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gstC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gqC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* gkC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwqC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwkC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dgwvC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwqtC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwktC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dwvtC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0qC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0kC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dx0vC = mmc_gpu_malloc(512)
+    တည်ဆောက် ဒသမ* dP3 = mmc_gpu_malloc(704)
+    တည်ဆောက် ဒသမ* dgwEB3 = mmc_gpu_malloc(704)
+    တည်ဆောက် ကိန်း step = 1
+    တည်ဆောက် ဒသမ lossF = 0
+    တည်ဆောက် ဒသမ lossL = 0
+    တည်ဆောက် ဒသမ lprev = 1000000000.0
+    တည်ဆောက် ဒသမ rsF0 = 0
+    တည်ဆောက် ဒသမ rsF7 = 0
+    တည်ဆောက် ဒသမ rsFB0 = 0
+    တည်ဆောက် ဒသမ rsFB7 = 0
+    တည်ဆောက် ဒသမ rsPF0 = 0
+    တည်ဆောက် ဒသမ rsPF7 = 0
+    တည်ဆောက် ဒသမ rsPF0B = 0
+    တည်ဆောက် ဒသမ rsPF7B = 0
+    တည်ဆောက် ဒသမ rsFC0 = 0
+    တည်ဆောက် ဒသမ rsFC7 = 0
+    တည်ဆောက် ဒသမ rsPFC0 = 0
+    တည်ဆောက် ဒသမ rsPFC7 = 0
+    တည်ဆောက် ကိန်း iE = 0
+    ပြည့်အောင်(iE < V) {
+        တည်ဆောက် ကိန်း jE = 0
+        ပြည့်အောင်(jE < K) {
+            hE[iE * K + jE] = ((iE % 5) * 0.1 - 0.25) + jE * 0.013
+            jE = jE + 1
+        }
+        iE = iE + 1
+    }
+    တည်ဆောက် ကိန်း iP = 0
+    ပြည့်အောင်(iP < T) {
+        တည်ဆောက် ကိန်း jP = 0
+        ပြည့်အောင်(jP < d) {
+            hPE[iP * d + jP] = ((iP % 4) * 0.05 - 0.1) + jP * 0.007
+            jP = jP + 1
+        }
+        iP = iP + 1
+    }
+    တည်ဆောက် ကိန်း iwq = 0
+    ပြည့်အောင်(iwq < 64) {
+        hWq[iwq] = ((iwq % 7) * 0.1 - 0.3)
+        hWk[iwq] = ((iwq % 11) * 0.05 - 0.25)
+        hWv[iwq] = ((iwq % 9) * 0.1 - 0.4)
+        iwq = iwq + 1
+    }
+    တည်ဆောက် ကိန်း iwm = 0
+    ပြည့်အောင်(iwm < 256) {
+        hW1[iwm] = ((iwm % 13) * 0.02 - 0.12)
+        hW2[iwm] = ((iwm % 17) * 0.02 - 0.15)
+        iwm = iwm + 1
+    }
+    တည်ဆောက် ကိန်း iGm = 0
+    ပြည့်အောင်(iGm < d) {
+        hGam[iGm] = 1.0
+        hBet[iGm] = 0.0
+        iGm = iGm + 1
+    }
+    တည်ဆောက် ကိန်း irY = 0
+    ပြည့်အောင်(irY < T) {
+        တည်ဆောက် ကိန်း icY = 0
+        ပြည့်အောင်(icY < V) {
+            hY[irY * V + icY] = 0
+            icY = icY + 1
+        }
+        တည်ဆောက် ကိန်း ytY = (3 * ((irY + 1) % T) + 1) % 11
+        hY[irY * V + ytY] = 1
+        irY = irY + 1
+    }
+    တည်ဆောက် ကိန်း iz = 0
+    ပြည့်အောင်(iz < 512) {
+        rmv1[iz] = 0
+        rmv2[iz] = 0
+        iz = iz + 1
+    }
+    တည်ဆောက် ကိန်း iz2 = 0
+    ပြည့်အောင်(iz2 < 128) {
+        rmvq[iz2] = 0
+        rmvk[iz2] = 0
+        rmvv[iz2] = 0
+        iz2 = iz2 + 1
+    }
+    တည်ဆောက် ကိန်း iz3 = 0
+    ပြည့်အောင်(iz3 < 176) {
+        rmvo[iz3] = 0
+        iz3 = iz3 + 1
+    }
+    တည်ဆောက် ကိန်း iwqB = 0
+    ပြည့်အောင်(iwqB < 64) {
+        hWqB[iwqB] = ((iwqB % 7) * 0.1 - 0.3)
+        hWkB[iwqB] = ((iwqB % 11) * 0.05 - 0.25)
+        hWvB[iwqB] = ((iwqB % 9) * 0.1 - 0.4)
+        iwqB = iwqB + 1
+    }
+    တည်ဆောက် ကိန်း iwmB = 0
+    ပြည့်အောင်(iwmB < 256) {
+        hW1B[iwmB] = ((iwmB % 13) * 0.02 - 0.12)
+        hW2B[iwmB] = ((iwmB % 17) * 0.02 - 0.15)
+        iwmB = iwmB + 1
+    }
+    တည်ဆောက် ကိန်း izB = 0
+    ပြည့်အောင်(izB < 512) {
+        rmv1B[izB] = 0
+        rmv2B[izB] = 0
+        izB = izB + 1
+    }
+    တည်ဆောက် ကိန်း iz2B = 0
+    ပြည့်အောင်(iz2B < 128) {
+        rmvqB[iz2B] = 0
+        rmvkB[iz2B] = 0
+        rmvvB[iz2B] = 0
+        iz2B = iz2B + 1
+    }
+    တည်ဆောက် ကိန်း iz3B = 0
+    ပြည့်အောင်(iz3B < 176) {
+        rmvoB[iz3B] = 0
+        iz3B = iz3B + 1
+    }
+    တည်ဆောက် ကိန်း iwqC = 0
+    ပြည့်အောင်(iwqC < 64) {
+        hWqC[iwqC] = ((iwqC % 7) * 0.1 - 0.3)
+        hWkC[iwqC] = ((iwqC % 11) * 0.05 - 0.25)
+        hWvC[iwqC] = ((iwqC % 9) * 0.1 - 0.4)
+        iwqC = iwqC + 1
+    }
+    တည်ဆောက် ကိန်း iwmC = 0
+    ပြည့်အောင်(iwmC < 256) {
+        hW1C[iwmC] = ((iwmC % 13) * 0.02 - 0.12)
+        hW2C[iwmC] = ((iwmC % 17) * 0.02 - 0.15)
+        iwmC = iwmC + 1
+    }
+    တည်ဆောက် ကိန်း izC = 0
+    ပြည့်အောင်(izC < 512) {
+        rmv1C[izC] = 0
+        rmv2C[izC] = 0
+        izC = izC + 1
+    }
+    တည်ဆောက် ကိန်း iz2C = 0
+    ပြည့်အောင်(iz2C < 128) {
+        rmvqC[iz2C] = 0
+        rmvkC[iz2C] = 0
+        rmvvC[iz2C] = 0
+        iz2C = iz2C + 1
+    }
+    တည်ဆောက် ကိန်း iz3C = 0
+    ပြည့်အောင်(iz3C < 176) {
+        rmvoC[iz3C] = 0
+        iz3C = iz3C + 1
+    }
+    တည်ဆောက် ကိန်း iM = 0
+    ပြည့်အောင်(iM < T) {
+        တည်ဆောက် ကိန်း jM = 0
+        ပြည့်အောင်(jM < V) {
+            hM[iM * V + jM] = 0
+            jM = jM + 1
+        }
+        တည်ဆောက် ကိန်း xtM = (3 * iM + 1) % 11
+        hM[iM * V + xtM] = 1
+        iM = iM + 1
+    }
+    တည်ဆောက် ကိန်း iPp = 0
+    ပြည့်အောင်(iPp < T) {
+        တည်ဆောက် ကိန်း jPp = 0
+        ပြည့်အောင်(jPp < T) {
+            hMP[iPp * T + jPp] = 0
+            သုံးသပ်ချက်အရ(jPp == iPp) { hMP[iPp * T + jPp] = 1 }
+            jPp = jPp + 1
+        }
+        iPp = iPp + 1
+    }
+    တည်ဆောက် ကိန်း iz4 = 0
+    ပြည့်အောင်(iz4 < 176) {
+        rmve[iz4] = 0
+        iz4 = iz4 + 1
+    }
+    တည်ဆောက် ကိန်း iz5 = 0
+    ပြည့်အောင်(iz5 < 128) {
+        rmvpe[iz5] = 0
+        iz5 = iz5 + 1
+    }
+    mmc_gpu_copy_to(dwq, hWq, 512)
+    mmc_gpu_copy_to(dwk, hWk, 512)
+    mmc_gpu_copy_to(dwv, hWv, 512)
+    mmc_gpu_copy_to(dw1, hW1, 2048)
+    mmc_gpu_copy_to(dw2, hW2, 2048)
+    mmc_gpu_copy_to(dgam, hGam, 64)
+    mmc_gpu_copy_to(dbet, hBet, 64)
+    mmc_gpu_copy_to(dmvq, rmvq, 1024)
+    mmc_gpu_copy_to(dmvk, rmvk, 1024)
+    mmc_gpu_copy_to(dmvv, rmvv, 1024)
+    mmc_gpu_copy_to(dmvo, rmvo, 1408)
+    mmc_gpu_copy_to(dmv1, rmv1, 4096)
+    mmc_gpu_copy_to(dmv2, rmv2, 4096)
+mmc_gpu_copy_to(dwqB, hWqB, 512)
+mmc_gpu_copy_to(dwkB, hWkB, 512)
+mmc_gpu_copy_to(dwvB, hWvB, 512)
+mmc_gpu_copy_to(dw1B, hW1B, 2048)
+mmc_gpu_copy_to(dw2B, hW2B, 2048)
+mmc_gpu_copy_to(dmvqB, rmvqB, 1024)
+mmc_gpu_copy_to(dmvkB, rmvkB, 1024)
+mmc_gpu_copy_to(dmvvB, rmvvB, 1024)
+mmc_gpu_copy_to(dmvoB, rmvoB, 1408)
+mmc_gpu_copy_to(dmv1B, rmv1B, 4096)
+mmc_gpu_copy_to(dmv2B, rmv2B, 4096)
+mmc_gpu_copy_to(dwqC, hWqC, 512)
+mmc_gpu_copy_to(dwkC, hWkC, 512)
+mmc_gpu_copy_to(dwvC, hWvC, 512)
+mmc_gpu_copy_to(dw1C, hW1C, 2048)
+mmc_gpu_copy_to(dw2C, hW2C, 2048)
+mmc_gpu_copy_to(dmvqC, rmvqC, 1024)
+mmc_gpu_copy_to(dmvkC, rmvkC, 1024)
+mmc_gpu_copy_to(dmvvC, rmvvC, 1024)
+mmc_gpu_copy_to(dmvoC, rmvoC, 1408)
+mmc_gpu_copy_to(dmv1C, rmv1C, 4096)
+mmc_gpu_copy_to(dmv2C, rmv2C, 4096)
+    mmc_gpu_copy_to(dM, hM, 704)
+    mmc_gpu_copy_to(dMP, hMP, 512)
+    mmc_gpu_copy_to(dE, hE, 704)
+    mmc_gpu_copy_to(dPE, hPE, 512)
+    mmc_gpu_copy_to(dmve, rmve, 1408)
+    mmc_gpu_copy_to(dmvpe, rmvpe, 1024)
+    ပြည့်အောင်(step < 9) {
+        တည်ဆောက် ဒသမ lgpu = 0
+        တည်ဆောက် ဒသမ lcpu = 0
+        တည်ဆောက် ဒသမ ldiff = 0
+        တည်ဆောက် ဒသမ lgpuB = 0
+        တည်ဆောက် ဒသမ lcpuB = 0
+        တည်ဆောက် ဒသမ ldiffB = 0
+        တည်ဆောက် ဒသမ ltot = 0
+        တည်ဆောက် ဒသမ lctot = 0
+        တည်ဆောက် ဒသမ ldiffT = 0
+        တည်ဆောက် ဒသမ eAnch = 0
+        တည်ဆောက် ဒသမ m1 = 0
+        တည်ဆောက် ဒသမ rs0 = 0
+        တည်ဆောက် ဒသမ rs7 = 0
+        တည်ဆောက် ဒသမ rs0B = 0
+        တည်ဆောက် ဒသမ rs7B = 0
+        တည်ဆောက် ဒသမ lrs = 1.0 / step
+        တည်ဆောက် ဒသမ rsP0 = 0
+        တည်ဆောက် ဒသမ rsP7 = 0
+        တည်ဆောက် ဒသမ rsP0B = 0
+        တည်ဆောက် ဒသမ rsP7B = 0
+        တည်ဆောက် ဒသမ lgpuC = 0
+        တည်ဆောက် ဒသမ lcpuC = 0
+        တည်ဆောက် ဒသမ ldiffC = 0
+        တည်ဆောက် ဒသမ rs0C = 0
+        တည်ဆောက် ဒသမ rs7C = 0
+        တည်ဆောက် ဒသမ rsP0C = 0
+        တည်ဆောက် ဒသမ rsP7C = 0
+            mmc_gpu_launch3p3i(mm_k, dM, dE, dX0e, T, K, V, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dMP, dPE, dX0p, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hX0e, dX0e, 512)
+            mmc_gpu_copy_from(hX0p, dX0p, 512)
+            တည်ဆောက် ကိန်း ixE = 0
+            ပြည့်အောင်(ixE < 64) {
+                hX0[ixE] = hX0e[ixE] + hX0p[ixE]
+                ixE = ixE + 1
+            }
+            mmc_gpu_copy_to(dx0, hX0, 512)
+            mmc_gpu_launch3p3i(tpose_rc, dE, dEt, dE, V, K, 0, K, 1)
+            cudaDeviceSynchronize()
+            တည်ဆောက် ကိန်း ixv = 0
+            ပြည့်အောင်(ixv < T) {
+                တည်ဆောက် ကိန်း jxv = 0
+                ပြည့်အောင်(jxv < K) {
+                    တည်ဆောက် ဒသမ xemV = 0
+                    တည်ဆောက် ကိန်း kxv = 0
+                    ပြည့်အောင်(kxv < V) {
+                        xemV = xemV + hM[ixv * V + kxv] * hE[kxv * K + jxv]
+                        kxv = kxv + 1
+                    }
+                    တည်ဆောက် ဒသမ xemP = 0
+                    တည်ဆောက် ကိန်း pxv = 0
+                    ပြည့်အောင်(pxv < T) {
+                        xemP = xemP + hMP[ixv * T + pxv] * hPE[pxv * d + jxv]
+                        pxv = pxv + 1
+                    }
+                    rX0[ixv * K + jxv] = xemV + xemP
+                    jxv = jxv + 1
+                }
+                ixv = ixv + 1
+            }
+            mmc_gpu_launch3p3i(mm_k, dx0, dwq, dq, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dx0, dwk, dk, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dx0, dwv, dv, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(att_row, dq, dk, ds, T, T, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mask_row, ds, ds, ds, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(softmax_row, ds, da, ds, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, da, dv, datt, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hAtt, datt, 512)
+            တည်ဆောက် ကိန်း iR1 = 0
+            ပြည့်အောင်(iR1 < 64) {
+                hH[iR1] = hX0[iR1] + hAtt[iR1]
+                iR1 = iR1 + 1
+            }
+            mmc_gpu_copy_to(dh, hH, 512)
+            mmc_gpu_launch_ln(ln_fwd_row, dh, dgam, dbet, dh1, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh1, dw1, df1, T, H, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch2pi(gelu_kernel, df1, dg1, 256, 1, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dg1, dw2, df2, T, d, H, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hF2, df2, 512)
+            တည်ဆောက် ကိန်း iR2 = 0
+            ပြည့်အောင်(iR2 < 64) {
+                တည်ဆောက် ဒသမ h2v = hH[iR2] + hF2[iR2]
+                hH2[iR2] = h2v
+                iR2 = iR2 + 1
+            }
+            mmc_gpu_copy_to(dh2, hH2, 512)
+            mmc_gpu_launch_ln(ln_fwd_row, dh2, dgam, dbet, dh3, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh3, dEt, dlog, T, V, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(softmax_row, dlog, dP1, dlog, V, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hS, ds, 512)
+            mmc_gpu_copy_from(hA, da, 512)
+            mmc_gpu_copy_from(hH1, dh1, 512)
+            mmc_gpu_copy_from(hF1, df1, 2048)
+            mmc_gpu_copy_from(hG, dg1, 2048)
+            mmc_gpu_copy_from(hH3, dh3, 512)
+            mmc_gpu_copy_from(hLg, dlog, 704)
+            mmc_gpu_copy_from(hP1, dP1, 704)
+            တည်ဆောက် ကိန်း ilC1 = 0
+            ပြည့်အောင်(ilC1 < T) {
+                တည်ဆောက် ကိန်း yt1 = (3 * ((ilC1 + 1) % T) + 1) % 11
+                lgpu = lgpu + log(hP1[ilC1 * V + yt1])
+                ilC1 = ilC1 + 1
+            }
+            lgpu = (0 - lgpu) / T
+            mmc_gpu_launch3p3i(mm_k, dh3, dwqB, dqB, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh3, dwkB, dkB, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh3, dwvB, dvB, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(att_row, dqB, dkB, dsB, T, T, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mask_row, dsB, dsB, dsB, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(softmax_row, dsB, daB, dsB, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, daB, dvB, dattB, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hAttB, dattB, 512)
+            တည်ဆောက် ကိန်း iR1B = 0
+            ပြည့်အောင်(iR1B < 64) {
+                hHB[iR1B] = hH3[iR1B] + hAttB[iR1B]
+                iR1B = iR1B + 1
+            }
+            mmc_gpu_copy_to(dhB, hHB, 512)
+            mmc_gpu_launch_ln(ln_fwd_row, dhB, dgam, dbet, dh1B, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh1B, dw1B, df1B, T, H, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch2pi(gelu_kernel, df1B, dg1B, 256, 1, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dg1B, dw2B, df2B, T, d, H, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hF2B, df2B, 512)
+            တည်ဆောက် ကိန်း iR2B = 0
+            ပြည့်အောင်(iR2B < 64) {
+                တည်ဆောက် ဒသမ h2vB = hHB[iR2B] + hF2B[iR2B]
+                hH2B[iR2B] = h2vB
+                iR2B = iR2B + 1
+            }
+            mmc_gpu_copy_to(dh2B, hH2B, 512)
+            mmc_gpu_launch_ln(ln_fwd_row, dh2B, dgam, dbet, dh3B, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh3B, dEt, dlogB, T, V, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(softmax_row, dlogB, dP2, dlogB, V, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hSB, dsB, 512)
+            mmc_gpu_copy_from(hAB, daB, 512)
+            mmc_gpu_copy_from(hH1B, dh1B, 512)
+            mmc_gpu_copy_from(hF1B, df1B, 2048)
+            mmc_gpu_copy_from(hGB, dg1B, 2048)
+            mmc_gpu_copy_from(hH3B, dh3B, 512)
+            mmc_gpu_copy_from(hLgB, dlogB, 704)
+            mmc_gpu_copy_from(hP2, dP2, 704)
+            တည်ဆောက် ကိန်း ilC2 = 0
+            ပြည့်အောင်(ilC2 < T) {
+                တည်ဆောက် ကိန်း yt2 = (3 * ((ilC2 + 1) % T) + 1) % 11
+                lgpuB = lgpuB + log(hP2[ilC2 * V + yt2])
+                ilC2 = ilC2 + 1
+            }
+            lgpuB = (0 - lgpuB) / T
+            mmc_gpu_launch3p3i(mm_k, dh3B, dwqC, dqC, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh3B, dwkC, dkC, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh3B, dwvC, dvC, T, d, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(att_row, dqC, dkC, dsC, T, T, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mask_row, dsC, dsC, dsC, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(softmax_row, dsC, daC, dsC, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, daC, dvC, dattC, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hAttC, dattC, 512)
+            တည်ဆောက် ကိန်း iR1C = 0
+            ပြည့်အောင်(iR1C < 64) {
+                hHC[iR1C] = hH3B[iR1C] + hAttC[iR1C]
+                iR1C = iR1C + 1
+            }
+            mmc_gpu_copy_to(dhC, hHC, 512)
+            mmc_gpu_launch_ln(ln_fwd_row, dhC, dgam, dbet, dh1C, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh1C, dw1C, df1C, T, H, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch2pi(gelu_kernel, df1C, dg1C, 256, 1, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dg1C, dw2C, df2C, T, d, H, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hF2C, df2C, 512)
+            တည်ဆောက် ကိန်း iR2C = 0
+            ပြည့်အောင်(iR2C < 64) {
+                တည်ဆောက် ဒသမ h2vC = hHC[iR2C] + hF2C[iR2C]
+                hH2C[iR2C] = h2vC
+                iR2C = iR2C + 1
+            }
+            mmc_gpu_copy_to(dh2C, hH2C, 512)
+            mmc_gpu_launch_ln(ln_fwd_row, dh2C, dgam, dbet, dh3C, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh3C, dEt, dlogC, T, V, K, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(softmax_row, dlogC, dP3, dlogC, V, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hSC, dsC, 512)
+            mmc_gpu_copy_from(hAC, daC, 512)
+            mmc_gpu_copy_from(hH1C, dh1C, 512)
+            mmc_gpu_copy_from(hF1C, df1C, 2048)
+            mmc_gpu_copy_from(hGC, dg1C, 2048)
+            mmc_gpu_copy_from(hH3C, dh3C, 512)
+            mmc_gpu_copy_from(hLgC, dlogC, 704)
+            mmc_gpu_copy_from(hP3, dP3, 704)
+            တည်ဆောက် ကိန်း ilC3 = 0
+            ပြည့်အောင်(ilC3 < T) {
+                တည်ဆောက် ကိန်း yt3 = (3 * ((ilC3 + 1) % T) + 1) % 11
+                lgpuC = lgpuC + log(hP3[ilC3 * V + yt3])
+                ilC3 = ilC3 + 1
+            }
+            lgpuC = (0 - lgpuC) / T
+            တည်ဆောက် ကိန်း rI = 0
+            ပြည့်အောင်(rI < T) {
+                တည်ဆောက် ကိန်း rJ = 0
+                ပြည့်အောင်(rJ < d) {
+                    တည်ဆောက် ဒသမ rq = 0
+                    တည်ဆောက် ဒသမ rk = 0
+                    တည်ဆောက် ဒသမ rv = 0
+                    တည်ဆောက် ကိန်း rT = 0
+                    ပြည့်အောင်(rT < K) {
+                        rq = rq + rX0[rI * K + rT] * hWq[rT * d + rJ]
+                        rk = rk + rX0[rI * K + rT] * hWk[rT * d + rJ]
+                        rv = rv + rX0[rI * K + rT] * hWv[rT * d + rJ]
+                        rT = rT + 1
+                    }
+                    rQ[rI * d + rJ] = rq
+                    rK[rI * d + rJ] = rk
+                    rV[rI * d + rJ] = rv
+                    rJ = rJ + 1
+                }
+                rI = rI + 1
+            }
+            တည်ဆောက် ကိန်း rI2 = 0
+            ပြည့်အောင်(rI2 < T) {
+                တည်ဆောက် ကိန်း rJ2 = 0
+                ပြည့်အောင်(rJ2 < T) {
+                    တည်ဆောက် ဒသမ racc = 0
+                    တည်ဆောက် ကိန်း rT2 = 0
+                    ပြည့်အောင်(rT2 < d) {
+                        racc = racc + rQ[rI2 * d + rT2] * rK[rJ2 * d + rT2]
+                        rT2 = rT2 + 1
+                    }
+                    rS[rI2 * T + rJ2] = racc * 0.25
+                    rJ2 = rJ2 + 1
+                }
+                တည်ဆောက် ကိန်း rM2 = 0
+                ပြည့်အောင်(rM2 < T) {
+                    သုံးသပ်ချက်အရ(rM2 > rI2) { rS[rI2 * T + rM2] = 0 - 1000000000.0 }
+                    rM2 = rM2 + 1
+                }
+                တည်ဆောက် ဒသမ rmx = rS[rI2 * T]
+                တည်ဆောက် ကိန်း rJ3 = 1
+                ပြည့်အောင်(rJ3 < T) {
+                    သုံးသပ်ချက်အရ(rS[rI2 * T + rJ3] > rmx) { rmx = rS[rI2 * T + rJ3] }
+                    rJ3 = rJ3 + 1
+                }
+                တည်ဆောက် ဒသမ rsm = 0
+                တည်ဆောက် ကိန်း rJ4 = 0
+                ပြည့်အောင်(rJ4 < T) {
+                    rsm = rsm + exp(rS[rI2 * T + rJ4] - rmx)
+                    rJ4 = rJ4 + 1
+                }
+                တည်ဆောက် ကိန်း rJ5 = 0
+                ပြည့်အောင်(rJ5 < T) {
+                    rA[rI2 * T + rJ5] = exp(rS[rI2 * T + rJ5] - rmx) / rsm
+                    rJ5 = rJ5 + 1
+                }
+                rI2 = rI2 + 1
+            }
+            တည်ဆောက် ကိန်း rI3 = 0
+            ပြည့်အောင်(rI3 < T) {
+                တည်ဆောက် ကိန်း rC3 = 0
+                ပြည့်အောင်(rC3 < d) {
+                    တည်ဆောက် ဒသမ racc3 = 0
+                    တည်ဆောက် ကိန်း rJ6 = 0
+                    ပြည့်အောင်(rJ6 < T) {
+                        racc3 = racc3 + rA[rI3 * T + rJ6] * rV[rJ6 * d + rC3]
+                        rJ6 = rJ6 + 1
+                    }
+                    rAtt[rI3 * d + rC3] = racc3
+                    rC3 = rC3 + 1
+                }
+                rI3 = rI3 + 1
+            }
+            တည်ဆောက် ကိန်း rH4 = 0
+            ပြည့်အောင်(rH4 < 64) {
+                rH[rH4] = rX0[rH4] + rAtt[rH4]
+                rH4 = rH4 + 1
+            }
+            တည်ဆောက် ကိန်း rN1 = 0
+            ပြည့်အောင်(rN1 < T) {
+                တည်ဆောက် ဒသမ rsum1 = 0
+                တည်ဆောက် ကိန်း rJa1 = 0
+                ပြည့်အောင်(rJa1 < d) {
+                    rsum1 = rsum1 + rH[rN1 * d + rJa1]
+                    rJa1 = rJa1 + 1
+                }
+                တည်ဆောက် ဒသမ rmean1 = rsum1 / d
+                တည်ဆောက် ဒသမ rvar1 = 0
+                တည်ဆောက် ကိန်း rJb1 = 0
+                ပြည့်အောင်(rJb1 < d) {
+                    တည်ဆောက် ဒသမ rd1 = rH[rN1 * d + rJb1] - rmean1
+                    rvar1 = rvar1 + rd1 * rd1
+                    rJb1 = rJb1 + 1
+                }
+                rvar1 = rvar1 / d
+                တည်ဆောက် ဒသမ rrstd1 = 1.0 / sqrt(rvar1 + 0.000001)
+                တည်ဆောက် ကိန်း rJc1 = 0
+                ပြည့်အောင်(rJc1 < d) {
+                    rH1[rN1 * d + rJc1] = (rH[rN1 * d + rJc1] - rmean1) * rrstd1 * hGam[rJc1] + hBet[rJc1]
+                    rJc1 = rJc1 + 1
+                }
+                rN1 = rN1 + 1
+            }
+            တည်ဆောက် ကိန်း rI4 = 0
+            ပြည့်အောင်(rI4 < T) {
+                တည်ဆောက် ကိန်း rC4 = 0
+                ပြည့်အောင်(rC4 < H) {
+                    တည်ဆောက် ဒသမ racc4 = 0
+                    တည်ဆောက် ကိန်း rT4 = 0
+                    ပြည့်အောင်(rT4 < d) {
+                        racc4 = racc4 + rH1[rI4 * d + rT4] * hW1[rT4 * H + rC4]
+                        rT4 = rT4 + 1
+                    }
+                    rF1[rI4 * H + rC4] = racc4
+                    rC4 = rC4 + 1
+                }
+                rI4 = rI4 + 1
+            }
+            တည်ဆောက် ကိန်း rGi = 0
+            ပြည့်အောင်(rGi < 256) {
+                တည်ဆောက် ဒသမ rgv = rF1[rGi]
+                rG[rGi] = 0.5 * rgv * (1.0 + tanh(0.7978845608 * (rgv + 0.044715 * rgv * rgv * rgv)))
+                rGi = rGi + 1
+            }
+            တည်ဆောက် ကိန်း rI5 = 0
+            ပြည့်အောင်(rI5 < T) {
+                တည်ဆောက် ကိန်း rC5 = 0
+                ပြည့်အောင်(rC5 < d) {
+                    တည်ဆောက် ဒသမ racc5 = 0
+                    တည်ဆောက် ကိန်း rT5 = 0
+                    ပြည့်အောင်(rT5 < H) {
+                        racc5 = racc5 + rG[rI5 * H + rT5] * hW2[rT5 * d + rC5]
+                        rT5 = rT5 + 1
+                    }
+                    rF2[rI5 * d + rC5] = racc5
+                    rC5 = rC5 + 1
+                }
+                rI5 = rI5 + 1
+            }
+            တည်ဆောက် ကိန်း rH5 = 0
+            ပြည့်အောင်(rH5 < 64) {
+                rH2[rH5] = rH[rH5] + rF2[rH5]
+                rH5 = rH5 + 1
+            }
+            တည်ဆောက် ကိန်း rN2 = 0
+            ပြည့်အောင်(rN2 < T) {
+                တည်ဆောက် ဒသမ rsum2 = 0
+                တည်ဆောက် ကိန်း rJa2 = 0
+                ပြည့်အောင်(rJa2 < d) {
+                    rsum2 = rsum2 + rH2[rN2 * d + rJa2]
+                    rJa2 = rJa2 + 1
+                }
+                တည်ဆောက် ဒသမ rmean2 = rsum2 / d
+                တည်ဆောက် ဒသမ rvar2 = 0
+                တည်ဆောက် ကိန်း rJb2 = 0
+                ပြည့်အောင်(rJb2 < d) {
+                    တည်ဆောက် ဒသမ rd2 = rH2[rN2 * d + rJb2] - rmean2
+                    rvar2 = rvar2 + rd2 * rd2
+                    rJb2 = rJb2 + 1
+                }
+                rvar2 = rvar2 / d
+                တည်ဆောက် ဒသမ rrstd2 = 1.0 / sqrt(rvar2 + 0.000001)
+                တည်ဆောက် ကိန်း rJc2 = 0
+                ပြည့်အောင်(rJc2 < d) {
+                    rH3[rN2 * d + rJc2] = (rH2[rN2 * d + rJc2] - rmean2) * rrstd2 * hGam[rJc2] + hBet[rJc2]
+                    rJc2 = rJc2 + 1
+                }
+                rN2 = rN2 + 1
+            }
+            တည်ဆောက် ကိန်း rI6 = 0
+            ပြည့်အောင်(rI6 < T) {
+                တည်ဆောက် ကိန်း rC6 = 0
+                ပြည့်အောင်(rC6 < V) {
+                    တည်ဆောက် ဒသမ racc6 = 0
+                    တည်ဆောက် ကိန်း rT6 = 0
+                    ပြည့်အောင်(rT6 < d) {
+                        racc6 = racc6 + rH3[rI6 * d + rT6] * hE[rC6 * K + rT6]
+                        rT6 = rT6 + 1
+                    }
+                    rLg[rI6 * V + rC6] = racc6
+                    rC6 = rC6 + 1
+                }
+                rI6 = rI6 + 1
+            }
+            တည်ဆောက် ကိန်း rJ7 = 0
+            ပြည့်အောင်(rJ7 < T) {
+                တည်ဆောက် ဒသမ rmxV = rLg[rJ7 * V]
+                တည်ဆောက် ကိန်း rJ8 = 1
+                ပြည့်အောင်(rJ8 < V) {
+                    သုံးသပ်ချက်အရ(rLg[rJ7 * V + rJ8] > rmxV) { rmxV = rLg[rJ7 * V + rJ8] }
+                    rJ8 = rJ8 + 1
+                }
+                တည်ဆောက် ဒသမ rsmV = 0
+                တည်ဆောက် ကိန်း rJ9 = 0
+                ပြည့်အောင်(rJ9 < V) {
+                    rsmV = rsmV + exp(rLg[rJ7 * V + rJ9] - rmxV)
+                    rJ9 = rJ9 + 1
+                }
+                တည်ဆောက် ကိန်း rJA = 0
+                ပြည့်အောင်(rJA < V) {
+                    rP1[rJ7 * V + rJA] = exp(rLg[rJ7 * V + rJA] - rmxV) / rsmV
+                    rJA = rJA + 1
+                }
+                rJ7 = rJ7 + 1
+            }
+            တည်ဆောက် ကိန်း ilC = 0
+            ပြည့်အောင်(ilC < T) {
+                တည်ဆောက် ကိန်း ytC = (3 * ((ilC + 1) % T) + 1) % 11
+                lcpu = lcpu + log(rP1[ilC * V + ytC])
+                ilC = ilC + 1
+            }
+            lcpu = (0 - lcpu) / T
+            တည်ဆောက် ကိန်း rIB = 0
+            ပြည့်အောင်(rIB < T) {
+                တည်ဆောက် ကိန်း rJB = 0
+                ပြည့်အောင်(rJB < d) {
+                    တည်ဆောက် ဒသမ rqB = 0
+                    တည်ဆောက် ဒသမ rkB = 0
+                    တည်ဆောက် ဒသမ rvB = 0
+                    တည်ဆောက် ကိန်း rTB = 0
+                    ပြည့်အောင်(rTB < K) {
+                        rqB = rqB + rH3[rIB * K + rTB] * hWqB[rTB * d + rJB]
+                        rkB = rkB + rH3[rIB * K + rTB] * hWkB[rTB * d + rJB]
+                        rvB = rvB + rH3[rIB * K + rTB] * hWvB[rTB * d + rJB]
+                        rTB = rTB + 1
+                    }
+                    rQB[rIB * d + rJB] = rqB
+                    rKB[rIB * d + rJB] = rkB
+                    rVB[rIB * d + rJB] = rvB
+                    rJB = rJB + 1
+                }
+                rIB = rIB + 1
+            }
+            တည်ဆောက် ကိန်း rI2B = 0
+            ပြည့်အောင်(rI2B < T) {
+                တည်ဆောက် ကိန်း rJ2B = 0
+                ပြည့်အောင်(rJ2B < T) {
+                    တည်ဆောက် ဒသမ raccB = 0
+                    တည်ဆောက် ကိန်း rT2B = 0
+                    ပြည့်အောင်(rT2B < d) {
+                        raccB = raccB + rQB[rI2B * d + rT2B] * rKB[rJ2B * d + rT2B]
+                        rT2B = rT2B + 1
+                    }
+                    rSB[rI2B * T + rJ2B] = raccB * 0.25
+                    rJ2B = rJ2B + 1
+                }
+                တည်ဆောက် ကိန်း rM2B = 0
+                ပြည့်အောင်(rM2B < T) {
+                    သုံးသပ်ချက်အရ(rM2B > rI2B) { rSB[rI2B * T + rM2B] = 0 - 1000000000.0 }
+                    rM2B = rM2B + 1
+                }
+                တည်ဆောက် ဒသမ rmxB = rSB[rI2B * T]
+                တည်ဆောက် ကိန်း rJ3B = 1
+                ပြည့်အောင်(rJ3B < T) {
+                    သုံးသပ်ချက်အရ(rSB[rI2B * T + rJ3B] > rmxB) { rmxB = rSB[rI2B * T + rJ3B] }
+                    rJ3B = rJ3B + 1
+                }
+                တည်ဆောက် ဒသမ rsmB = 0
+                တည်ဆောက် ကိန်း rJ4B = 0
+                ပြည့်အောင်(rJ4B < T) {
+                    rsmB = rsmB + exp(rSB[rI2B * T + rJ4B] - rmxB)
+                    rJ4B = rJ4B + 1
+                }
+                တည်ဆောက် ကိန်း rJ5B = 0
+                ပြည့်အောင်(rJ5B < T) {
+                    rAB[rI2B * T + rJ5B] = exp(rSB[rI2B * T + rJ5B] - rmxB) / rsmB
+                    rJ5B = rJ5B + 1
+                }
+                rI2B = rI2B + 1
+            }
+            တည်ဆောက် ကိန်း rI3B = 0
+            ပြည့်အောင်(rI3B < T) {
+                တည်ဆောက် ကိန်း rC3B = 0
+                ပြည့်အောင်(rC3B < d) {
+                    တည်ဆောက် ဒသမ racc3B = 0
+                    တည်ဆောက် ကိန်း rJ6B = 0
+                    ပြည့်အောင်(rJ6B < T) {
+                        racc3B = racc3B + rAB[rI3B * T + rJ6B] * rVB[rJ6B * d + rC3B]
+                        rJ6B = rJ6B + 1
+                    }
+                    rAttB[rI3B * d + rC3B] = racc3B
+                    rC3B = rC3B + 1
+                }
+                rI3B = rI3B + 1
+            }
+            တည်ဆောက် ကိန်း rH4B = 0
+            ပြည့်အောင်(rH4B < 64) {
+                rHB[rH4B] = rH3[rH4B] + rAttB[rH4B]
+                rH4B = rH4B + 1
+            }
+            တည်ဆောက် ကိန်း rN1B = 0
+            ပြည့်အောင်(rN1B < T) {
+                တည်ဆောက် ဒသမ rsum1B = 0
+                တည်ဆောက် ကိန်း rJa1B = 0
+                ပြည့်အောင်(rJa1B < d) {
+                    rsum1B = rsum1B + rHB[rN1B * d + rJa1B]
+                    rJa1B = rJa1B + 1
+                }
+                တည်ဆောက် ဒသမ rmean1B = rsum1B / d
+                တည်ဆောက် ဒသမ rvar1B = 0
+                တည်ဆောက် ကိန်း rJb1B = 0
+                ပြည့်အောင်(rJb1B < d) {
+                    တည်ဆောက် ဒသမ rd1B = rHB[rN1B * d + rJb1B] - rmean1B
+                    rvar1B = rvar1B + rd1B * rd1B
+                    rJb1B = rJb1B + 1
+                }
+                rvar1B = rvar1B / d
+                တည်ဆောက် ဒသမ rrstd1B = 1.0 / sqrt(rvar1B + 0.000001)
+                တည်ဆောက် ကိန်း rJc1B = 0
+                ပြည့်အောင်(rJc1B < d) {
+                    rH1B[rN1B * d + rJc1B] = (rHB[rN1B * d + rJc1B] - rmean1B) * rrstd1B * hGam[rJc1B] + hBet[rJc1B]
+                    rJc1B = rJc1B + 1
+                }
+                rN1B = rN1B + 1
+            }
+            တည်ဆောက် ကိန်း rI4B = 0
+            ပြည့်အောင်(rI4B < T) {
+                တည်ဆောက် ကိန်း rC4B = 0
+                ပြည့်အောင်(rC4B < H) {
+                    တည်ဆောက် ဒသမ racc4B = 0
+                    တည်ဆောက် ကိန်း rT4B = 0
+                    ပြည့်အောင်(rT4B < d) {
+                        racc4B = racc4B + rH1B[rI4B * d + rT4B] * hW1B[rT4B * H + rC4B]
+                        rT4B = rT4B + 1
+                    }
+                    rF1B[rI4B * H + rC4B] = racc4B
+                    rC4B = rC4B + 1
+                }
+                rI4B = rI4B + 1
+            }
+            တည်ဆောက် ကိန်း rGiB = 0
+            ပြည့်အောင်(rGiB < 256) {
+                တည်ဆောက် ဒသမ rgvB = rF1B[rGiB]
+                rGB[rGiB] = 0.5 * rgvB * (1.0 + tanh(0.7978845608 * (rgvB + 0.044715 * rgvB * rgvB * rgvB)))
+                rGiB = rGiB + 1
+            }
+            တည်ဆောက် ကိန်း rI5B = 0
+            ပြည့်အောင်(rI5B < T) {
+                တည်ဆောက် ကိန်း rC5B = 0
+                ပြည့်အောင်(rC5B < d) {
+                    တည်ဆောက် ဒသမ racc5B = 0
+                    တည်ဆောက် ကိန်း rT5B = 0
+                    ပြည့်အောင်(rT5B < H) {
+                        racc5B = racc5B + rGB[rI5B * H + rT5B] * hW2B[rT5B * d + rC5B]
+                        rT5B = rT5B + 1
+                    }
+                    rF2B[rI5B * d + rC5B] = racc5B
+                    rC5B = rC5B + 1
+                }
+                rI5B = rI5B + 1
+            }
+            တည်ဆောက် ကိန်း rH5B = 0
+            ပြည့်အောင်(rH5B < 64) {
+                rH2B[rH5B] = rHB[rH5B] + rF2B[rH5B]
+                rH5B = rH5B + 1
+            }
+            တည်ဆောက် ကိန်း rN2B = 0
+            ပြည့်အောင်(rN2B < T) {
+                တည်ဆောက် ဒသမ rsum2B = 0
+                တည်ဆောက် ကိန်း rJa2B = 0
+                ပြည့်အောင်(rJa2B < d) {
+                    rsum2B = rsum2B + rH2B[rN2B * d + rJa2B]
+                    rJa2B = rJa2B + 1
+                }
+                တည်ဆောက် ဒသမ rmean2B = rsum2B / d
+                တည်ဆောက် ဒသမ rvar2B = 0
+                တည်ဆောက် ကိန်း rJb2B = 0
+                ပြည့်အောင်(rJb2B < d) {
+                    တည်ဆောက် ဒသမ rd2B = rH2B[rN2B * d + rJb2B] - rmean2B
+                    rvar2B = rvar2B + rd2B * rd2B
+                    rJb2B = rJb2B + 1
+                }
+                rvar2B = rvar2B / d
+                တည်ဆောက် ဒသမ rrstd2B = 1.0 / sqrt(rvar2B + 0.000001)
+                တည်ဆောက် ကိန်း rJc2B = 0
+                ပြည့်အောင်(rJc2B < d) {
+                    rH3B[rN2B * d + rJc2B] = (rH2B[rN2B * d + rJc2B] - rmean2B) * rrstd2B * hGam[rJc2B] + hBet[rJc2B]
+                    rJc2B = rJc2B + 1
+                }
+                rN2B = rN2B + 1
+            }
+            တည်ဆောက် ကိန်း rI6B = 0
+            ပြည့်အောင်(rI6B < T) {
+                တည်ဆောက် ကိန်း rC6B = 0
+                ပြည့်အောင်(rC6B < V) {
+                    တည်ဆောက် ဒသမ racc6B = 0
+                    တည်ဆောက် ကိန်း rT6B = 0
+                    ပြည့်အောင်(rT6B < d) {
+                        racc6B = racc6B + rH3B[rI6B * d + rT6B] * hE[rC6B * K + rT6B]
+                        rT6B = rT6B + 1
+                    }
+                    rLgB[rI6B * V + rC6B] = racc6B
+                    rC6B = rC6B + 1
+                }
+                rI6B = rI6B + 1
+            }
+            တည်ဆောက် ကိန်း rJ7B = 0
+            ပြည့်အောင်(rJ7B < T) {
+                တည်ဆောက် ဒသမ rmxVB = rLgB[rJ7B * V]
+                တည်ဆောက် ကိန်း rJ8B = 1
+                ပြည့်အောင်(rJ8B < V) {
+                    သုံးသပ်ချက်အရ(rLgB[rJ7B * V + rJ8B] > rmxVB) { rmxVB = rLgB[rJ7B * V + rJ8B] }
+                    rJ8B = rJ8B + 1
+                }
+                တည်ဆောက် ဒသမ rsmVB = 0
+                တည်ဆောက် ကိန်း rJ9B = 0
+                ပြည့်အောင်(rJ9B < V) {
+                    rsmVB = rsmVB + exp(rLgB[rJ7B * V + rJ9B] - rmxVB)
+                    rJ9B = rJ9B + 1
+                }
+                တည်ဆောက် ကိန်း rJAB = 0
+                ပြည့်အောင်(rJAB < V) {
+                    rP2[rJ7B * V + rJAB] = exp(rLgB[rJ7B * V + rJAB] - rmxVB) / rsmVB
+                    rJAB = rJAB + 1
+                }
+                rJ7B = rJ7B + 1
+            }
+            တည်ဆောက် ကိန်း ilCB = 0
+            ပြည့်အောင်(ilCB < T) {
+                တည်ဆောက် ကိန်း ytCB = (3 * ((ilCB + 1) % T) + 1) % 11
+                lcpuB = lcpuB + log(rP2[ilCB * V + ytCB])
+                ilCB = ilCB + 1
+            }
+            lcpuB = (0 - lcpuB) / T
+            တည်ဆောက် ကိန်း rIC = 0
+            ပြည့်အောင်(rIC < T) {
+                တည်ဆောက် ကိန်း rJC = 0
+                ပြည့်အောင်(rJC < d) {
+                    တည်ဆောက် ဒသမ rqC = 0
+                    တည်ဆောက် ဒသမ rkC = 0
+                    တည်ဆောက် ဒသမ rvC = 0
+                    တည်ဆောက် ကိန်း rTC = 0
+                    ပြည့်အောင်(rTC < K) {
+                        rqC = rqC + rH3B[rIC * K + rTC] * hWqC[rTC * d + rJC]
+                        rkC = rkC + rH3B[rIC * K + rTC] * hWkC[rTC * d + rJC]
+                        rvC = rvC + rH3B[rIC * K + rTC] * hWvC[rTC * d + rJC]
+                        rTC = rTC + 1
+                    }
+                    rQC[rIC * d + rJC] = rqC
+                    rKC[rIC * d + rJC] = rkC
+                    rVC[rIC * d + rJC] = rvC
+                    rJC = rJC + 1
+                }
+                rIC = rIC + 1
+            }
+            တည်ဆောက် ကိန်း rI2C = 0
+            ပြည့်အောင်(rI2C < T) {
+                တည်ဆောက် ကိန်း rJ2C = 0
+                ပြည့်အောင်(rJ2C < T) {
+                    တည်ဆောက် ဒသမ raccC = 0
+                    တည်ဆောက် ကိန်း rT2C = 0
+                    ပြည့်အောင်(rT2C < d) {
+                        raccC = raccC + rQC[rI2C * d + rT2C] * rKC[rJ2C * d + rT2C]
+                        rT2C = rT2C + 1
+                    }
+                    rSC[rI2C * T + rJ2C] = raccC * 0.25
+                    rJ2C = rJ2C + 1
+                }
+                တည်ဆောက် ကိန်း rM2C = 0
+                ပြည့်အောင်(rM2C < T) {
+                    သုံးသပ်ချက်အရ(rM2C > rI2C) { rSC[rI2C * T + rM2C] = 0 - 1000000000.0 }
+                    rM2C = rM2C + 1
+                }
+                တည်ဆောက် ဒသမ rmxC = rSC[rI2C * T]
+                တည်ဆောက် ကိန်း rJ3C = 1
+                ပြည့်အောင်(rJ3C < T) {
+                    သုံးသပ်ချက်အရ(rSC[rI2C * T + rJ3C] > rmxC) { rmxC = rSC[rI2C * T + rJ3C] }
+                    rJ3C = rJ3C + 1
+                }
+                တည်ဆောက် ဒသမ rsmC = 0
+                တည်ဆောက် ကိန်း rJ4C = 0
+                ပြည့်အောင်(rJ4C < T) {
+                    rsmC = rsmC + exp(rSC[rI2C * T + rJ4C] - rmxC)
+                    rJ4C = rJ4C + 1
+                }
+                တည်ဆောက် ကိန်း rJ5C = 0
+                ပြည့်အောင်(rJ5C < T) {
+                    rAC[rI2C * T + rJ5C] = exp(rSC[rI2C * T + rJ5C] - rmxC) / rsmC
+                    rJ5C = rJ5C + 1
+                }
+                rI2C = rI2C + 1
+            }
+            တည်ဆောက် ကိန်း rI3C = 0
+            ပြည့်အောင်(rI3C < T) {
+                တည်ဆောက် ကိန်း rC3C = 0
+                ပြည့်အောင်(rC3C < d) {
+                    တည်ဆောက် ဒသမ racc3C = 0
+                    တည်ဆောက် ကိန်း rJ6C = 0
+                    ပြည့်အောင်(rJ6C < T) {
+                        racc3C = racc3C + rAC[rI3C * T + rJ6C] * rVC[rJ6C * d + rC3C]
+                        rJ6C = rJ6C + 1
+                    }
+                    rAttC[rI3C * d + rC3C] = racc3C
+                    rC3C = rC3C + 1
+                }
+                rI3C = rI3C + 1
+            }
+            တည်ဆောက် ကိန်း rH4C = 0
+            ပြည့်အောင်(rH4C < 64) {
+                rHC[rH4C] = rH3B[rH4C] + rAttC[rH4C]
+                rH4C = rH4C + 1
+            }
+            တည်ဆောက် ကိန်း rN1C = 0
+            ပြည့်အောင်(rN1C < T) {
+                တည်ဆောက် ဒသမ rsum1C = 0
+                တည်ဆောက် ကိန်း rJa1C = 0
+                ပြည့်အောင်(rJa1C < d) {
+                    rsum1C = rsum1C + rHC[rN1C * d + rJa1C]
+                    rJa1C = rJa1C + 1
+                }
+                တည်ဆောက် ဒသမ rmean1C = rsum1C / d
+                တည်ဆောက် ဒသမ rvar1C = 0
+                တည်ဆောက် ကိန်း rJb1C = 0
+                ပြည့်အောင်(rJb1C < d) {
+                    တည်ဆောက် ဒသမ rd1C = rHC[rN1C * d + rJb1C] - rmean1C
+                    rvar1C = rvar1C + rd1C * rd1C
+                    rJb1C = rJb1C + 1
+                }
+                rvar1C = rvar1C / d
+                တည်ဆောက် ဒသမ rrstd1C = 1.0 / sqrt(rvar1C + 0.000001)
+                တည်ဆောက် ကိန်း rJc1C = 0
+                ပြည့်အောင်(rJc1C < d) {
+                    rH1C[rN1C * d + rJc1C] = (rHC[rN1C * d + rJc1C] - rmean1C) * rrstd1C * hGam[rJc1C] + hBet[rJc1C]
+                    rJc1C = rJc1C + 1
+                }
+                rN1C = rN1C + 1
+            }
+            တည်ဆောက် ကိန်း rI4C = 0
+            ပြည့်အောင်(rI4C < T) {
+                တည်ဆောက် ကိန်း rC4C = 0
+                ပြည့်အောင်(rC4C < H) {
+                    တည်ဆောက် ဒသမ racc4C = 0
+                    တည်ဆောက် ကိန်း rT4C = 0
+                    ပြည့်အောင်(rT4C < d) {
+                        racc4C = racc4C + rH1C[rI4C * d + rT4C] * hW1C[rT4C * H + rC4C]
+                        rT4C = rT4C + 1
+                    }
+                    rF1C[rI4C * H + rC4C] = racc4C
+                    rC4C = rC4C + 1
+                }
+                rI4C = rI4C + 1
+            }
+            တည်ဆောက် ကိန်း rGiC = 0
+            ပြည့်အောင်(rGiC < 256) {
+                တည်ဆောက် ဒသမ rgvC = rF1C[rGiC]
+                rGC[rGiC] = 0.5 * rgvC * (1.0 + tanh(0.7978845608 * (rgvC + 0.044715 * rgvC * rgvC * rgvC)))
+                rGiC = rGiC + 1
+            }
+            တည်ဆောက် ကိန်း rI5C = 0
+            ပြည့်အောင်(rI5C < T) {
+                တည်ဆောက် ကိန်း rC5C = 0
+                ပြည့်အောင်(rC5C < d) {
+                    တည်ဆောက် ဒသမ racc5C = 0
+                    တည်ဆောက် ကိန်း rT5C = 0
+                    ပြည့်အောင်(rT5C < H) {
+                        racc5C = racc5C + rGC[rI5C * H + rT5C] * hW2C[rT5C * d + rC5C]
+                        rT5C = rT5C + 1
+                    }
+                    rF2C[rI5C * d + rC5C] = racc5C
+                    rC5C = rC5C + 1
+                }
+                rI5C = rI5C + 1
+            }
+            တည်ဆောက် ကိန်း rH5C = 0
+            ပြည့်အောင်(rH5C < 64) {
+                rH2C[rH5C] = rHC[rH5C] + rF2C[rH5C]
+                rH5C = rH5C + 1
+            }
+            တည်ဆောက် ကိန်း rN2C = 0
+            ပြည့်အောင်(rN2C < T) {
+                တည်ဆောက် ဒသမ rsum2C = 0
+                တည်ဆောက် ကိန်း rJa2C = 0
+                ပြည့်အောင်(rJa2C < d) {
+                    rsum2C = rsum2C + rH2C[rN2C * d + rJa2C]
+                    rJa2C = rJa2C + 1
+                }
+                တည်ဆောက် ဒသမ rmean2C = rsum2C / d
+                တည်ဆောက် ဒသမ rvar2C = 0
+                တည်ဆောက် ကိန်း rJb2C = 0
+                ပြည့်အောင်(rJb2C < d) {
+                    တည်ဆောက် ဒသမ rd2C = rH2C[rN2C * d + rJb2C] - rmean2C
+                    rvar2C = rvar2C + rd2C * rd2C
+                    rJb2C = rJb2C + 1
+                }
+                rvar2C = rvar2C / d
+                တည်ဆောက် ဒသမ rrstd2C = 1.0 / sqrt(rvar2C + 0.000001)
+                တည်ဆောက် ကိန်း rJc2C = 0
+                ပြည့်အောင်(rJc2C < d) {
+                    rH3C[rN2C * d + rJc2C] = (rH2C[rN2C * d + rJc2C] - rmean2C) * rrstd2C * hGam[rJc2C] + hBet[rJc2C]
+                    rJc2C = rJc2C + 1
+                }
+                rN2C = rN2C + 1
+            }
+            တည်ဆောက် ကိန်း rI6C = 0
+            ပြည့်အောင်(rI6C < T) {
+                တည်ဆောက် ကိန်း rC6C = 0
+                ပြည့်အောင်(rC6C < V) {
+                    တည်ဆောက် ဒသမ racc6C = 0
+                    တည်ဆောက် ကိန်း rT6C = 0
+                    ပြည့်အောင်(rT6C < d) {
+                        racc6C = racc6C + rH3C[rI6C * d + rT6C] * hE[rC6C * K + rT6C]
+                        rT6C = rT6C + 1
+                    }
+                    rLgC[rI6C * V + rC6C] = racc6C
+                    rC6C = rC6C + 1
+                }
+                rI6C = rI6C + 1
+            }
+            တည်ဆောက် ကိန်း rJ7C = 0
+            ပြည့်အောင်(rJ7C < T) {
+                တည်ဆောက် ဒသမ rmxVC = rLgC[rJ7C * V]
+                တည်ဆောက် ကိန်း rJ8C = 1
+                ပြည့်အောင်(rJ8C < V) {
+                    သုံးသပ်ချက်အရ(rLgC[rJ7C * V + rJ8C] > rmxVC) { rmxVC = rLgC[rJ7C * V + rJ8C] }
+                    rJ8C = rJ8C + 1
+                }
+                တည်ဆောက် ဒသမ rsmVC = 0
+                တည်ဆောက် ကိန်း rJ9C = 0
+                ပြည့်အောင်(rJ9C < V) {
+                    rsmVC = rsmVC + exp(rLgC[rJ7C * V + rJ9C] - rmxVC)
+                    rJ9C = rJ9C + 1
+                }
+                တည်ဆောက် ကိန်း rJAC = 0
+                ပြည့်အောင်(rJAC < V) {
+                    rP3[rJ7C * V + rJAC] = exp(rLgC[rJ7C * V + rJAC] - rmxVC) / rsmVC
+                    rJAC = rJAC + 1
+                }
+                rJ7C = rJ7C + 1
+            }
+            တည်ဆောက် ကိန်း ilC3M = 0
+            ပြည့်အောင်(ilC3M < T) {
+                တည်ဆောက် ကိန်း yt3M = (3 * ((ilC3M + 1) % T) + 1) % 11
+                lcpuC = lcpuC + log(rP3[ilC3M * V + yt3M])
+                ilC3M = ilC3M + 1
+            }
+            lcpuC = (0 - lcpuC) / T
+            တည်ဆောက် ကိန်း iC1 = 0
+            ပြည့်အောင်(iC1 < 64) {
+                တည်ဆောက် ဒသမ e1 = hS[iC1] - rS[iC1]
+                သုံးသပ်ချက်အရ(e1 < 0) { e1 = 0 - e1 }
+                သုံးသပ်ချက်အရ(e1 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e2 = hA[iC1] - rA[iC1]
+                သုံးသပ်ချက်အရ(e2 < 0) { e2 = 0 - e2 }
+                သုံးသပ်ချက်အရ(e2 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e3 = hAtt[iC1] - rAtt[iC1]
+                သုံးသပ်ချက်အရ(e3 < 0) { e3 = 0 - e3 }
+                သုံးသပ်ချက်အရ(e3 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e4 = hH1[iC1] - rH1[iC1]
+                သုံးသပ်ချက်အရ(e4 < 0) { e4 = 0 - e4 }
+                သုံးသပ်ချက်အရ(e4 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e5 = hF2[iC1] - rF2[iC1]
+                သုံးသပ်ချက်အရ(e5 < 0) { e5 = 0 - e5 }
+                သုံးသပ်ချက်အရ(e5 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e6 = hH3[iC1] - rH3[iC1]
+                သုံးသပ်ချက်အရ(e6 < 0) { e6 = 0 - e6 }
+                သုံးသပ်ချက်အရ(e6 > 0.000001) { bad = bad + 1 }
+                iC1 = iC1 + 1
+            }
+            တည်ဆောက် ကိန်း iC2 = 0
+            ပြည့်အောင်(iC2 < 256) {
+                တည်ဆောက် ဒသမ f1 = hF1[iC2] - rF1[iC2]
+                သုံးသပ်ချက်အရ(f1 < 0) { f1 = 0 - f1 }
+                သုံးသပ်ချက်အရ(f1 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ f2 = hG[iC2] - rG[iC2]
+                သုံးသပ်ချက်အရ(f2 < 0) { f2 = 0 - f2 }
+                သုံးသပ်ချက်အရ(f2 > 0.000001) { bad = bad + 1 }
+                iC2 = iC2 + 1
+            }
+            တည်ဆောက် ကိန်း iC3 = 0
+            ပြည့်အောင်(iC3 < 88) {
+                တည်ဆောက် ဒသမ o1 = hLg[iC3] - rLg[iC3]
+                သုံးသပ်ချက်အရ(o1 < 0) { o1 = 0 - o1 }
+                သုံးသပ်ချက်အရ(o1 > 0.000001) { bad = bad + 1 }
+                iC3 = iC3 + 1
+            }
+            တည်ဆောက် ကိန်း iC4 = 0
+            ပြည့်အောင်(iC4 < 88) {
+                တည်ဆောက် ဒသမ p1 = hP1[iC4] - rP1[iC4]
+                သုံးသပ်ချက်အရ(p1 < 0) { p1 = 0 - p1 }
+                သုံးသပ်ချက်အရ(p1 > 0.000001) { bad = bad + 1 }
+                iC4 = iC4 + 1
+            }
+            ldiff = lgpu - lcpu
+            သုံးသပ်ချက်အရ(ldiff < 0) { ldiff = 0 - ldiff }
+            သုံးသပ်ချက်အရ(ldiff > 0.000001) { bad = bad + 1 }
+            တည်ဆောက် ကိန်း iMZ = 0
+            ပြည့်အောင်(iMZ < T) {
+                တည်ဆောက် ကိန်း jMZ = iMZ + 1
+                ပြည့်အောင်(jMZ < T) {
+                    သုံးသပ်ချက်အရ(hA[iMZ * T + jMZ] > 0.0) { bad = bad + 1 }
+                    jMZ = jMZ + 1
+                }
+                iMZ = iMZ + 1
+            }
+            တည်ဆောက် ကိန်း jRS = 0
+            ပြည့်အောင်(jRS < T) {
+                rs0 = rs0 + hA[jRS]
+                rs7 = rs7 + hA[56 + jRS]
+                jRS = jRS + 1
+            }
+            သုံးသပ်ချက်အရ(rs0 < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs0 > 1.000000001) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs7 < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs7 > 1.000000001) { bad = bad + 1 }
+            တည်ဆောက် ကိန်း jRSP = 0
+            ပြည့်အောင်(jRSP < V) {
+                rsP0 = rsP0 + hP1[jRSP]
+                rsP7 = rsP7 + hP1[77 + jRSP]
+                jRSP = jRSP + 1
+            }
+            သုံးသပ်ချက်အရ(rsP0 < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP0 > 1.000000001) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP7 < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP7 > 1.000000001) { bad = bad + 1 }
+            တည်ဆောက် ကိန်း iC1B = 0
+            ပြည့်အောင်(iC1B < 64) {
+                တည်ဆောက် ဒသမ e1B = hSB[iC1B] - rSB[iC1B]
+                သုံးသပ်ချက်အရ(e1B < 0) { e1B = 0 - e1B }
+                သုံးသပ်ချက်အရ(e1B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e2B = hAB[iC1B] - rAB[iC1B]
+                သုံးသပ်ချက်အရ(e2B < 0) { e2B = 0 - e2B }
+                သုံးသပ်ချက်အရ(e2B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e3B = hAttB[iC1B] - rAttB[iC1B]
+                သုံးသပ်ချက်အရ(e3B < 0) { e3B = 0 - e3B }
+                သုံးသပ်ချက်အရ(e3B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e4B = hH1B[iC1B] - rH1B[iC1B]
+                သုံးသပ်ချက်အရ(e4B < 0) { e4B = 0 - e4B }
+                သုံးသပ်ချက်အရ(e4B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e5B = hF2B[iC1B] - rF2B[iC1B]
+                သုံးသပ်ချက်အရ(e5B < 0) { e5B = 0 - e5B }
+                သုံးသပ်ချက်အရ(e5B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e6B = hH3B[iC1B] - rH3B[iC1B]
+                သုံးသပ်ချက်အရ(e6B < 0) { e6B = 0 - e6B }
+                သုံးသပ်ချက်အရ(e6B > 0.000001) { bad = bad + 1 }
+                iC1B = iC1B + 1
+            }
+            တည်ဆောက် ကိန်း iC2B = 0
+            ပြည့်အောင်(iC2B < 256) {
+                တည်ဆောက် ဒသမ f1B = hF1B[iC2B] - rF1B[iC2B]
+                သုံးသပ်ချက်အရ(f1B < 0) { f1B = 0 - f1B }
+                သုံးသပ်ချက်အရ(f1B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ f2B = hGB[iC2B] - rGB[iC2B]
+                သုံးသပ်ချက်အရ(f2B < 0) { f2B = 0 - f2B }
+                သုံးသပ်ချက်အရ(f2B > 0.000001) { bad = bad + 1 }
+                iC2B = iC2B + 1
+            }
+            တည်ဆောက် ကိန်း iC3B = 0
+            ပြည့်အောင်(iC3B < 88) {
+                တည်ဆောက် ဒသမ o1B = hLgB[iC3B] - rLgB[iC3B]
+                သုံးသပ်ချက်အရ(o1B < 0) { o1B = 0 - o1B }
+                သုံးသပ်ချက်အရ(o1B > 0.000001) { bad = bad + 1 }
+                iC3B = iC3B + 1
+            }
+            တည်ဆောက် ကိန်း iC4B = 0
+            ပြည့်အောင်(iC4B < 88) {
+                တည်ဆောက် ဒသမ p2 = hP2[iC4B] - rP2[iC4B]
+                သုံးသပ်ချက်အရ(p2 < 0) { p2 = 0 - p2 }
+                သုံးသပ်ချက်အရ(p2 > 0.000001) { bad = bad + 1 }
+                iC4B = iC4B + 1
+            }
+            ldiffB = lgpuB - lcpuB
+            သုံးသပ်ချက်အရ(ldiffB < 0) { ldiffB = 0 - ldiffB }
+            သုံးသပ်ချက်အရ(ldiffB > 0.000001) { bad = bad + 1 }
+            တည်ဆောက် ကိန်း iMZB = 0
+            ပြည့်အောင်(iMZB < T) {
+                တည်ဆောက် ကိန်း jMZB = iMZB + 1
+                ပြည့်အောင်(jMZB < T) {
+                    သုံးသပ်ချက်အရ(hAB[iMZB * T + jMZB] > 0.0) { bad = bad + 1 }
+                    jMZB = jMZB + 1
+                }
+                iMZB = iMZB + 1
+            }
+            တည်ဆောက် ကိန်း jRSB = 0
+            ပြည့်အောင်(jRSB < T) {
+                rs0B = rs0B + hAB[jRSB]
+                rs7B = rs7B + hAB[56 + jRSB]
+                jRSB = jRSB + 1
+            }
+            သုံးသပ်ချက်အရ(rs0B < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs0B > 1.000000001) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs7B < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs7B > 1.000000001) { bad = bad + 1 }
+            တည်ဆောက် ကိန်း jRSPB = 0
+            ပြည့်အောင်(jRSPB < V) {
+                rsP0B = rsP0B + hP2[jRSPB]
+                rsP7B = rsP7B + hP2[77 + jRSPB]
+                jRSPB = jRSPB + 1
+            }
+            သုံးသပ်ချက်အရ(rsP0B < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP0B > 1.000000001) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP7B < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP7B > 1.000000001) { bad = bad + 1 }
+            တည်ဆောက် ကိန်း iC1C = 0
+            ပြည့်အောင်(iC1C < 64) {
+                တည်ဆောက် ဒသမ e1C = hSC[iC1C] - rSC[iC1C]
+                သုံးသပ်ချက်အရ(e1C < 0) { e1C = 0 - e1C }
+                သုံးသပ်ချက်အရ(e1C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e2C = hAC[iC1C] - rAC[iC1C]
+                သုံးသပ်ချက်အရ(e2C < 0) { e2C = 0 - e2C }
+                သုံးသပ်ချက်အရ(e2C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e3C = hAttC[iC1C] - rAttC[iC1C]
+                သုံးသပ်ချက်အရ(e3C < 0) { e3C = 0 - e3C }
+                သုံးသပ်ချက်အရ(e3C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e4C = hH1C[iC1C] - rH1C[iC1C]
+                သုံးသပ်ချက်အရ(e4C < 0) { e4C = 0 - e4C }
+                သုံးသပ်ချက်အရ(e4C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e5C = hF2C[iC1C] - rF2C[iC1C]
+                သုံးသပ်ချက်အရ(e5C < 0) { e5C = 0 - e5C }
+                သုံးသပ်ချက်အရ(e5C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ e6C = hH3C[iC1C] - rH3C[iC1C]
+                သုံးသပ်ချက်အရ(e6C < 0) { e6C = 0 - e6C }
+                သုံးသပ်ချက်အရ(e6C > 0.000001) { bad = bad + 1 }
+                iC1C = iC1C + 1
+            }
+            တည်ဆောက် ကိန်း iC2C = 0
+            ပြည့်အောင်(iC2C < 256) {
+                တည်ဆောက် ဒသမ f1C = hF1C[iC2C] - rF1C[iC2C]
+                သုံးသပ်ချက်အရ(f1C < 0) { f1C = 0 - f1C }
+                သုံးသပ်ချက်အရ(f1C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ f2C = hGC[iC2C] - rGC[iC2C]
+                သုံးသပ်ချက်အရ(f2C < 0) { f2C = 0 - f2C }
+                သုံးသပ်ချက်အရ(f2C > 0.000001) { bad = bad + 1 }
+                iC2C = iC2C + 1
+            }
+            တည်ဆောက် ကိန်း iC3C = 0
+            ပြည့်အောင်(iC3C < 88) {
+                တည်ဆောက် ဒသမ o1C = hLgC[iC3C] - rLgC[iC3C]
+                သုံးသပ်ချက်အရ(o1C < 0) { o1C = 0 - o1C }
+                သုံးသပ်ချက်အရ(o1C > 0.000001) { bad = bad + 1 }
+                iC3C = iC3C + 1
+            }
+            တည်ဆောက် ကိန်း iC4C = 0
+            ပြည့်အောင်(iC4C < 88) {
+                တည်ဆောက် ဒသမ p3 = hP3[iC4C] - rP3[iC4C]
+                သုံးသပ်ချက်အရ(p3 < 0) { p3 = 0 - p3 }
+                သုံးသပ်ချက်အရ(p3 > 0.000001) { bad = bad + 1 }
+                iC4C = iC4C + 1
+            }
+            ldiffC = lgpuC - lcpuC
+            သုံးသပ်ချက်အရ(ldiffC < 0) { ldiffC = 0 - ldiffC }
+            သုံးသပ်ချက်အရ(ldiffC > 0.000001) { bad = bad + 1 }
+            တည်ဆောက် ကိန်း iMZC = 0
+            ပြည့်အောင်(iMZC < T) {
+                တည်ဆောက် ကိန်း jMZC = iMZC + 1
+                ပြည့်အောင်(jMZC < T) {
+                    သုံးသပ်ချက်အရ(hAC[iMZC * T + jMZC] > 0.0) { bad = bad + 1 }
+                    jMZC = jMZC + 1
+                }
+                iMZC = iMZC + 1
+            }
+            တည်ဆောက် ကိန်း jRSC = 0
+            ပြည့်အောင်(jRSC < T) {
+                rs0C = rs0C + hAC[jRSC]
+                rs7C = rs7C + hAC[56 + jRSC]
+                jRSC = jRSC + 1
+            }
+            သုံးသပ်ချက်အရ(rs0C < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs0C > 1.000000001) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs7C < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rs7C > 1.000000001) { bad = bad + 1 }
+            တည်ဆောက် ကိန်း jRSPC = 0
+            ပြည့်အောင်(jRSPC < V) {
+                rsP0C = rsP0C + hP3[jRSPC]
+                rsP7C = rsP7C + hP3[77 + jRSPC]
+                jRSPC = jRSPC + 1
+            }
+            သုံးသပ်ချက်အရ(rsP0C < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP0C > 1.000000001) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP7C < 0.999999999) { bad = bad + 1 }
+            သုံးသပ်ချက်အရ(rsP7C > 1.000000001) { bad = bad + 1 }
+        ltot = lgpu + lgpuB + lgpuC
+        lctot = lcpu + lcpuB + lcpuC
+        ldiffT = ltot - lctot
+        သုံးသပ်ချက်အရ(ldiffT < 0) { ldiffT = 0 - ldiffT }
+        သုံးသပ်ချက်အရ(ldiffT > 0.000001) { bad = bad + 1 }
+        သုံးသပ်ချက်အရ(ltot > lprev) { bad = bad + 1 }
+        m1 = 2 - step
+        သုံးသပ်ချက်အရ(m1 < 0) { m1 = 0 }
+        eAnch = lgpu - 2.397895
+        သုံးသပ်ချက်အရ(eAnch < 0) { eAnch = 0 - eAnch }
+        သုံးသပ်ချက်အရ(eAnch * m1 > 0.0000005) { bad = bad + 1 }
+        lossF = lossF + ltot * m1
+        သုံးသပ်ချက်အရ(step == 8) {
+            lossL = ltot
+            rsF0 = rs0
+            rsF7 = rs7
+            rsFB0 = rs0B
+            rsFB7 = rs7B
+            rsPF0 = rsP0
+            rsPF7 = rsP7
+            rsPF0B = rsP0B
+            rsPF7B = rsP7B
+            rsFC0 = rs0C
+            rsFC7 = rs7C
+            rsPFC0 = rsP0C
+            rsPFC7 = rsP7C
+        }
+        printf("step %d: lr=%.6f loss gpu=%.6f cpu=%.6f\n", step, (0.01 * lrs), ltot, lctot)
+        printf("loss b1=%.6f b2=%.6f b3=%.6f\n", lgpu, lgpuB, lgpuC)
+            တည်ဆောက် ကိန်း ig1C = 0
+            ပြည့်အောင်(ig1C < 88) {
+                hDLC[ig1C] = (hP3[ig1C] - hY[ig1C]) / T
+                ig1C = ig1C + 1
+            }
+            mmc_gpu_copy_to(ddlogC, hDLC, 704)
+            mmc_gpu_launch3p3i(bwd_dw, ddlogC, dh3C, dgwEB3, d, V, T, V, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, ddlogC, dE, dh3gC, T, d, V, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDWE3, dgwEB3, 704)
+            mmc_gpu_launch_ln(ln_bwd_row, dh3gC, dh2C, dgam, dh2gC, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dg1C, dh2gC, dgw2C, d, H, T, H, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dw2C, dw2tC, dw2C, H, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh2gC, dw2tC, dgGC, T, H, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(gelu_bwd, dgGC, df1C, dF1gC, 256, 0, 0, 1, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh1C, dF1gC, dgw1C, H, d, T, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dw1C, dw1tC, dw1C, d, H, 0, H, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dF1gC, dw1tC, dh1gC, T, d, H, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch_ln(ln_bwd_row, dh1gC, dhC, dgam, dhmC, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDH3C, dh3gC, 512)
+            mmc_gpu_copy_from(hDH2gC, dh2gC, 512)
+            mmc_gpu_copy_from(hDW2C, dgw2C, 2048)
+            mmc_gpu_copy_from(hDGC, dgGC, 2048)
+            mmc_gpu_copy_from(hDF1C, dF1gC, 2048)
+            mmc_gpu_copy_from(hDH1C, dh1gC, 512)
+            mmc_gpu_copy_from(hDW1C, dgw1C, 2048)
+            mmc_gpu_copy_from(hDHmC, dhmC, 512)
+            တည်ဆောက် ကိန်း ha1C = 0
+            ပြည့်အောင်(ha1C < 64) {
+                hDHtC[ha1C] = hDHmC[ha1C] + hDH2gC[ha1C]
+                ha1C = ha1C + 1
+            }
+            mmc_gpu_copy_to(ddoC, hDHtC, 512)
+            mmc_gpu_launch2pi(tpose_row, daC, atC, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, atC, ddoC, gvC, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dvC, vtC, dvC, T, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, ddoC, vtC, gaC, T, T, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDAC, gaC, 512)
+            mmc_gpu_launch3p3i(smax_bwd_row, daC, gaC, gaC, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(scale_row, gaC, gaC, gaC, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDSC, gaC, 512)
+            mmc_gpu_launch3p3i(mm_k, gaC, dkC, gqC, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch2pi(tpose_row, gaC, gstC, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gstC, dqC, gkC, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh3B, gqC, dgwqC, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh3B, gkC, dgwkC, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh3B, gvC, dgwvC, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwqC, dwqtC, dwqC, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gqC, dwqtC, dx0qC, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwkC, dwktC, dwkC, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gkC, dwktC, dx0kC, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwvC, dwvtC, dwvC, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gvC, dwvtC, dx0vC, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDVC, gvC, 512)
+            mmc_gpu_copy_from(hDQC, gqC, 512)
+            mmc_gpu_copy_from(hDKC, gkC, 512)
+            mmc_gpu_copy_from(hDWqC, dgwqC, 512)
+            mmc_gpu_copy_from(hDWkC, dgwkC, 512)
+            mmc_gpu_copy_from(hDWvC, dgwvC, 512)
+            mmc_gpu_copy_from(hDXqC, dx0qC, 512)
+            mmc_gpu_copy_from(hDXkC, dx0kC, 512)
+            mmc_gpu_copy_from(hDXvC, dx0vC, 512)
+            တည်ဆောက် ကိန်း hb1C = 0
+            ပြည့်အောင်(hb1C < 64) {
+                hDXtC[hb1C] = hDHtC[hb1C] + hDXqC[hb1C] + hDXkC[hb1C] + hDXvC[hb1C]
+                hb1C = hb1C + 1
+            }
+            တည်ဆောက် ကိန်း ig1B = 0
+            ပြည့်အောင်(ig1B < 88) {
+                hDLB[ig1B] = (hP2[ig1B] - hY[ig1B]) / T
+                ig1B = ig1B + 1
+            }
+            mmc_gpu_copy_to(ddlogB, hDLB, 704)
+            mmc_gpu_launch3p3i(bwd_dw, ddlogB, dh3B, dgwEB2, d, V, T, V, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, ddlogB, dE, dh3gB, T, d, V, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDH3B, dh3gB, 512)
+            တည်ဆောက် ကိန်း hc3 = 0
+            ပြည့်အောင်(hc3 < 64) {
+                hDH3B[hc3] = hDH3B[hc3] + hDXtC[hc3]
+                hc3 = hc3 + 1
+            }
+            mmc_gpu_copy_to(dh3gB, hDH3B, 512)
+            mmc_gpu_copy_from(hDWE2, dgwEB2, 704)
+            mmc_gpu_launch_ln(ln_bwd_row, dh3gB, dh2B, dgam, dh2gB, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dg1B, dh2gB, dgw2B, d, H, T, H, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dw2B, dw2tB, dw2B, H, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh2gB, dw2tB, dgGB, T, H, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(gelu_bwd, dgGB, df1B, dF1gB, 256, 0, 0, 1, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh1B, dF1gB, dgw1B, H, d, T, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dw1B, dw1tB, dw1B, d, H, 0, H, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dF1gB, dw1tB, dh1gB, T, d, H, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch_ln(ln_bwd_row, dh1gB, dhB, dgam, dhmB, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDH3B, dh3gB, 512)
+            mmc_gpu_copy_from(hDH2gB, dh2gB, 512)
+            mmc_gpu_copy_from(hDW2B, dgw2B, 2048)
+            mmc_gpu_copy_from(hDGB, dgGB, 2048)
+            mmc_gpu_copy_from(hDF1B, dF1gB, 2048)
+            mmc_gpu_copy_from(hDH1B, dh1gB, 512)
+            mmc_gpu_copy_from(hDW1B, dgw1B, 2048)
+            mmc_gpu_copy_from(hDHmB, dhmB, 512)
+            တည်ဆောက် ကိန်း ha1B = 0
+            ပြည့်အောင်(ha1B < 64) {
+                hDHtB[ha1B] = hDHmB[ha1B] + hDH2gB[ha1B]
+                ha1B = ha1B + 1
+            }
+            mmc_gpu_copy_to(ddoB, hDHtB, 512)
+            mmc_gpu_launch2pi(tpose_row, daB, atB, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, atB, ddoB, gvB, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dvB, vtB, dvB, T, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, ddoB, vtB, gaB, T, T, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDAB, gaB, 512)
+            mmc_gpu_launch3p3i(smax_bwd_row, daB, gaB, gaB, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(scale_row, gaB, gaB, gaB, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDSB, gaB, 512)
+            mmc_gpu_launch3p3i(mm_k, gaB, dkB, gqB, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch2pi(tpose_row, gaB, gstB, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gstB, dqB, gkB, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh3, gqB, dgwqB, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh3, gkB, dgwkB, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh3, gvB, dgwvB, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwqB, dwqtB, dwqB, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gqB, dwqtB, dx0qB, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwkB, dwktB, dwkB, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gkB, dwktB, dx0kB, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwvB, dwvtB, dwvB, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gvB, dwvtB, dx0vB, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDVB, gvB, 512)
+            mmc_gpu_copy_from(hDQB, gqB, 512)
+            mmc_gpu_copy_from(hDKB, gkB, 512)
+            mmc_gpu_copy_from(hDWqB, dgwqB, 512)
+            mmc_gpu_copy_from(hDWkB, dgwkB, 512)
+            mmc_gpu_copy_from(hDWvB, dgwvB, 512)
+            mmc_gpu_copy_from(hDXqB, dx0qB, 512)
+            mmc_gpu_copy_from(hDXkB, dx0kB, 512)
+            mmc_gpu_copy_from(hDXvB, dx0vB, 512)
+            တည်ဆောက် ကိန်း hb1B = 0
+            ပြည့်အောင်(hb1B < 64) {
+                hDXtB[hb1B] = hDHtB[hb1B] + hDXqB[hb1B] + hDXkB[hb1B] + hDXvB[hb1B]
+                hb1B = hb1B + 1
+            }
+            တည်ဆောက် ကိန်း ig1 = 0
+            ပြည့်အောင်(ig1 < 88) {
+                hDL[ig1] = (hP1[ig1] - hY[ig1]) / T
+                ig1 = ig1 + 1
+            }
+            mmc_gpu_copy_to(ddlog, hDL, 704)
+            mmc_gpu_launch3p3i(bwd_dw, ddlog, dh3, dgwEB1, d, V, T, V, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, ddlog, dE, dh3g, T, d, V, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDWE1, dgwEB1, 704)
+        mmc_gpu_copy_from(hDH3, dh3g, 512)
+        တည်ဆောက် ကိန်း hc1 = 0
+        ပြည့်အောင်(hc1 < 64) {
+            hDH3[hc1] = hDH3[hc1] + hDXtB[hc1]
+            hc1 = hc1 + 1
+        }
+        mmc_gpu_copy_to(dh3g, hDH3, 512)
+            mmc_gpu_launch_ln(ln_bwd_row, dh3g, dh2, dgam, dh2g, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dg1, dh2g, dgw2, d, H, T, H, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dw2, dw2t, dw2, H, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dh2g, dw2t, dgG, T, H, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(gelu_bwd, dgG, df1, dF1g, 256, 0, 0, 1, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dh1, dF1g, dgw1, H, d, T, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dw1, dw1t, dw1, d, H, 0, H, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, dF1g, dw1t, dh1g, T, d, H, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch_ln(ln_bwd_row, dh1g, dh, dgam, dhm, d, 0.000001, T)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDH3, dh3g, 512)
+            mmc_gpu_copy_from(hDH2g, dh2g, 512)
+            mmc_gpu_copy_from(hDW2, dgw2, 2048)
+            mmc_gpu_copy_from(hDG, dgG, 2048)
+            mmc_gpu_copy_from(hDF1, dF1g, 2048)
+            mmc_gpu_copy_from(hDH1, dh1g, 512)
+            mmc_gpu_copy_from(hDW1, dgw1, 2048)
+            mmc_gpu_copy_from(hDHm, dhm, 512)
+            တည်ဆောက် ကိန်း ha1 = 0
+            ပြည့်အောင်(ha1 < 64) {
+                hDHt[ha1] = hDHm[ha1] + hDH2g[ha1]
+                ha1 = ha1 + 1
+            }
+            mmc_gpu_copy_to(ddo, hDHt, 512)
+            mmc_gpu_launch2pi(tpose_row, da, at, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, at, ddo, gv, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dv, vt, dv, T, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, ddo, vt, ga, T, T, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDA, ga, 512)
+            mmc_gpu_launch3p3i(smax_bwd_row, da, ga, ga, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(scale_row, ga, ga, ga, T, T, 0, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDS, ga, 512)
+            mmc_gpu_launch3p3i(mm_k, ga, dk, gq, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch2pi(tpose_row, ga, gst, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gst, dq, gk, T, d, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dx0, gq, dgwq, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dx0, gk, dgwk, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dx0, gv, dgwv, d, K, T, K, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwq, dwqt, dwq, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gq, dwqt, dx0q, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwk, dwkt, dwk, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gk, dwkt, dx0k, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(tpose_rc, dwv, dwvt, dwv, K, d, 0, d, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(mm_k, gv, dwvt, dx0v, T, K, d, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDV, gv, 512)
+            mmc_gpu_copy_from(hDQ, gq, 512)
+            mmc_gpu_copy_from(hDK, gk, 512)
+            mmc_gpu_copy_from(hDWq, dgwq, 512)
+            mmc_gpu_copy_from(hDWk, dgwk, 512)
+            mmc_gpu_copy_from(hDWv, dgwv, 512)
+            mmc_gpu_copy_from(hDXq, dx0q, 512)
+            mmc_gpu_copy_from(hDXk, dx0k, 512)
+            mmc_gpu_copy_from(hDXv, dx0v, 512)
+            တည်ဆောက် ကိန်း hb1 = 0
+            ပြည့်အောင်(hb1 < 64) {
+                hDXt[hb1] = hDHt[hb1] + hDXq[hb1] + hDXk[hb1] + hDXv[hb1]
+                hb1 = hb1 + 1
+            }
+            mmc_gpu_copy_to(dX0g, hDXt, 512)
+            mmc_gpu_launch3p3i(bwd_dw, dM, dX0g, dgwEemb, d, V, T, V, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(bwd_dw, dMP, dX0g, dgwPEemb, d, T, T, T, 1)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hDWEe, dgwEemb, 704)
+            mmc_gpu_copy_from(hDWPe, dgwPEemb, 512)
+            တည်ဆောက် ကိန်း iew = 0
+            ပြည့်အောင်(iew < 88) {
+                hDWte[iew] = hDWEe[iew] + hDWE1[iew] + hDWE2[iew] + hDWE3[iew]
+                iew = iew + 1
+            }
+            တည်ဆောက် ကိန်း iep = 0
+            ပြည့်အောင်(iep < 64) {
+                hDWpe[iep] = hDWPe[iep]
+                iep = iep + 1
+            }
+            mmc_gpu_copy_to(dgwE, hDWte, 704)
+            mmc_gpu_copy_to(dgwPE, hDWpe, 512)
+            တည်ဆောက် ကိန်း q1C = 0
+            ပြည့်အောင်(q1C < 88) {
+                rdLC[q1C] = (rP3[q1C] - hY[q1C]) / T
+                q1C = q1C + 1
+            }
+            တည်ဆောက် ကိန်း w1aC = 0
+            ပြည့်အောင်(w1aC < V) {
+                တည်ဆောက် ကိန်း w1bC = 0
+                ပြည့်အောင်(w1bC < d) {
+                    တည်ဆောက် ဒသမ w1sC = 0
+                    တည်ဆောက် ကိန်း w1cC = 0
+                    ပြည့်အောင်(w1cC < T) {
+                        w1sC = w1sC + rdLC[w1cC * V + w1aC] * rH3C[w1cC * d + w1bC]
+                        w1cC = w1cC + 1
+                    }
+                    rdWte3[w1aC * K + w1bC] = w1sC
+                    w1bC = w1bC + 1
+                }
+                w1aC = w1aC + 1
+            }
+            တည်ဆောက် ကိန်း w2aC = 0
+            ပြည့်အောင်(w2aC < T) {
+                တည်ဆောက် ကိန်း w2bC = 0
+                ပြည့်အောင်(w2bC < d) {
+                    တည်ဆောက် ဒသမ w2sC = 0
+                    တည်ဆောက် ကိန်း w2cC = 0
+                    ပြည့်အောင်(w2cC < V) {
+                        w2sC = w2sC + rdLC[w2aC * V + w2cC] * hE[w2cC * K + w2bC]
+                        w2cC = w2cC + 1
+                    }
+                    rdH3C[w2aC * d + w2bC] = w2sC
+                    w2bC = w2bC + 1
+                }
+                w2aC = w2aC + 1
+            }
+            တည်ဆောက် ကိန်း w3aC = 0
+            ပြည့်အောင်(w3aC < T) {
+                တည်ဆောက် ဒသမ w3sC = 0
+                တည်ဆောက် ကိန်း w3bC = 0
+                ပြည့်အောင်(w3bC < d) {
+                    w3sC = w3sC + rH2C[w3aC * d + w3bC]
+                    w3bC = w3bC + 1
+                }
+                တည်ဆောက် ဒသမ w3mC = w3sC / d
+                တည်ဆောက် ဒသမ w3vC = 0
+                တည်ဆောက် ကိန်း w3cC = 0
+                ပြည့်အောင်(w3cC < d) {
+                    တည်ဆောက် ဒသမ w3uC = rH2C[w3aC * d + w3cC] - w3mC
+                    w3vC = w3vC + w3uC * w3uC
+                    w3cC = w3cC + 1
+                }
+                w3vC = w3vC / d
+                တည်ဆောက် ဒသမ w3rC = 1.0 / sqrt(w3vC + 0.000001)
+                တည်ဆောက် ဒသမ w3pC = 0
+                တည်ဆောက် ဒသမ w3qC = 0
+                တည်ဆောက် ကိန်း w3eC = 0
+                ပြည့်အောင်(w3eC < d) {
+                    တည်ဆောက် ဒသမ w3aaC = rdH3C[w3aC * d + w3eC] * hGam[w3eC]
+                    တည်ဆောက် ဒသမ w3xxC = (rH2C[w3aC * d + w3eC] - w3mC) * w3rC
+                    w3pC = w3pC + w3aaC
+                    w3qC = w3qC + w3aaC * w3xxC
+                    w3eC = w3eC + 1
+                }
+                တည်ဆောက် ကိန်း w3fC = 0
+                ပြည့်အောင်(w3fC < d) {
+                    တည်ဆောက် ဒသမ w3abC = rdH3C[w3aC * d + w3fC] * hGam[w3fC]
+                    တည်ဆောက် ဒသမ w3xyC = (rH2C[w3aC * d + w3fC] - w3mC) * w3rC
+                    rdH2gC[w3aC * d + w3fC] = w3rC * (w3abC - w3pC / d - w3xyC * w3qC / d)
+                    w3fC = w3fC + 1
+                }
+                w3aC = w3aC + 1
+            }
+            တည်ဆောက် ကိန်း w4aC = 0
+            ပြည့်အောင်(w4aC < H) {
+                တည်ဆောက် ကိန်း w4bC = 0
+                ပြည့်အောင်(w4bC < d) {
+                    တည်ဆောက် ဒသမ w4sC = 0
+                    တည်ဆောက် ကိန်း w4cC = 0
+                    ပြည့်အောင်(w4cC < T) {
+                        w4sC = w4sC + rGC[w4cC * H + w4aC] * rdH2gC[w4cC * d + w4bC]
+                        w4cC = w4cC + 1
+                    }
+                    rdW2C[w4aC * d + w4bC] = w4sC
+                    w4bC = w4bC + 1
+                }
+                w4aC = w4aC + 1
+            }
+            တည်ဆောက် ကိန်း w5aC = 0
+            ပြည့်အောင်(w5aC < T) {
+                တည်ဆောက် ကိန်း w5bC = 0
+                ပြည့်အောင်(w5bC < H) {
+                    တည်ဆောက် ဒသမ w5sC = 0
+                    တည်ဆောက် ကိန်း w5cC = 0
+                    ပြည့်အောင်(w5cC < d) {
+                        w5sC = w5sC + rdH2gC[w5aC * d + w5cC] * hW2C[w5bC * d + w5cC]
+                        w5cC = w5cC + 1
+                    }
+                    rdGC[w5aC * H + w5bC] = w5sC
+                    w5bC = w5bC + 1
+                }
+                w5aC = w5aC + 1
+            }
+            တည်ဆောက် ကိန်း w6aC = 0
+            ပြည့်အောင်(w6aC < 256) {
+                တည်ဆောက် ဒသမ w6gC = rdGC[w6aC]
+                တည်ဆောက် ဒသမ w6vC = rF1C[w6aC]
+                တည်ဆောက် ဒသမ w6tC = tanh(0.7978845608 * (w6vC + 0.044715 * w6vC * w6vC * w6vC))
+                rdF1C[w6aC] = w6gC * (0.5 * (1.0 + w6tC) + w6vC * 0.5 * (1.0 - w6tC * w6tC) * 0.7978845608 * (1.0 + 3.0 * 0.044715 * w6vC * w6vC))
+                w6aC = w6aC + 1
+            }
+            တည်ဆောက် ကိန်း w7aC = 0
+            ပြည့်အောင်(w7aC < d) {
+                တည်ဆောက် ကိန်း w7bC = 0
+                ပြည့်အောင်(w7bC < H) {
+                    တည်ဆောက် ဒသမ w7sC = 0
+                    တည်ဆောက် ကိန်း w7cC = 0
+                    ပြည့်အောင်(w7cC < T) {
+                        w7sC = w7sC + rH1C[w7cC * d + w7aC] * rdF1C[w7cC * H + w7bC]
+                        w7cC = w7cC + 1
+                    }
+                    rdW1C[w7aC * H + w7bC] = w7sC
+                    w7bC = w7bC + 1
+                }
+                w7aC = w7aC + 1
+            }
+            တည်ဆောက် ကိန်း w8aC = 0
+            ပြည့်အောင်(w8aC < T) {
+                တည်ဆောက် ကိန်း w8bC = 0
+                ပြည့်အောင်(w8bC < d) {
+                    တည်ဆောက် ဒသမ w8sC = 0
+                    တည်ဆောက် ကိန်း w8cC = 0
+                    ပြည့်အောင်(w8cC < H) {
+                        w8sC = w8sC + rdF1C[w8aC * H + w8cC] * hW1C[w8bC * H + w8cC]
+                        w8cC = w8cC + 1
+                    }
+                    rdH1C[w8aC * d + w8bC] = w8sC
+                    w8bC = w8bC + 1
+                }
+                w8aC = w8aC + 1
+            }
+            တည်ဆောက် ကိန်း w9aC = 0
+            ပြည့်အောင်(w9aC < T) {
+                တည်ဆောက် ဒသမ w9sC = 0
+                တည်ဆောက် ကိန်း w9bC = 0
+                ပြည့်အောင်(w9bC < d) {
+                    w9sC = w9sC + rHC[w9aC * d + w9bC]
+                    w9bC = w9bC + 1
+                }
+                တည်ဆောက် ဒသမ w9mC = w9sC / d
+                တည်ဆောက် ဒသမ w9vC = 0
+                တည်ဆောက် ကိန်း w9cC = 0
+                ပြည့်အောင်(w9cC < d) {
+                    တည်ဆောက် ဒသမ w9uC = rHC[w9aC * d + w9cC] - w9mC
+                    w9vC = w9vC + w9uC * w9uC
+                    w9cC = w9cC + 1
+                }
+                w9vC = w9vC / d
+                တည်ဆောက် ဒသမ w9rC = 1.0 / sqrt(w9vC + 0.000001)
+                တည်ဆောက် ဒသမ w9pC = 0
+                တည်ဆောက် ဒသမ w9qC = 0
+                တည်ဆောက် ကိန်း w9eC = 0
+                ပြည့်အောင်(w9eC < d) {
+                    တည်ဆောက် ဒသမ w9aaC = rdH1C[w9aC * d + w9eC] * hGam[w9eC]
+                    တည်ဆောက် ဒသမ w9xxC = (rHC[w9aC * d + w9eC] - w9mC) * w9rC
+                    w9pC = w9pC + w9aaC
+                    w9qC = w9qC + w9aaC * w9xxC
+                    w9eC = w9eC + 1
+                }
+                တည်ဆောက် ကိန်း w9fC = 0
+                ပြည့်အောင်(w9fC < d) {
+                    တည်ဆောက် ဒသမ w9abC = rdH1C[w9aC * d + w9fC] * hGam[w9fC]
+                    တည်ဆောက် ဒသမ w9xyC = (rHC[w9aC * d + w9fC] - w9mC) * w9rC
+                    rdHmC[w9aC * d + w9fC] = w9rC * (w9abC - w9pC / d - w9xyC * w9qC / d)
+                    w9fC = w9fC + 1
+                }
+                w9aC = w9aC + 1
+            }
+            တည်ဆောက် ကိန်း w10aC = 0
+            ပြည့်အောင်(w10aC < 64) {
+                rdHtC[w10aC] = rdHmC[w10aC] + rdH2gC[w10aC]
+                w10aC = w10aC + 1
+            }
+            တည်ဆောက် ကိန်း w11aC = 0
+            ပြည့်အောင်(w11aC < T) {
+                တည်ဆောက် ကိန်း w11bC = 0
+                ပြည့်အောင်(w11bC < d) {
+                    တည်ဆောက် ဒသမ w11sC = 0
+                    တည်ဆောက် ကိန်း w11cC = 0
+                    ပြည့်အောင်(w11cC < T) {
+                        w11sC = w11sC + rAC[w11cC * T + w11aC] * rdHtC[w11cC * d + w11bC]
+                        w11cC = w11cC + 1
+                    }
+                    rdVC[w11aC * d + w11bC] = w11sC
+                    w11bC = w11bC + 1
+                }
+                w11aC = w11aC + 1
+            }
+            တည်ဆောက် ကိန်း w12aC = 0
+            ပြည့်အောင်(w12aC < T) {
+                တည်ဆောက် ကိန်း w12bC = 0
+                ပြည့်အောင်(w12bC < T) {
+                    တည်ဆောက် ဒသမ w12sC = 0
+                    တည်ဆောက် ကိန်း w12cC = 0
+                    ပြည့်အောင်(w12cC < d) {
+                        w12sC = w12sC + rdHtC[w12aC * d + w12cC] * rVC[w12bC * d + w12cC]
+                        w12cC = w12cC + 1
+                    }
+                    rdAC[w12aC * T + w12bC] = w12sC
+                    w12bC = w12bC + 1
+                }
+                w12aC = w12aC + 1
+            }
+            တည်ဆောက် ကိန်း w13aC = 0
+            ပြည့်အောင်(w13aC < T) {
+                တည်ဆောက် ဒသမ w13dC = 0
+                တည်ဆောက် ကိန်း w13bC = 0
+                ပြည့်အောင်(w13bC < T) {
+                    w13dC = w13dC + rdAC[w13aC * T + w13bC] * rAC[w13aC * T + w13bC]
+                    w13bC = w13bC + 1
+                }
+                တည်ဆောက် ကိန်း w13cC = 0
+                ပြည့်အောင်(w13cC < T) {
+                    rdSC[w13aC * T + w13cC] = rAC[w13aC * T + w13cC] * (rdAC[w13aC * T + w13cC] - w13dC) * 0.25
+                    w13cC = w13cC + 1
+                }
+                w13aC = w13aC + 1
+            }
+            တည်ဆောက် ကိန်း w14aC = 0
+            ပြည့်အောင်(w14aC < T) {
+                တည်ဆောက် ကိန်း w14bC = 0
+                ပြည့်အောင်(w14bC < d) {
+                    တည်ဆောက် ဒသမ w14sC = 0
+                    တည်ဆောက် ကိန်း w14cC = 0
+                    ပြည့်အောင်(w14cC < T) {
+                        w14sC = w14sC + rdSC[w14aC * T + w14cC] * rKC[w14cC * d + w14bC]
+                        w14cC = w14cC + 1
+                    }
+                    rdQC[w14aC * d + w14bC] = w14sC
+                    w14bC = w14bC + 1
+                }
+                w14aC = w14aC + 1
+            }
+            တည်ဆောက် ကိန်း w15aC = 0
+            ပြည့်အောင်(w15aC < T) {
+                တည်ဆောက် ကိန်း w15bC = 0
+                ပြည့်အောင်(w15bC < d) {
+                    တည်ဆောက် ဒသမ w15sC = 0
+                    တည်ဆောက် ကိန်း w15cC = 0
+                    ပြည့်အောင်(w15cC < T) {
+                        w15sC = w15sC + rdSC[w15cC * T + w15aC] * rQC[w15cC * d + w15bC]
+                        w15cC = w15cC + 1
+                    }
+                    rdKC[w15aC * d + w15bC] = w15sC
+                    w15bC = w15bC + 1
+                }
+                w15aC = w15aC + 1
+            }
+            တည်ဆောက် ကိန်း w16aC = 0
+            ပြည့်အောင်(w16aC < K) {
+                တည်ဆောက် ကိန်း w16bC = 0
+                ပြည့်အောင်(w16bC < d) {
+                    တည်ဆောက် ဒသမ w16sC = 0
+                    တည်ဆောက် ဒသမ w16tC = 0
+                    တည်ဆောက် ဒသမ w16uC = 0
+                    တည်ဆောက် ကိန်း w16cC = 0
+                    ပြည့်အောင်(w16cC < T) {
+                        w16sC = w16sC + rH3B[w16cC * K + w16aC] * rdQC[w16cC * d + w16bC]
+                        w16tC = w16tC + rH3B[w16cC * K + w16aC] * rdKC[w16cC * d + w16bC]
+                        w16uC = w16uC + rH3B[w16cC * K + w16aC] * rdVC[w16cC * d + w16bC]
+                        w16cC = w16cC + 1
+                    }
+                    rdWqC[w16aC * d + w16bC] = w16sC
+                    rdWkC[w16aC * d + w16bC] = w16tC
+                    rdWvC[w16aC * d + w16bC] = w16uC
+                    w16bC = w16bC + 1
+                }
+                w16aC = w16aC + 1
+            }
+            တည်ဆောက် ကိန်း w17aC = 0
+            ပြည့်အောင်(w17aC < T) {
+                တည်ဆောက် ကိန်း w17bC = 0
+                ပြည့်အောင်(w17bC < K) {
+                    တည်ဆောက် ဒသမ w17sC = 0
+                    တည်ဆောက် ကိန်း w17cC = 0
+                    ပြည့်အောင်(w17cC < d) {
+                        w17sC = w17sC + rdQC[w17aC * d + w17cC] * hWqC[w17bC * d + w17cC]
+                        w17cC = w17cC + 1
+                    }
+                    rdXqC[w17aC * K + w17bC] = w17sC
+                    w17bC = w17bC + 1
+                }
+                w17aC = w17aC + 1
+            }
+            တည်ဆောက် ကိန်း w18aC = 0
+            ပြည့်အောင်(w18aC < T) {
+                တည်ဆောက် ကိန်း w18bC = 0
+                ပြည့်အောင်(w18bC < K) {
+                    တည်ဆောက် ဒသမ w18sC = 0
+                    တည်ဆောက် ကိန်း w18cC = 0
+                    ပြည့်အောင်(w18cC < d) {
+                        w18sC = w18sC + rdKC[w18aC * d + w18cC] * hWkC[w18bC * d + w18cC]
+                        w18cC = w18cC + 1
+                    }
+                    rdXkC[w18aC * K + w18bC] = w18sC
+                    w18bC = w18bC + 1
+                }
+                w18aC = w18aC + 1
+            }
+            တည်ဆောက် ကိန်း w19aC = 0
+            ပြည့်အောင်(w19aC < T) {
+                တည်ဆောက် ကိန်း w19bC = 0
+                ပြည့်အောင်(w19bC < K) {
+                    တည်ဆောက် ဒသမ w19sC = 0
+                    တည်ဆောက် ကိန်း w19cC = 0
+                    ပြည့်အောင်(w19cC < d) {
+                        w19sC = w19sC + rdVC[w19aC * d + w19cC] * hWvC[w19bC * d + w19cC]
+                        w19cC = w19cC + 1
+                    }
+                    rdXvC[w19aC * K + w19bC] = w19sC
+                    w19bC = w19bC + 1
+                }
+                w19aC = w19aC + 1
+            }
+            တည်ဆောက် ကိန်း w20aC = 0
+            ပြည့်အောင်(w20aC < 64) {
+                rdXtC[w20aC] = rdHtC[w20aC] + rdXqC[w20aC] + rdXkC[w20aC] + rdXvC[w20aC]
+                w20aC = w20aC + 1
+            }
+            တည်ဆောက် ကိန်း q1B = 0
+            ပြည့်အောင်(q1B < 88) {
+                rdLB[q1B] = (rP2[q1B] - hY[q1B]) / T
+                q1B = q1B + 1
+            }
+            တည်ဆောက် ကိန်း w1aB = 0
+            ပြည့်အောင်(w1aB < V) {
+                တည်ဆောက် ကိန်း w1bB = 0
+                ပြည့်အောင်(w1bB < d) {
+                    တည်ဆောက် ဒသမ w1sB = 0
+                    တည်ဆောက် ကိန်း w1cB = 0
+                    ပြည့်အောင်(w1cB < T) {
+                        w1sB = w1sB + rdLB[w1cB * V + w1aB] * rH3B[w1cB * d + w1bB]
+                        w1cB = w1cB + 1
+                    }
+                    rdWte2[w1aB * K + w1bB] = w1sB
+                    w1bB = w1bB + 1
+                }
+                w1aB = w1aB + 1
+            }
+            တည်ဆောက် ကိန်း w2aB = 0
+            ပြည့်အောင်(w2aB < T) {
+                တည်ဆောက် ကိန်း w2bB = 0
+                ပြည့်အောင်(w2bB < d) {
+                    တည်ဆောက် ဒသမ w2sB = 0
+                    တည်ဆောက် ကိန်း w2cB = 0
+                    ပြည့်အောင်(w2cB < V) {
+                        w2sB = w2sB + rdLB[w2aB * V + w2cB] * hE[w2cB * K + w2bB]
+                        w2cB = w2cB + 1
+                    }
+                    rdH3B[w2aB * d + w2bB] = w2sB
+                    w2bB = w2bB + 1
+                }
+                w2aB = w2aB + 1
+            }
+            တည်ဆောက် ကိန်း hc4 = 0
+            ပြည့်အောင်(hc4 < 64) {
+                rdH3B[hc4] = rdH3B[hc4] + rdXtC[hc4]
+                hc4 = hc4 + 1
+            }
+            တည်ဆောက် ကိန်း w3aB = 0
+            ပြည့်အောင်(w3aB < T) {
+                တည်ဆောက် ဒသမ w3sB = 0
+                တည်ဆောက် ကိန်း w3bB = 0
+                ပြည့်အောင်(w3bB < d) {
+                    w3sB = w3sB + rH2B[w3aB * d + w3bB]
+                    w3bB = w3bB + 1
+                }
+                တည်ဆောက် ဒသမ w3mB = w3sB / d
+                တည်ဆောက် ဒသမ w3vB = 0
+                တည်ဆောက် ကိန်း w3cB = 0
+                ပြည့်အောင်(w3cB < d) {
+                    တည်ဆောက် ဒသမ w3uB = rH2B[w3aB * d + w3cB] - w3mB
+                    w3vB = w3vB + w3uB * w3uB
+                    w3cB = w3cB + 1
+                }
+                w3vB = w3vB / d
+                တည်ဆောက် ဒသမ w3rB = 1.0 / sqrt(w3vB + 0.000001)
+                တည်ဆောက် ဒသမ w3pB = 0
+                တည်ဆောက် ဒသမ w3qB = 0
+                တည်ဆောက် ကိန်း w3eB = 0
+                ပြည့်အောင်(w3eB < d) {
+                    တည်ဆောက် ဒသမ w3aaB = rdH3B[w3aB * d + w3eB] * hGam[w3eB]
+                    တည်ဆောက် ဒသမ w3xxB = (rH2B[w3aB * d + w3eB] - w3mB) * w3rB
+                    w3pB = w3pB + w3aaB
+                    w3qB = w3qB + w3aaB * w3xxB
+                    w3eB = w3eB + 1
+                }
+                တည်ဆောက် ကိန်း w3fB = 0
+                ပြည့်အောင်(w3fB < d) {
+                    တည်ဆောက် ဒသမ w3abB = rdH3B[w3aB * d + w3fB] * hGam[w3fB]
+                    တည်ဆောက် ဒသမ w3xyB = (rH2B[w3aB * d + w3fB] - w3mB) * w3rB
+                    rdH2gB[w3aB * d + w3fB] = w3rB * (w3abB - w3pB / d - w3xyB * w3qB / d)
+                    w3fB = w3fB + 1
+                }
+                w3aB = w3aB + 1
+            }
+            တည်ဆောက် ကိန်း w4aB = 0
+            ပြည့်အောင်(w4aB < H) {
+                တည်ဆောက် ကိန်း w4bB = 0
+                ပြည့်အောင်(w4bB < d) {
+                    တည်ဆောက် ဒသမ w4sB = 0
+                    တည်ဆောက် ကိန်း w4cB = 0
+                    ပြည့်အောင်(w4cB < T) {
+                        w4sB = w4sB + rGB[w4cB * H + w4aB] * rdH2gB[w4cB * d + w4bB]
+                        w4cB = w4cB + 1
+                    }
+                    rdW2B[w4aB * d + w4bB] = w4sB
+                    w4bB = w4bB + 1
+                }
+                w4aB = w4aB + 1
+            }
+            တည်ဆောက် ကိန်း w5aB = 0
+            ပြည့်အောင်(w5aB < T) {
+                တည်ဆောက် ကိန်း w5bB = 0
+                ပြည့်အောင်(w5bB < H) {
+                    တည်ဆောက် ဒသမ w5sB = 0
+                    တည်ဆောက် ကိန်း w5cB = 0
+                    ပြည့်အောင်(w5cB < d) {
+                        w5sB = w5sB + rdH2gB[w5aB * d + w5cB] * hW2B[w5bB * d + w5cB]
+                        w5cB = w5cB + 1
+                    }
+                    rdGB[w5aB * H + w5bB] = w5sB
+                    w5bB = w5bB + 1
+                }
+                w5aB = w5aB + 1
+            }
+            တည်ဆောက် ကိန်း w6aB = 0
+            ပြည့်အောင်(w6aB < 256) {
+                တည်ဆောက် ဒသမ w6gB = rdGB[w6aB]
+                တည်ဆောက် ဒသမ w6vB = rF1B[w6aB]
+                တည်ဆောက် ဒသမ w6tB = tanh(0.7978845608 * (w6vB + 0.044715 * w6vB * w6vB * w6vB))
+                rdF1B[w6aB] = w6gB * (0.5 * (1.0 + w6tB) + w6vB * 0.5 * (1.0 - w6tB * w6tB) * 0.7978845608 * (1.0 + 3.0 * 0.044715 * w6vB * w6vB))
+                w6aB = w6aB + 1
+            }
+            တည်ဆောက် ကိန်း w7aB = 0
+            ပြည့်အောင်(w7aB < d) {
+                တည်ဆောက် ကိန်း w7bB = 0
+                ပြည့်အောင်(w7bB < H) {
+                    တည်ဆောက် ဒသမ w7sB = 0
+                    တည်ဆောက် ကိန်း w7cB = 0
+                    ပြည့်အောင်(w7cB < T) {
+                        w7sB = w7sB + rH1B[w7cB * d + w7aB] * rdF1B[w7cB * H + w7bB]
+                        w7cB = w7cB + 1
+                    }
+                    rdW1B[w7aB * H + w7bB] = w7sB
+                    w7bB = w7bB + 1
+                }
+                w7aB = w7aB + 1
+            }
+            တည်ဆောက် ကိန်း w8aB = 0
+            ပြည့်အောင်(w8aB < T) {
+                တည်ဆောက် ကိန်း w8bB = 0
+                ပြည့်အောင်(w8bB < d) {
+                    တည်ဆောက် ဒသမ w8sB = 0
+                    တည်ဆောက် ကိန်း w8cB = 0
+                    ပြည့်အောင်(w8cB < H) {
+                        w8sB = w8sB + rdF1B[w8aB * H + w8cB] * hW1B[w8bB * H + w8cB]
+                        w8cB = w8cB + 1
+                    }
+                    rdH1B[w8aB * d + w8bB] = w8sB
+                    w8bB = w8bB + 1
+                }
+                w8aB = w8aB + 1
+            }
+            တည်ဆောက် ကိန်း w9aB = 0
+            ပြည့်အောင်(w9aB < T) {
+                တည်ဆောက် ဒသမ w9sB = 0
+                တည်ဆောက် ကိန်း w9bB = 0
+                ပြည့်အောင်(w9bB < d) {
+                    w9sB = w9sB + rHB[w9aB * d + w9bB]
+                    w9bB = w9bB + 1
+                }
+                တည်ဆောက် ဒသမ w9mB = w9sB / d
+                တည်ဆောက် ဒသမ w9vB = 0
+                တည်ဆောက် ကိန်း w9cB = 0
+                ပြည့်အောင်(w9cB < d) {
+                    တည်ဆောက် ဒသမ w9uB = rHB[w9aB * d + w9cB] - w9mB
+                    w9vB = w9vB + w9uB * w9uB
+                    w9cB = w9cB + 1
+                }
+                w9vB = w9vB / d
+                တည်ဆောက် ဒသမ w9rB = 1.0 / sqrt(w9vB + 0.000001)
+                တည်ဆောက် ဒသမ w9pB = 0
+                တည်ဆောက် ဒသမ w9qB = 0
+                တည်ဆောက် ကိန်း w9eB = 0
+                ပြည့်အောင်(w9eB < d) {
+                    တည်ဆောက် ဒသမ w9aaB = rdH1B[w9aB * d + w9eB] * hGam[w9eB]
+                    တည်ဆောက် ဒသမ w9xxB = (rHB[w9aB * d + w9eB] - w9mB) * w9rB
+                    w9pB = w9pB + w9aaB
+                    w9qB = w9qB + w9aaB * w9xxB
+                    w9eB = w9eB + 1
+                }
+                တည်ဆောက် ကိန်း w9fB = 0
+                ပြည့်အောင်(w9fB < d) {
+                    တည်ဆောက် ဒသမ w9abB = rdH1B[w9aB * d + w9fB] * hGam[w9fB]
+                    တည်ဆောက် ဒသမ w9xyB = (rHB[w9aB * d + w9fB] - w9mB) * w9rB
+                    rdHmB[w9aB * d + w9fB] = w9rB * (w9abB - w9pB / d - w9xyB * w9qB / d)
+                    w9fB = w9fB + 1
+                }
+                w9aB = w9aB + 1
+            }
+            တည်ဆောက် ကိန်း w10aB = 0
+            ပြည့်အောင်(w10aB < 64) {
+                rdHtB[w10aB] = rdHmB[w10aB] + rdH2gB[w10aB]
+                w10aB = w10aB + 1
+            }
+            တည်ဆောက် ကိန်း w11aB = 0
+            ပြည့်အောင်(w11aB < T) {
+                တည်ဆောက် ကိန်း w11bB = 0
+                ပြည့်အောင်(w11bB < d) {
+                    တည်ဆောက် ဒသမ w11sB = 0
+                    တည်ဆောက် ကိန်း w11cB = 0
+                    ပြည့်အောင်(w11cB < T) {
+                        w11sB = w11sB + rAB[w11cB * T + w11aB] * rdHtB[w11cB * d + w11bB]
+                        w11cB = w11cB + 1
+                    }
+                    rdVB[w11aB * d + w11bB] = w11sB
+                    w11bB = w11bB + 1
+                }
+                w11aB = w11aB + 1
+            }
+            တည်ဆောက် ကိန်း w12aB = 0
+            ပြည့်အောင်(w12aB < T) {
+                တည်ဆောက် ကိန်း w12bB = 0
+                ပြည့်အောင်(w12bB < T) {
+                    တည်ဆောက် ဒသမ w12sB = 0
+                    တည်ဆောက် ကိန်း w12cB = 0
+                    ပြည့်အောင်(w12cB < d) {
+                        w12sB = w12sB + rdHtB[w12aB * d + w12cB] * rVB[w12bB * d + w12cB]
+                        w12cB = w12cB + 1
+                    }
+                    rdAB[w12aB * T + w12bB] = w12sB
+                    w12bB = w12bB + 1
+                }
+                w12aB = w12aB + 1
+            }
+            တည်ဆောက် ကိန်း w13aB = 0
+            ပြည့်အောင်(w13aB < T) {
+                တည်ဆောက် ဒသမ w13dB = 0
+                တည်ဆောက် ကိန်း w13bB = 0
+                ပြည့်အောင်(w13bB < T) {
+                    w13dB = w13dB + rdAB[w13aB * T + w13bB] * rAB[w13aB * T + w13bB]
+                    w13bB = w13bB + 1
+                }
+                တည်ဆောက် ကိန်း w13cB = 0
+                ပြည့်အောင်(w13cB < T) {
+                    rdSB[w13aB * T + w13cB] = rAB[w13aB * T + w13cB] * (rdAB[w13aB * T + w13cB] - w13dB) * 0.25
+                    w13cB = w13cB + 1
+                }
+                w13aB = w13aB + 1
+            }
+            တည်ဆောက် ကိန်း w14aB = 0
+            ပြည့်အောင်(w14aB < T) {
+                တည်ဆောက် ကိန်း w14bB = 0
+                ပြည့်အောင်(w14bB < d) {
+                    တည်ဆောက် ဒသမ w14sB = 0
+                    တည်ဆောက် ကိန်း w14cB = 0
+                    ပြည့်အောင်(w14cB < T) {
+                        w14sB = w14sB + rdSB[w14aB * T + w14cB] * rKB[w14cB * d + w14bB]
+                        w14cB = w14cB + 1
+                    }
+                    rdQB[w14aB * d + w14bB] = w14sB
+                    w14bB = w14bB + 1
+                }
+                w14aB = w14aB + 1
+            }
+            တည်ဆောက် ကိန်း w15aB = 0
+            ပြည့်အောင်(w15aB < T) {
+                တည်ဆောက် ကိန်း w15bB = 0
+                ပြည့်အောင်(w15bB < d) {
+                    တည်ဆောက် ဒသမ w15sB = 0
+                    တည်ဆောက် ကိန်း w15cB = 0
+                    ပြည့်အောင်(w15cB < T) {
+                        w15sB = w15sB + rdSB[w15cB * T + w15aB] * rQB[w15cB * d + w15bB]
+                        w15cB = w15cB + 1
+                    }
+                    rdKB[w15aB * d + w15bB] = w15sB
+                    w15bB = w15bB + 1
+                }
+                w15aB = w15aB + 1
+            }
+            တည်ဆောက် ကိန်း w16aB = 0
+            ပြည့်အောင်(w16aB < K) {
+                တည်ဆောက် ကိန်း w16bB = 0
+                ပြည့်အောင်(w16bB < d) {
+                    တည်ဆောက် ဒသမ w16sB = 0
+                    တည်ဆောက် ဒသမ w16tB = 0
+                    တည်ဆောက် ဒသမ w16uB = 0
+                    တည်ဆောက် ကိန်း w16cB = 0
+                    ပြည့်အောင်(w16cB < T) {
+                        w16sB = w16sB + rH3[w16cB * K + w16aB] * rdQB[w16cB * d + w16bB]
+                        w16tB = w16tB + rH3[w16cB * K + w16aB] * rdKB[w16cB * d + w16bB]
+                        w16uB = w16uB + rH3[w16cB * K + w16aB] * rdVB[w16cB * d + w16bB]
+                        w16cB = w16cB + 1
+                    }
+                    rdWqB[w16aB * d + w16bB] = w16sB
+                    rdWkB[w16aB * d + w16bB] = w16tB
+                    rdWvB[w16aB * d + w16bB] = w16uB
+                    w16bB = w16bB + 1
+                }
+                w16aB = w16aB + 1
+            }
+            တည်ဆောက် ကိန်း w17aB = 0
+            ပြည့်အောင်(w17aB < T) {
+                တည်ဆောက် ကိန်း w17bB = 0
+                ပြည့်အောင်(w17bB < K) {
+                    တည်ဆောက် ဒသမ w17sB = 0
+                    တည်ဆောက် ကိန်း w17cB = 0
+                    ပြည့်အောင်(w17cB < d) {
+                        w17sB = w17sB + rdQB[w17aB * d + w17cB] * hWqB[w17bB * d + w17cB]
+                        w17cB = w17cB + 1
+                    }
+                    rdXqB[w17aB * K + w17bB] = w17sB
+                    w17bB = w17bB + 1
+                }
+                w17aB = w17aB + 1
+            }
+            တည်ဆောက် ကိန်း w18aB = 0
+            ပြည့်အောင်(w18aB < T) {
+                တည်ဆောက် ကိန်း w18bB = 0
+                ပြည့်အောင်(w18bB < K) {
+                    တည်ဆောက် ဒသမ w18sB = 0
+                    တည်ဆောက် ကိန်း w18cB = 0
+                    ပြည့်အောင်(w18cB < d) {
+                        w18sB = w18sB + rdKB[w18aB * d + w18cB] * hWkB[w18bB * d + w18cB]
+                        w18cB = w18cB + 1
+                    }
+                    rdXkB[w18aB * K + w18bB] = w18sB
+                    w18bB = w18bB + 1
+                }
+                w18aB = w18aB + 1
+            }
+            တည်ဆောက် ကိန်း w19aB = 0
+            ပြည့်အောင်(w19aB < T) {
+                တည်ဆောက် ကိန်း w19bB = 0
+                ပြည့်အောင်(w19bB < K) {
+                    တည်ဆောက် ဒသမ w19sB = 0
+                    တည်ဆောက် ကိန်း w19cB = 0
+                    ပြည့်အောင်(w19cB < d) {
+                        w19sB = w19sB + rdVB[w19aB * d + w19cB] * hWvB[w19bB * d + w19cB]
+                        w19cB = w19cB + 1
+                    }
+                    rdXvB[w19aB * K + w19bB] = w19sB
+                    w19bB = w19bB + 1
+                }
+                w19aB = w19aB + 1
+            }
+            တည်ဆောက် ကိန်း w20aB = 0
+            ပြည့်အောင်(w20aB < 64) {
+                rdXtB[w20aB] = rdHtB[w20aB] + rdXqB[w20aB] + rdXkB[w20aB] + rdXvB[w20aB]
+                w20aB = w20aB + 1
+            }
+            တည်ဆောက် ကိန်း q1 = 0
+            ပြည့်အောင်(q1 < 88) {
+                rdL[q1] = (rP1[q1] - hY[q1]) / T
+                q1 = q1 + 1
+            }
+            တည်ဆောက် ကိန်း w1a = 0
+            ပြည့်အောင်(w1a < V) {
+                တည်ဆောက် ကိန်း w1b = 0
+                ပြည့်အောင်(w1b < d) {
+                    တည်ဆောက် ဒသမ w1s = 0
+                    တည်ဆောက် ကိန်း w1c = 0
+                    ပြည့်အောင်(w1c < T) {
+                        w1s = w1s + rdL[w1c * V + w1a] * rH3[w1c * d + w1b]
+                        w1c = w1c + 1
+                    }
+                    rdWte1[w1a * K + w1b] = w1s
+                    w1b = w1b + 1
+                }
+                w1a = w1a + 1
+            }
+            တည်ဆောက် ကိန်း w2a = 0
+            ပြည့်အောင်(w2a < T) {
+                တည်ဆောက် ကိန်း w2b = 0
+                ပြည့်အောင်(w2b < d) {
+                    တည်ဆောက် ဒသမ w2s = 0
+                    တည်ဆောက် ကိန်း w2c = 0
+                    ပြည့်အောင်(w2c < V) {
+                        w2s = w2s + rdL[w2a * V + w2c] * hE[w2c * K + w2b]
+                        w2c = w2c + 1
+                    }
+                    rdH3[w2a * d + w2b] = w2s
+                    w2b = w2b + 1
+                }
+                w2a = w2a + 1
+            }
+        တည်ဆောက် ကိန်း hc2 = 0
+        ပြည့်အောင်(hc2 < 64) {
+            rdH3[hc2] = rdH3[hc2] + rdXtB[hc2]
+            hc2 = hc2 + 1
+        }
+            တည်ဆောက် ကိန်း w3a = 0
+            ပြည့်အောင်(w3a < T) {
+                တည်ဆောက် ဒသမ w3s = 0
+                တည်ဆောက် ကိန်း w3b = 0
+                ပြည့်အောင်(w3b < d) {
+                    w3s = w3s + rH2[w3a * d + w3b]
+                    w3b = w3b + 1
+                }
+                တည်ဆောက် ဒသမ w3m = w3s / d
+                တည်ဆောက် ဒသမ w3v = 0
+                တည်ဆောက် ကိန်း w3c = 0
+                ပြည့်အောင်(w3c < d) {
+                    တည်ဆောက် ဒသမ w3u = rH2[w3a * d + w3c] - w3m
+                    w3v = w3v + w3u * w3u
+                    w3c = w3c + 1
+                }
+                w3v = w3v / d
+                တည်ဆောက် ဒသမ w3r = 1.0 / sqrt(w3v + 0.000001)
+                တည်ဆောက် ဒသမ w3p = 0
+                တည်ဆောက် ဒသမ w3q = 0
+                တည်ဆောက် ကိန်း w3e = 0
+                ပြည့်အောင်(w3e < d) {
+                    တည်ဆောက် ဒသမ w3aa = rdH3[w3a * d + w3e] * hGam[w3e]
+                    တည်ဆောက် ဒသမ w3xx = (rH2[w3a * d + w3e] - w3m) * w3r
+                    w3p = w3p + w3aa
+                    w3q = w3q + w3aa * w3xx
+                    w3e = w3e + 1
+                }
+                တည်ဆောက် ကိန်း w3f = 0
+                ပြည့်အောင်(w3f < d) {
+                    တည်ဆောက် ဒသမ w3ab = rdH3[w3a * d + w3f] * hGam[w3f]
+                    တည်ဆောက် ဒသမ w3xy = (rH2[w3a * d + w3f] - w3m) * w3r
+                    rdH2g[w3a * d + w3f] = w3r * (w3ab - w3p / d - w3xy * w3q / d)
+                    w3f = w3f + 1
+                }
+                w3a = w3a + 1
+            }
+            တည်ဆောက် ကိန်း w4a = 0
+            ပြည့်အောင်(w4a < H) {
+                တည်ဆောက် ကိန်း w4b = 0
+                ပြည့်အောင်(w4b < d) {
+                    တည်ဆောက် ဒသမ w4s = 0
+                    တည်ဆောက် ကိန်း w4c = 0
+                    ပြည့်အောင်(w4c < T) {
+                        w4s = w4s + rG[w4c * H + w4a] * rdH2g[w4c * d + w4b]
+                        w4c = w4c + 1
+                    }
+                    rdW2[w4a * d + w4b] = w4s
+                    w4b = w4b + 1
+                }
+                w4a = w4a + 1
+            }
+            တည်ဆောက် ကိန်း w5a = 0
+            ပြည့်အောင်(w5a < T) {
+                တည်ဆောက် ကိန်း w5b = 0
+                ပြည့်အောင်(w5b < H) {
+                    တည်ဆောက် ဒသမ w5s = 0
+                    တည်ဆောက် ကိန်း w5c = 0
+                    ပြည့်အောင်(w5c < d) {
+                        w5s = w5s + rdH2g[w5a * d + w5c] * hW2[w5b * d + w5c]
+                        w5c = w5c + 1
+                    }
+                    rdG[w5a * H + w5b] = w5s
+                    w5b = w5b + 1
+                }
+                w5a = w5a + 1
+            }
+            တည်ဆောက် ကိန်း w6a = 0
+            ပြည့်အောင်(w6a < 256) {
+                တည်ဆောက် ဒသမ w6g = rdG[w6a]
+                တည်ဆောက် ဒသမ w6v = rF1[w6a]
+                တည်ဆောက် ဒသမ w6t = tanh(0.7978845608 * (w6v + 0.044715 * w6v * w6v * w6v))
+                rdF1[w6a] = w6g * (0.5 * (1.0 + w6t) + w6v * 0.5 * (1.0 - w6t * w6t) * 0.7978845608 * (1.0 + 3.0 * 0.044715 * w6v * w6v))
+                w6a = w6a + 1
+            }
+            တည်ဆောက် ကိန်း w7a = 0
+            ပြည့်အောင်(w7a < d) {
+                တည်ဆောက် ကိန်း w7b = 0
+                ပြည့်အောင်(w7b < H) {
+                    တည်ဆောက် ဒသမ w7s = 0
+                    တည်ဆောက် ကိန်း w7c = 0
+                    ပြည့်အောင်(w7c < T) {
+                        w7s = w7s + rH1[w7c * d + w7a] * rdF1[w7c * H + w7b]
+                        w7c = w7c + 1
+                    }
+                    rdW1[w7a * H + w7b] = w7s
+                    w7b = w7b + 1
+                }
+                w7a = w7a + 1
+            }
+            တည်ဆောက် ကိန်း w8a = 0
+            ပြည့်အောင်(w8a < T) {
+                တည်ဆောက် ကိန်း w8b = 0
+                ပြည့်အောင်(w8b < d) {
+                    တည်ဆောက် ဒသမ w8s = 0
+                    တည်ဆောက် ကိန်း w8c = 0
+                    ပြည့်အောင်(w8c < H) {
+                        w8s = w8s + rdF1[w8a * H + w8c] * hW1[w8b * H + w8c]
+                        w8c = w8c + 1
+                    }
+                    rdH1[w8a * d + w8b] = w8s
+                    w8b = w8b + 1
+                }
+                w8a = w8a + 1
+            }
+            တည်ဆောက် ကိန်း w9a = 0
+            ပြည့်အောင်(w9a < T) {
+                တည်ဆောက် ဒသမ w9s = 0
+                တည်ဆောက် ကိန်း w9b = 0
+                ပြည့်အောင်(w9b < d) {
+                    w9s = w9s + rH[w9a * d + w9b]
+                    w9b = w9b + 1
+                }
+                တည်ဆောက် ဒသမ w9m = w9s / d
+                တည်ဆောက် ဒသမ w9v = 0
+                တည်ဆောက် ကိန်း w9c = 0
+                ပြည့်အောင်(w9c < d) {
+                    တည်ဆောက် ဒသမ w9u = rH[w9a * d + w9c] - w9m
+                    w9v = w9v + w9u * w9u
+                    w9c = w9c + 1
+                }
+                w9v = w9v / d
+                တည်ဆောက် ဒသမ w9r = 1.0 / sqrt(w9v + 0.000001)
+                တည်ဆောက် ဒသမ w9p = 0
+                တည်ဆောက် ဒသမ w9q = 0
+                တည်ဆောက် ကိန်း w9e = 0
+                ပြည့်အောင်(w9e < d) {
+                    တည်ဆောက် ဒသမ w9aa = rdH1[w9a * d + w9e] * hGam[w9e]
+                    တည်ဆောက် ဒသမ w9xx = (rH[w9a * d + w9e] - w9m) * w9r
+                    w9p = w9p + w9aa
+                    w9q = w9q + w9aa * w9xx
+                    w9e = w9e + 1
+                }
+                တည်ဆောက် ကိန်း w9f = 0
+                ပြည့်အောင်(w9f < d) {
+                    တည်ဆောက် ဒသမ w9ab = rdH1[w9a * d + w9f] * hGam[w9f]
+                    တည်ဆောက် ဒသမ w9xy = (rH[w9a * d + w9f] - w9m) * w9r
+                    rdHm[w9a * d + w9f] = w9r * (w9ab - w9p / d - w9xy * w9q / d)
+                    w9f = w9f + 1
+                }
+                w9a = w9a + 1
+            }
+            တည်ဆောက် ကိန်း w10a = 0
+            ပြည့်အောင်(w10a < 64) {
+                rdHt[w10a] = rdHm[w10a] + rdH2g[w10a]
+                w10a = w10a + 1
+            }
+            တည်ဆောက် ကိန်း w11a = 0
+            ပြည့်အောင်(w11a < T) {
+                တည်ဆောက် ကိန်း w11b = 0
+                ပြည့်အောင်(w11b < d) {
+                    တည်ဆောက် ဒသမ w11s = 0
+                    တည်ဆောက် ကိန်း w11c = 0
+                    ပြည့်အောင်(w11c < T) {
+                        w11s = w11s + rA[w11c * T + w11a] * rdHt[w11c * d + w11b]
+                        w11c = w11c + 1
+                    }
+                    rdV[w11a * d + w11b] = w11s
+                    w11b = w11b + 1
+                }
+                w11a = w11a + 1
+            }
+            တည်ဆောက် ကိန်း w12a = 0
+            ပြည့်အောင်(w12a < T) {
+                တည်ဆောက် ကိန်း w12b = 0
+                ပြည့်အောင်(w12b < T) {
+                    တည်ဆောက် ဒသမ w12s = 0
+                    တည်ဆောက် ကိန်း w12c = 0
+                    ပြည့်အောင်(w12c < d) {
+                        w12s = w12s + rdHt[w12a * d + w12c] * rV[w12b * d + w12c]
+                        w12c = w12c + 1
+                    }
+                    rdA[w12a * T + w12b] = w12s
+                    w12b = w12b + 1
+                }
+                w12a = w12a + 1
+            }
+            တည်ဆောက် ကိန်း w13a = 0
+            ပြည့်အောင်(w13a < T) {
+                တည်ဆောက် ဒသမ w13d = 0
+                တည်ဆောက် ကိန်း w13b = 0
+                ပြည့်အောင်(w13b < T) {
+                    w13d = w13d + rdA[w13a * T + w13b] * rA[w13a * T + w13b]
+                    w13b = w13b + 1
+                }
+                တည်ဆောက် ကိန်း w13c = 0
+                ပြည့်အောင်(w13c < T) {
+                    rdS[w13a * T + w13c] = rA[w13a * T + w13c] * (rdA[w13a * T + w13c] - w13d) * 0.25
+                    w13c = w13c + 1
+                }
+                w13a = w13a + 1
+            }
+            တည်ဆောက် ကိန်း w14a = 0
+            ပြည့်အောင်(w14a < T) {
+                တည်ဆောက် ကိန်း w14b = 0
+                ပြည့်အောင်(w14b < d) {
+                    တည်ဆောက် ဒသမ w14s = 0
+                    တည်ဆောက် ကိန်း w14c = 0
+                    ပြည့်အောင်(w14c < T) {
+                        w14s = w14s + rdS[w14a * T + w14c] * rK[w14c * d + w14b]
+                        w14c = w14c + 1
+                    }
+                    rdQ[w14a * d + w14b] = w14s
+                    w14b = w14b + 1
+                }
+                w14a = w14a + 1
+            }
+            တည်ဆောက် ကိန်း w15a = 0
+            ပြည့်အောင်(w15a < T) {
+                တည်ဆောက် ကိန်း w15b = 0
+                ပြည့်အောင်(w15b < d) {
+                    တည်ဆောက် ဒသမ w15s = 0
+                    တည်ဆောက် ကိန်း w15c = 0
+                    ပြည့်အောင်(w15c < T) {
+                        w15s = w15s + rdS[w15c * T + w15a] * rQ[w15c * d + w15b]
+                        w15c = w15c + 1
+                    }
+                    rdK[w15a * d + w15b] = w15s
+                    w15b = w15b + 1
+                }
+                w15a = w15a + 1
+            }
+            တည်ဆောက် ကိန်း w16a = 0
+            ပြည့်အောင်(w16a < K) {
+                တည်ဆောက် ကိန်း w16b = 0
+                ပြည့်အောင်(w16b < d) {
+                    တည်ဆောက် ဒသမ w16s = 0
+                    တည်ဆောက် ဒသမ w16t = 0
+                    တည်ဆောက် ဒသမ w16u = 0
+                    တည်ဆောက် ကိန်း w16c = 0
+                    ပြည့်အောင်(w16c < T) {
+                        w16s = w16s + rX0[w16c * K + w16a] * rdQ[w16c * d + w16b]
+                        w16t = w16t + rX0[w16c * K + w16a] * rdK[w16c * d + w16b]
+                        w16u = w16u + rX0[w16c * K + w16a] * rdV[w16c * d + w16b]
+                        w16c = w16c + 1
+                    }
+                    rdWq[w16a * d + w16b] = w16s
+                    rdWk[w16a * d + w16b] = w16t
+                    rdWv[w16a * d + w16b] = w16u
+                    w16b = w16b + 1
+                }
+                w16a = w16a + 1
+            }
+            တည်ဆောက် ကိန်း w17a = 0
+            ပြည့်အောင်(w17a < T) {
+                တည်ဆောက် ကိန်း w17b = 0
+                ပြည့်အောင်(w17b < K) {
+                    တည်ဆောက် ဒသမ w17s = 0
+                    တည်ဆောက် ကိန်း w17c = 0
+                    ပြည့်အောင်(w17c < d) {
+                        w17s = w17s + rdQ[w17a * d + w17c] * hWq[w17b * d + w17c]
+                        w17c = w17c + 1
+                    }
+                    rdXq[w17a * K + w17b] = w17s
+                    w17b = w17b + 1
+                }
+                w17a = w17a + 1
+            }
+            တည်ဆောက် ကိန်း w18a = 0
+            ပြည့်အောင်(w18a < T) {
+                တည်ဆောက် ကိန်း w18b = 0
+                ပြည့်အောင်(w18b < K) {
+                    တည်ဆောက် ဒသမ w18s = 0
+                    တည်ဆောက် ကိန်း w18c = 0
+                    ပြည့်အောင်(w18c < d) {
+                        w18s = w18s + rdK[w18a * d + w18c] * hWk[w18b * d + w18c]
+                        w18c = w18c + 1
+                    }
+                    rdXk[w18a * K + w18b] = w18s
+                    w18b = w18b + 1
+                }
+                w18a = w18a + 1
+            }
+            တည်ဆောက် ကိန်း w19a = 0
+            ပြည့်အောင်(w19a < T) {
+                တည်ဆောက် ကိန်း w19b = 0
+                ပြည့်အောင်(w19b < K) {
+                    တည်ဆောက် ဒသမ w19s = 0
+                    တည်ဆောက် ကိန်း w19c = 0
+                    ပြည့်အောင်(w19c < d) {
+                        w19s = w19s + rdV[w19a * d + w19c] * hWv[w19b * d + w19c]
+                        w19c = w19c + 1
+                    }
+                    rdXv[w19a * K + w19b] = w19s
+                    w19b = w19b + 1
+                }
+                w19a = w19a + 1
+            }
+            တည်ဆောက် ကိန်း w20a = 0
+            ပြည့်အောင်(w20a < 64) {
+                rdXt[w20a] = rdHt[w20a] + rdXq[w20a] + rdXk[w20a] + rdXv[w20a]
+                w20a = w20a + 1
+            }
+            တည်ဆောက် ကိန်း w21a = 0
+            ပြည့်အောင်(w21a < V) {
+                တည်ဆောက် ကိန်း w21b = 0
+                ပြည့်အောင်(w21b < d) {
+                    တည်ဆောက် ဒသမ w21s = 0
+                    တည်ဆောက် ကိန်း w21c = 0
+                    ပြည့်အောင်(w21c < T) {
+                        w21s = w21s + hM[w21c * V + w21a] * rdXt[w21c * d + w21b]
+                        w21c = w21c + 1
+                    }
+                    rdWteE[w21a * K + w21b] = w21s
+                    w21b = w21b + 1
+                }
+                w21a = w21a + 1
+            }
+            တည်ဆောက် ကိန်း w22a = 0
+            ပြည့်အောင်(w22a < T) {
+                တည်ဆောက် ကိန်း w22b = 0
+                ပြည့်အောင်(w22b < d) {
+                    တည်ဆောက် ဒသမ w22s = 0
+                    တည်ဆောက် ကိန်း w22c = 0
+                    ပြည့်အောင်(w22c < T) {
+                        w22s = w22s + hMP[w22a * T + w22c] * rdXt[w22c * d + w22b]
+                        w22c = w22c + 1
+                    }
+                    rdWpeE[w22a * d + w22b] = w22s
+                    w22b = w22b + 1
+                }
+                w22a = w22a + 1
+            }
+            တည်ဆောက် ကိန်း w23a = 0
+            ပြည့်အောင်(w23a < 88) {
+                rdWte[w23a] = rdWteE[w23a] + rdWte1[w23a] + rdWte2[w23a] + rdWte3[w23a]
+                w23a = w23a + 1
+            }
+            တည်ဆောက် ကိန်း w23b = 0
+            ပြည့်အောင်(w23b < 64) {
+                rdWpe[w23b] = rdWpeE[w23b]
+                w23b = w23b + 1
+            }
+            တည်ဆောက် ကိန်း bc1 = 0
+            ပြည့်အောင်(bc1 < 64) {
+                တည်ဆောက် ဒသမ ec1 = hDH3[bc1] - rdH3[bc1]
+                သုံးသပ်ချက်အရ(ec1 < 0) { ec1 = 0 - ec1 }
+                သုံးသပ်ချက်အရ(ec1 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec2 = hDH2g[bc1] - rdH2g[bc1]
+                သုံးသပ်ချက်အရ(ec2 < 0) { ec2 = 0 - ec2 }
+                သုံးသပ်ချက်အရ(ec2 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec3 = hDH1[bc1] - rdH1[bc1]
+                သုံးသပ်ချက်အရ(ec3 < 0) { ec3 = 0 - ec3 }
+                သုံးသပ်ချက်အရ(ec3 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec4 = hDHm[bc1] - rdHm[bc1]
+                သုံးသပ်ချက်အရ(ec4 < 0) { ec4 = 0 - ec4 }
+                သုံးသပ်ချက်အရ(ec4 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec5 = hDHt[bc1] - rdHt[bc1]
+                သုံးသပ်ချက်အရ(ec5 < 0) { ec5 = 0 - ec5 }
+                သုံးသပ်ချက်အရ(ec5 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec6 = hDV[bc1] - rdV[bc1]
+                သုံးသပ်ချက်အရ(ec6 < 0) { ec6 = 0 - ec6 }
+                သုံးသပ်ချက်အရ(ec6 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec7 = hDA[bc1] - rdA[bc1]
+                သုံးသပ်ချက်အရ(ec7 < 0) { ec7 = 0 - ec7 }
+                သုံးသပ်ချက်အရ(ec7 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec8 = hDS[bc1] - rdS[bc1]
+                သုံးသပ်ချက်အရ(ec8 < 0) { ec8 = 0 - ec8 }
+                သုံးသပ်ချက်အရ(ec8 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec9 = hDQ[bc1] - rdQ[bc1]
+                သုံးသပ်ချက်အရ(ec9 < 0) { ec9 = 0 - ec9 }
+                သုံးသပ်ချက်အရ(ec9 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec10 = hDK[bc1] - rdK[bc1]
+                သုံးသပ်ချက်အရ(ec10 < 0) { ec10 = 0 - ec10 }
+                သုံးသပ်ချက်အရ(ec10 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec11 = hDXq[bc1] - rdXq[bc1]
+                သုံးသပ်ချက်အရ(ec11 < 0) { ec11 = 0 - ec11 }
+                သုံးသပ်ချက်အရ(ec11 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec12 = hDXk[bc1] - rdXk[bc1]
+                သုံးသပ်ချက်အရ(ec12 < 0) { ec12 = 0 - ec12 }
+                သုံးသပ်ချက်အရ(ec12 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec13 = hDXv[bc1] - rdXv[bc1]
+                သုံးသပ်ချက်အရ(ec13 < 0) { ec13 = 0 - ec13 }
+                သုံးသပ်ချက်အရ(ec13 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec14 = hDXt[bc1] - rdXt[bc1]
+                သုံးသပ်ချက်အရ(ec14 < 0) { ec14 = 0 - ec14 }
+                သုံးသပ်ချက်အရ(ec14 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec15 = hDWq[bc1] - rdWq[bc1]
+                သုံးသပ်ချက်အရ(ec15 < 0) { ec15 = 0 - ec15 }
+                သုံးသပ်ချက်အရ(ec15 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec16 = hDWk[bc1] - rdWk[bc1]
+                သုံးသပ်ချက်အရ(ec16 < 0) { ec16 = 0 - ec16 }
+                သုံးသပ်ချက်အရ(ec16 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec17 = hDWv[bc1] - rdWv[bc1]
+                သုံးသပ်ချက်အရ(ec17 < 0) { ec17 = 0 - ec17 }
+                သုံးသပ်ချက်အရ(ec17 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec42 = hX0[bc1] - rX0[bc1]
+                သုံးသပ်ချက်အရ(ec42 < 0) { ec42 = 0 - ec42 }
+                သုံးသပ်ချက်အရ(ec42 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec43 = hDWpe[bc1] - rdWpe[bc1]
+                သုံးသပ်ချက်အရ(ec43 < 0) { ec43 = 0 - ec43 }
+                သုံးသပ်ချက်အရ(ec43 > 0.000001) { bad = bad + 1 }
+                bc1 = bc1 + 1
+            }
+            တည်ဆောက် ကိန်း bc2 = 0
+            ပြည့်အောင်(bc2 < 256) {
+                တည်ဆောက် ဒသမ ec18 = hDW2[bc2] - rdW2[bc2]
+                သုံးသပ်ချက်အရ(ec18 < 0) { ec18 = 0 - ec18 }
+                သုံးသပ်ချက်အရ(ec18 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec19 = hDG[bc2] - rdG[bc2]
+                သုံးသပ်ချက်အရ(ec19 < 0) { ec19 = 0 - ec19 }
+                သုံးသပ်ချက်အရ(ec19 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec20 = hDF1[bc2] - rdF1[bc2]
+                သုံးသပ်ချက်အရ(ec20 < 0) { ec20 = 0 - ec20 }
+                သုံးသပ်ချက်အရ(ec20 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec21 = hDW1[bc2] - rdW1[bc2]
+                သုံးသပ်ချက်အရ(ec21 < 0) { ec21 = 0 - ec21 }
+                သုံးသပ်ချက်အရ(ec21 > 0.000001) { bad = bad + 1 }
+                bc2 = bc2 + 1
+            }
+            တည်ဆောက် ကိန်း bc3 = 0
+            ပြည့်အောင်(bc3 < 88) {
+                တည်ဆောက် ဒသမ ec22 = hDL[bc3] - rdL[bc3]
+                သုံးသပ်ချက်အရ(ec22 < 0) { ec22 = 0 - ec22 }
+                သုံးသပ်ချက်အရ(ec22 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec23 = hDWte[bc3] - rdWte[bc3]
+                သုံးသပ်ချက်အရ(ec23 < 0) { ec23 = 0 - ec23 }
+                သုံးသပ်ချက်အရ(ec23 > 0.000001) { bad = bad + 1 }
+                bc3 = bc3 + 1
+            }
+            တည်ဆောက် ကိန်း bc1B = 0
+            ပြည့်အောင်(bc1B < 64) {
+                တည်ဆောက် ဒသမ ec1B = hDH3B[bc1B] - rdH3B[bc1B]
+                သုံးသပ်ချက်အရ(ec1B < 0) { ec1B = 0 - ec1B }
+                သုံးသပ်ချက်အရ(ec1B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec2B = hDH2gB[bc1B] - rdH2gB[bc1B]
+                သုံးသပ်ချက်အရ(ec2B < 0) { ec2B = 0 - ec2B }
+                သုံးသပ်ချက်အရ(ec2B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec3B = hDH1B[bc1B] - rdH1B[bc1B]
+                သုံးသပ်ချက်အရ(ec3B < 0) { ec3B = 0 - ec3B }
+                သုံးသပ်ချက်အရ(ec3B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec4B = hDHmB[bc1B] - rdHmB[bc1B]
+                သုံးသပ်ချက်အရ(ec4B < 0) { ec4B = 0 - ec4B }
+                သုံးသပ်ချက်အရ(ec4B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec5B = hDHtB[bc1B] - rdHtB[bc1B]
+                သုံးသပ်ချက်အရ(ec5B < 0) { ec5B = 0 - ec5B }
+                သုံးသပ်ချက်အရ(ec5B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec6B = hDVB[bc1B] - rdVB[bc1B]
+                သုံးသပ်ချက်အရ(ec6B < 0) { ec6B = 0 - ec6B }
+                သုံးသပ်ချက်အရ(ec6B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec7B = hDAB[bc1B] - rdAB[bc1B]
+                သုံးသပ်ချက်အရ(ec7B < 0) { ec7B = 0 - ec7B }
+                သုံးသပ်ချက်အရ(ec7B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec8B = hDSB[bc1B] - rdSB[bc1B]
+                သုံးသပ်ချက်အရ(ec8B < 0) { ec8B = 0 - ec8B }
+                သုံးသပ်ချက်အရ(ec8B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec9B = hDQB[bc1B] - rdQB[bc1B]
+                သုံးသပ်ချက်အရ(ec9B < 0) { ec9B = 0 - ec9B }
+                သုံးသပ်ချက်အရ(ec9B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec10B = hDKB[bc1B] - rdKB[bc1B]
+                သုံးသပ်ချက်အရ(ec10B < 0) { ec10B = 0 - ec10B }
+                သုံးသပ်ချက်အရ(ec10B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec11B = hDXqB[bc1B] - rdXqB[bc1B]
+                သုံးသပ်ချက်အရ(ec11B < 0) { ec11B = 0 - ec11B }
+                သုံးသပ်ချက်အရ(ec11B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec12B = hDXkB[bc1B] - rdXkB[bc1B]
+                သုံးသပ်ချက်အရ(ec12B < 0) { ec12B = 0 - ec12B }
+                သုံးသပ်ချက်အရ(ec12B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec13B = hDXvB[bc1B] - rdXvB[bc1B]
+                သုံးသပ်ချက်အရ(ec13B < 0) { ec13B = 0 - ec13B }
+                သုံးသပ်ချက်အရ(ec13B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec14B = hDXtB[bc1B] - rdXtB[bc1B]
+                သုံးသပ်ချက်အရ(ec14B < 0) { ec14B = 0 - ec14B }
+                သုံးသပ်ချက်အရ(ec14B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec15B = hDWqB[bc1B] - rdWqB[bc1B]
+                သုံးသပ်ချက်အရ(ec15B < 0) { ec15B = 0 - ec15B }
+                သုံးသပ်ချက်အရ(ec15B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec16B = hDWkB[bc1B] - rdWkB[bc1B]
+                သုံးသပ်ချက်အရ(ec16B < 0) { ec16B = 0 - ec16B }
+                သုံးသပ်ချက်အရ(ec16B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec17B = hDWvB[bc1B] - rdWvB[bc1B]
+                သုံးသပ်ချက်အရ(ec17B < 0) { ec17B = 0 - ec17B }
+                သုံးသပ်ချက်အရ(ec17B > 0.000001) { bad = bad + 1 }
+                bc1B = bc1B + 1
+            }
+            တည်ဆောက် ကိန်း bc2B = 0
+            ပြည့်အောင်(bc2B < 256) {
+                တည်ဆောက် ဒသမ ec18B = hDW2B[bc2B] - rdW2B[bc2B]
+                သုံးသပ်ချက်အရ(ec18B < 0) { ec18B = 0 - ec18B }
+                သုံးသပ်ချက်အရ(ec18B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec19B = hDGB[bc2B] - rdGB[bc2B]
+                သုံးသပ်ချက်အရ(ec19B < 0) { ec19B = 0 - ec19B }
+                သုံးသပ်ချက်အရ(ec19B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec20B = hDF1B[bc2B] - rdF1B[bc2B]
+                သုံးသပ်ချက်အရ(ec20B < 0) { ec20B = 0 - ec20B }
+                သုံးသပ်ချက်အရ(ec20B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec21B = hDW1B[bc2B] - rdW1B[bc2B]
+                သုံးသပ်ချက်အရ(ec21B < 0) { ec21B = 0 - ec21B }
+                သုံးသပ်ချက်အရ(ec21B > 0.000001) { bad = bad + 1 }
+                bc2B = bc2B + 1
+            }
+            တည်ဆောက် ကိန်း bc3B = 0
+            ပြည့်အောင်(bc3B < 88) {
+                တည်ဆောက် ဒသမ ec22B = hDLB[bc3B] - rdLB[bc3B]
+                သုံးသပ်ချက်အရ(ec22B < 0) { ec22B = 0 - ec22B }
+                သုံးသပ်ချက်အရ(ec22B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec23B = hDWE2[bc3B] - rdWte2[bc3B]
+                သုံးသပ်ချက်အရ(ec23B < 0) { ec23B = 0 - ec23B }
+                သုံးသပ်ချက်အရ(ec23B > 0.000001) { bad = bad + 1 }
+                bc3B = bc3B + 1
+            }
+            တည်ဆောက် ကိန်း bc1C = 0
+            ပြည့်အောင်(bc1C < 64) {
+                တည်ဆောက် ဒသမ ec1C = hDH3C[bc1C] - rdH3C[bc1C]
+                သုံးသပ်ချက်အရ(ec1C < 0) { ec1C = 0 - ec1C }
+                သုံးသပ်ချက်အရ(ec1C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec2C = hDH2gC[bc1C] - rdH2gC[bc1C]
+                သုံးသပ်ချက်အရ(ec2C < 0) { ec2C = 0 - ec2C }
+                သုံးသပ်ချက်အရ(ec2C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec3C = hDH1C[bc1C] - rdH1C[bc1C]
+                သုံးသပ်ချက်အရ(ec3C < 0) { ec3C = 0 - ec3C }
+                သုံးသပ်ချက်အရ(ec3C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec4C = hDHmC[bc1C] - rdHmC[bc1C]
+                သုံးသပ်ချက်အရ(ec4C < 0) { ec4C = 0 - ec4C }
+                သုံးသပ်ချက်အရ(ec4C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec5C = hDHtC[bc1C] - rdHtC[bc1C]
+                သုံးသပ်ချက်အရ(ec5C < 0) { ec5C = 0 - ec5C }
+                သုံးသပ်ချက်အရ(ec5C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec6C = hDVC[bc1C] - rdVC[bc1C]
+                သုံးသပ်ချက်အရ(ec6C < 0) { ec6C = 0 - ec6C }
+                သုံးသပ်ချက်အရ(ec6C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec7C = hDAC[bc1C] - rdAC[bc1C]
+                သုံးသပ်ချက်အရ(ec7C < 0) { ec7C = 0 - ec7C }
+                သုံးသပ်ချက်အရ(ec7C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec8C = hDSC[bc1C] - rdSC[bc1C]
+                သုံးသပ်ချက်အရ(ec8C < 0) { ec8C = 0 - ec8C }
+                သုံးသပ်ချက်အရ(ec8C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec9C = hDQC[bc1C] - rdQC[bc1C]
+                သုံးသပ်ချက်အရ(ec9C < 0) { ec9C = 0 - ec9C }
+                သုံးသပ်ချက်အရ(ec9C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec10C = hDKC[bc1C] - rdKC[bc1C]
+                သုံးသပ်ချက်အရ(ec10C < 0) { ec10C = 0 - ec10C }
+                သုံးသပ်ချက်အရ(ec10C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec11C = hDXqC[bc1C] - rdXqC[bc1C]
+                သုံးသပ်ချက်အရ(ec11C < 0) { ec11C = 0 - ec11C }
+                သုံးသပ်ချက်အရ(ec11C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec12C = hDXkC[bc1C] - rdXkC[bc1C]
+                သုံးသပ်ချက်အရ(ec12C < 0) { ec12C = 0 - ec12C }
+                သုံးသပ်ချက်အရ(ec12C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec13C = hDXvC[bc1C] - rdXvC[bc1C]
+                သုံးသပ်ချက်အရ(ec13C < 0) { ec13C = 0 - ec13C }
+                သုံးသပ်ချက်အရ(ec13C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec14C = hDXtC[bc1C] - rdXtC[bc1C]
+                သုံးသပ်ချက်အရ(ec14C < 0) { ec14C = 0 - ec14C }
+                သုံးသပ်ချက်အရ(ec14C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec15C = hDWqC[bc1C] - rdWqC[bc1C]
+                သုံးသပ်ချက်အရ(ec15C < 0) { ec15C = 0 - ec15C }
+                သုံးသပ်ချက်အရ(ec15C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec16C = hDWkC[bc1C] - rdWkC[bc1C]
+                သုံးသပ်ချက်အရ(ec16C < 0) { ec16C = 0 - ec16C }
+                သုံးသပ်ချက်အရ(ec16C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec17C = hDWvC[bc1C] - rdWvC[bc1C]
+                သုံးသပ်ချက်အရ(ec17C < 0) { ec17C = 0 - ec17C }
+                သုံးသပ်ချက်အရ(ec17C > 0.000001) { bad = bad + 1 }
+                bc1C = bc1C + 1
+            }
+            တည်ဆောက် ကိန်း bc2C = 0
+            ပြည့်အောင်(bc2C < 256) {
+                တည်ဆောက် ဒသမ ec18C = hDW2C[bc2C] - rdW2C[bc2C]
+                သုံးသပ်ချက်အရ(ec18C < 0) { ec18C = 0 - ec18C }
+                သုံးသပ်ချက်အရ(ec18C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec19C = hDGC[bc2C] - rdGC[bc2C]
+                သုံးသပ်ချက်အရ(ec19C < 0) { ec19C = 0 - ec19C }
+                သုံးသပ်ချက်အရ(ec19C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec20C = hDF1C[bc2C] - rdF1C[bc2C]
+                သုံးသပ်ချက်အရ(ec20C < 0) { ec20C = 0 - ec20C }
+                သုံးသပ်ချက်အရ(ec20C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec21C = hDW1C[bc2C] - rdW1C[bc2C]
+                သုံးသပ်ချက်အရ(ec21C < 0) { ec21C = 0 - ec21C }
+                သုံးသပ်ချက်အရ(ec21C > 0.000001) { bad = bad + 1 }
+                bc2C = bc2C + 1
+            }
+            တည်ဆောက် ကိန်း bc3C = 0
+            ပြည့်အောင်(bc3C < 88) {
+                တည်ဆောက် ဒသမ ec22C = hDLC[bc3C] - rdLC[bc3C]
+                သုံးသပ်ချက်အရ(ec22C < 0) { ec22C = 0 - ec22C }
+                သုံးသပ်ချက်အရ(ec22C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec23C = hDWE3[bc3C] - rdWte3[bc3C]
+                သုံးသပ်ချက်အရ(ec23C < 0) { ec23C = 0 - ec23C }
+                သုံးသပ်ချက်အရ(ec23C > 0.000001) { bad = bad + 1 }
+                bc3C = bc3C + 1
+            }
+            mmc_gpu_launch3p3i(adamw_k, dwq, dgwq, dmvq, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dwk, dgwk, dmvk, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dwv, dgwv, dmvv, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dE, dgwE, dmve, 88, step, 0, 88, 88)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dw1, dgw1, dmv1, 256, step, 0, 256, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dw2, dgw2, dmv2, 256, step, 0, 256, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hWq2, dwq, 512)
+            mmc_gpu_copy_from(hWk2, dwk, 512)
+            mmc_gpu_copy_from(hWv2, dwv, 512)
+            mmc_gpu_copy_from(hE2, dE, 704)
+            mmc_gpu_copy_from(hW12, dw1, 2048)
+            mmc_gpu_copy_from(hW22, dw2, 2048)
+            mmc_gpu_copy_from(hmvq, dmvq, 1024)
+            mmc_gpu_copy_from(hmvk, dmvk, 1024)
+            mmc_gpu_copy_from(hmvv, dmvv, 1024)
+            mmc_gpu_copy_from(hmve, dmve, 1408)
+            mmc_gpu_copy_from(hmv1, dmv1, 4096)
+            mmc_gpu_copy_from(hmv2, dmv2, 4096)
+            mmc_gpu_launch3p3i(adamw_k, dwqB, dgwqB, dmvqB, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dwkB, dgwkB, dmvkB, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dwvB, dgwvB, dmvvB, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dwqC, dgwqC, dmvqC, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dwkC, dgwkC, dmvkC, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dwvC, dgwvC, dmvvC, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dPE, dgwPE, dmvpe, 64, step, 0, 64, 64)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dw1B, dgw1B, dmv1B, 256, step, 0, 256, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dw2B, dgw2B, dmv2B, 256, step, 0, 256, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dw1C, dgw1C, dmv1C, 256, step, 0, 256, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_launch3p3i(adamw_k, dw2C, dgw2C, dmv2C, 256, step, 0, 256, 256)
+            cudaDeviceSynchronize()
+            mmc_gpu_copy_from(hWq2B, dwqB, 512)
+            mmc_gpu_copy_from(hWk2B, dwkB, 512)
+            mmc_gpu_copy_from(hWv2B, dwvB, 512)
+            mmc_gpu_copy_from(hWq2C, dwqC, 512)
+            mmc_gpu_copy_from(hWk2C, dwkC, 512)
+            mmc_gpu_copy_from(hWv2C, dwvC, 512)
+            mmc_gpu_copy_from(hPE2, dPE, 512)
+            mmc_gpu_copy_from(hW12B, dw1B, 2048)
+            mmc_gpu_copy_from(hW12C, dw1C, 2048)
+            mmc_gpu_copy_from(hW22C, dw2C, 2048)
+            mmc_gpu_copy_from(hW22B, dw2B, 2048)
+            mmc_gpu_copy_from(hmvqB, dmvqB, 1024)
+            mmc_gpu_copy_from(hmvkB, dmvkB, 1024)
+            mmc_gpu_copy_from(hmvvB, dmvvB, 1024)
+            mmc_gpu_copy_from(hmvqC, dmvqC, 1024)
+            mmc_gpu_copy_from(hmvkC, dmvkC, 1024)
+            mmc_gpu_copy_from(hmvvC, dmvvC, 1024)
+            mmc_gpu_copy_from(hmvpe, dmvpe, 1024)
+            mmc_gpu_copy_from(hmv1B, dmv1B, 4096)
+            mmc_gpu_copy_from(hmv2B, dmv2B, 4096)
+            mmc_gpu_copy_from(hmv1C, dmv1C, 4096)
+            mmc_gpu_copy_from(hmv2C, dmv2C, 4096)
+        တည်ဆောက် ကိန်း ipdwq = 0
+        ပြည့်အောင်(ipdwq < 64) {
+            hWq2[ipdwq] = hWq[ipdwq] + (lrs * (hWq2[ipdwq] - hWq[ipdwq]))
+            ipdwq = ipdwq + 1
+        }
+        mmc_gpu_copy_to(dwq, hWq2, 512)
+        တည်ဆောက် ကိန်း ipdwk = 0
+        ပြည့်အောင်(ipdwk < 64) {
+            hWk2[ipdwk] = hWk[ipdwk] + (lrs * (hWk2[ipdwk] - hWk[ipdwk]))
+            ipdwk = ipdwk + 1
+        }
+        mmc_gpu_copy_to(dwk, hWk2, 512)
+        တည်ဆောက် ကိန်း ipdwv = 0
+        ပြည့်အောင်(ipdwv < 64) {
+            hWv2[ipdwv] = hWv[ipdwv] + (lrs * (hWv2[ipdwv] - hWv[ipdwv]))
+            ipdwv = ipdwv + 1
+        }
+        mmc_gpu_copy_to(dwv, hWv2, 512)
+        တည်ဆောက် ကိန်း ipdwte = 0
+        ပြည့်အောင်(ipdwte < 88) {
+            hE2[ipdwte] = hE[ipdwte] + (lrs * (hE2[ipdwte] - hE[ipdwte]))
+            ipdwte = ipdwte + 1
+        }
+        mmc_gpu_copy_to(dE, hE2, 704)
+        တည်ဆောက် ကိန်း ipdw1 = 0
+        ပြည့်အောင်(ipdw1 < 256) {
+            hW12[ipdw1] = hW1[ipdw1] + (lrs * (hW12[ipdw1] - hW1[ipdw1]))
+            ipdw1 = ipdw1 + 1
+        }
+        mmc_gpu_copy_to(dw1, hW12, 2048)
+        တည်ဆောက် ကိန်း ipdw2 = 0
+        ပြည့်အောင်(ipdw2 < 256) {
+            hW22[ipdw2] = hW2[ipdw2] + (lrs * (hW22[ipdw2] - hW2[ipdw2]))
+            ipdw2 = ipdw2 + 1
+        }
+        mmc_gpu_copy_to(dw2, hW22, 2048)
+        တည်ဆောက် ကိန်း ipdwqB = 0
+        ပြည့်အောင်(ipdwqB < 64) {
+            hWq2B[ipdwqB] = hWqB[ipdwqB] + (lrs * (hWq2B[ipdwqB] - hWqB[ipdwqB]))
+            ipdwqB = ipdwqB + 1
+        }
+        mmc_gpu_copy_to(dwqB, hWq2B, 512)
+        တည်ဆောက် ကိန်း ipdwkB = 0
+        ပြည့်အောင်(ipdwkB < 64) {
+            hWk2B[ipdwkB] = hWkB[ipdwkB] + (lrs * (hWk2B[ipdwkB] - hWkB[ipdwkB]))
+            ipdwkB = ipdwkB + 1
+        }
+        mmc_gpu_copy_to(dwkB, hWk2B, 512)
+        တည်ဆောက် ကိန်း ipdwvB = 0
+        ပြည့်အောင်(ipdwvB < 64) {
+            hWv2B[ipdwvB] = hWvB[ipdwvB] + (lrs * (hWv2B[ipdwvB] - hWvB[ipdwvB]))
+            ipdwvB = ipdwvB + 1
+        }
+        mmc_gpu_copy_to(dwvB, hWv2B, 512)
+        တည်ဆောက် ကိန်း ipdwqC = 0
+        ပြည့်အောင်(ipdwqC < 64) {
+            hWq2C[ipdwqC] = hWqC[ipdwqC] + (lrs * (hWq2C[ipdwqC] - hWqC[ipdwqC]))
+            ipdwqC = ipdwqC + 1
+        }
+        mmc_gpu_copy_to(dwqC, hWq2C, 512)
+        တည်ဆောက် ကိန်း ipdwkC = 0
+        ပြည့်အောင်(ipdwkC < 64) {
+            hWk2C[ipdwkC] = hWkC[ipdwkC] + (lrs * (hWk2C[ipdwkC] - hWkC[ipdwkC]))
+            ipdwkC = ipdwkC + 1
+        }
+        mmc_gpu_copy_to(dwkC, hWk2C, 512)
+        တည်ဆောက် ကိန်း ipdwvC = 0
+        ပြည့်အောင်(ipdwvC < 64) {
+            hWv2C[ipdwvC] = hWvC[ipdwvC] + (lrs * (hWv2C[ipdwvC] - hWvC[ipdwvC]))
+            ipdwvC = ipdwvC + 1
+        }
+        mmc_gpu_copy_to(dwvC, hWv2C, 512)
+        တည်ဆောက် ကိန်း ipdwpe = 0
+        ပြည့်အောင်(ipdwpe < 64) {
+            hPE2[ipdwpe] = hPE[ipdwpe] + (lrs * (hPE2[ipdwpe] - hPE[ipdwpe]))
+            ipdwpe = ipdwpe + 1
+        }
+        mmc_gpu_copy_to(dPE, hPE2, 512)
+        တည်ဆောက် ကိန်း ipdw1B = 0
+        ပြည့်အောင်(ipdw1B < 256) {
+            hW12B[ipdw1B] = hW1B[ipdw1B] + (lrs * (hW12B[ipdw1B] - hW1B[ipdw1B]))
+            ipdw1B = ipdw1B + 1
+        }
+        mmc_gpu_copy_to(dw1B, hW12B, 2048)
+        တည်ဆောက် ကိန်း ipdw2B = 0
+        ပြည့်အောင်(ipdw2B < 256) {
+            hW22B[ipdw2B] = hW2B[ipdw2B] + (lrs * (hW22B[ipdw2B] - hW2B[ipdw2B]))
+            ipdw2B = ipdw2B + 1
+        }
+        mmc_gpu_copy_to(dw2B, hW22B, 2048)
+        တည်ဆောက် ကိန်း ipdw1C = 0
+        ပြည့်အောင်(ipdw1C < 256) {
+            hW12C[ipdw1C] = hW1C[ipdw1C] + (lrs * (hW12C[ipdw1C] - hW1C[ipdw1C]))
+            ipdw1C = ipdw1C + 1
+        }
+        mmc_gpu_copy_to(dw1C, hW12C, 2048)
+        တည်ဆောက် ကိန်း ipdw2C = 0
+        ပြည့်အောင်(ipdw2C < 256) {
+            hW22C[ipdw2C] = hW2C[ipdw2C] + (lrs * (hW22C[ipdw2C] - hW2C[ipdw2C]))
+            ipdw2C = ipdw2C + 1
+        }
+        mmc_gpu_copy_to(dw2C, hW22C, 2048)
+            တည်ဆောက် ကိန်း aw1 = 0
+            ပြည့်အောင်(aw1 < 64) {
+                တည်ဆောက် ဒသမ amq = 0.9 * rmvq[2 * aw1] + 0.1 * rdWq[aw1]
+                တည်ဆောက် ဒသမ avq = 0.999 * rmvq[2 * aw1 + 1] + 0.001 * rdWq[aw1] * rdWq[aw1]
+                rmvq[2 * aw1] = amq
+                rmvq[2 * aw1 + 1] = avq
+                တည်ဆောက် ဒသမ amhq = amq / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhq = avq / (1.0 - pow(0.999, step))
+                hWq[aw1] = hWq[aw1] - (lrs * 0.01) * amhq / (sqrt(avhq) + 0.00000001)
+                aw1 = aw1 + 1
+            }
+            တည်ဆောက် ကိန်း aw2 = 0
+            ပြည့်အောင်(aw2 < 64) {
+                တည်ဆောက် ဒသမ amk = 0.9 * rmvk[2 * aw2] + 0.1 * rdWk[aw2]
+                တည်ဆောက် ဒသမ avk = 0.999 * rmvk[2 * aw2 + 1] + 0.001 * rdWk[aw2] * rdWk[aw2]
+                rmvk[2 * aw2] = amk
+                rmvk[2 * aw2 + 1] = avk
+                တည်ဆောက် ဒသမ amhk = amk / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhk = avk / (1.0 - pow(0.999, step))
+                hWk[aw2] = hWk[aw2] - (lrs * 0.01) * amhk / (sqrt(avhk) + 0.00000001)
+                aw2 = aw2 + 1
+            }
+            တည်ဆောက် ကိန်း aw3 = 0
+            ပြည့်အောင်(aw3 < 64) {
+                တည်ဆောက် ဒသမ amv = 0.9 * rmvv[2 * aw3] + 0.1 * rdWv[aw3]
+                တည်ဆောက် ဒသမ avv = 0.999 * rmvv[2 * aw3 + 1] + 0.001 * rdWv[aw3] * rdWv[aw3]
+                rmvv[2 * aw3] = amv
+                rmvv[2 * aw3 + 1] = avv
+                တည်ဆောက် ဒသမ amhv = amv / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhv = avv / (1.0 - pow(0.999, step))
+                hWv[aw3] = hWv[aw3] - (lrs * 0.01) * amhv / (sqrt(avhv) + 0.00000001)
+                aw3 = aw3 + 1
+            }
+            တည်ဆောက် ကိန်း aw4 = 0
+            ပြည့်အောင်(aw4 < 88) {
+                တည်ဆောက် ဒသမ ame = 0.9 * rmve[2 * aw4] + 0.1 * rdWte[aw4]
+                တည်ဆောက် ဒသမ ave = 0.999 * rmve[2 * aw4 + 1] + 0.001 * rdWte[aw4] * rdWte[aw4]
+                rmve[2 * aw4] = ame
+                rmve[2 * aw4 + 1] = ave
+                တည်ဆောက် ဒသမ ameh = ame / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ aveh = ave / (1.0 - pow(0.999, step))
+                hE[aw4] = hE[aw4] - (lrs * 0.01) * ameh / (sqrt(aveh) + 0.00000001)
+                aw4 = aw4 + 1
+            }
+            တည်ဆောက် ကိန်း aw5 = 0
+            ပြည့်အောင်(aw5 < 256) {
+                တည်ဆောက် ဒသမ am1 = 0.9 * rmv1[2 * aw5] + 0.1 * rdW1[aw5]
+                တည်ဆောက် ဒသမ av1 = 0.999 * rmv1[2 * aw5 + 1] + 0.001 * rdW1[aw5] * rdW1[aw5]
+                rmv1[2 * aw5] = am1
+                rmv1[2 * aw5 + 1] = av1
+                တည်ဆောက် ဒသမ amh1 = am1 / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avh1 = av1 / (1.0 - pow(0.999, step))
+                hW1[aw5] = hW1[aw5] - (lrs * 0.01) * amh1 / (sqrt(avh1) + 0.00000001)
+                aw5 = aw5 + 1
+            }
+            တည်ဆောက် ကိန်း aw6 = 0
+            ပြည့်အောင်(aw6 < 256) {
+                တည်ဆောက် ဒသမ am2 = 0.9 * rmv2[2 * aw6] + 0.1 * rdW2[aw6]
+                တည်ဆောက် ဒသမ av2 = 0.999 * rmv2[2 * aw6 + 1] + 0.001 * rdW2[aw6] * rdW2[aw6]
+                rmv2[2 * aw6] = am2
+                rmv2[2 * aw6 + 1] = av2
+                တည်ဆောက် ဒသမ amh2 = am2 / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avh2 = av2 / (1.0 - pow(0.999, step))
+                hW2[aw6] = hW2[aw6] - (lrs * 0.01) * amh2 / (sqrt(avh2) + 0.00000001)
+                aw6 = aw6 + 1
+            }
+            တည်ဆောက် ကိန်း aw1B = 0
+            ပြည့်အောင်(aw1B < 64) {
+                တည်ဆောက် ဒသမ amqB = 0.9 * rmvqB[2 * aw1B] + 0.1 * rdWqB[aw1B]
+                တည်ဆောက် ဒသမ avqB = 0.999 * rmvqB[2 * aw1B + 1] + 0.001 * rdWqB[aw1B] * rdWqB[aw1B]
+                rmvqB[2 * aw1B] = amqB
+                rmvqB[2 * aw1B + 1] = avqB
+                တည်ဆောက် ဒသမ amhqB = amqB / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhqB = avqB / (1.0 - pow(0.999, step))
+                hWqB[aw1B] = hWqB[aw1B] - (lrs * 0.01) * amhqB / (sqrt(avhqB) + 0.00000001)
+                aw1B = aw1B + 1
+            }
+            တည်ဆောက် ကိန်း aw2B = 0
+            ပြည့်အောင်(aw2B < 64) {
+                တည်ဆောက် ဒသမ amkB = 0.9 * rmvkB[2 * aw2B] + 0.1 * rdWkB[aw2B]
+                တည်ဆောက် ဒသမ avkB = 0.999 * rmvkB[2 * aw2B + 1] + 0.001 * rdWkB[aw2B] * rdWkB[aw2B]
+                rmvkB[2 * aw2B] = amkB
+                rmvkB[2 * aw2B + 1] = avkB
+                တည်ဆောက် ဒသမ amhkB = amkB / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhkB = avkB / (1.0 - pow(0.999, step))
+                hWkB[aw2B] = hWkB[aw2B] - (lrs * 0.01) * amhkB / (sqrt(avhkB) + 0.00000001)
+                aw2B = aw2B + 1
+            }
+            တည်ဆောက် ကိန်း aw3B = 0
+            ပြည့်အောင်(aw3B < 64) {
+                တည်ဆောက် ဒသမ amvB = 0.9 * rmvvB[2 * aw3B] + 0.1 * rdWvB[aw3B]
+                တည်ဆောက် ဒသမ avvB = 0.999 * rmvvB[2 * aw3B + 1] + 0.001 * rdWvB[aw3B] * rdWvB[aw3B]
+                rmvvB[2 * aw3B] = amvB
+                rmvvB[2 * aw3B + 1] = avvB
+                တည်ဆောက် ဒသမ amhvB = amvB / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhvB = avvB / (1.0 - pow(0.999, step))
+                hWvB[aw3B] = hWvB[aw3B] - (lrs * 0.01) * amhvB / (sqrt(avhvB) + 0.00000001)
+                aw3B = aw3B + 1
+            }
+            တည်ဆောက် ကိန်း aw1C = 0
+            ပြည့်အောင်(aw1C < 64) {
+                တည်ဆောက် ဒသမ amqC = 0.9 * rmvqC[2 * aw1C] + 0.1 * rdWqC[aw1C]
+                တည်ဆောက် ဒသမ avqC = 0.999 * rmvqC[2 * aw1C + 1] + 0.001 * rdWqC[aw1C] * rdWqC[aw1C]
+                rmvqC[2 * aw1C] = amqC
+                rmvqC[2 * aw1C + 1] = avqC
+                တည်ဆောက် ဒသမ amhqC = amqC / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhqC = avqC / (1.0 - pow(0.999, step))
+                hWqC[aw1C] = hWqC[aw1C] - (lrs * 0.01) * amhqC / (sqrt(avhqC) + 0.00000001)
+                aw1C = aw1C + 1
+            }
+            တည်ဆောက် ကိန်း aw2C = 0
+            ပြည့်အောင်(aw2C < 64) {
+                တည်ဆောက် ဒသမ amkC = 0.9 * rmvkC[2 * aw2C] + 0.1 * rdWkC[aw2C]
+                တည်ဆောက် ဒသမ avkC = 0.999 * rmvkC[2 * aw2C + 1] + 0.001 * rdWkC[aw2C] * rdWkC[aw2C]
+                rmvkC[2 * aw2C] = amkC
+                rmvkC[2 * aw2C + 1] = avkC
+                တည်ဆောက် ဒသမ amhkC = amkC / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhkC = avkC / (1.0 - pow(0.999, step))
+                hWkC[aw2C] = hWkC[aw2C] - (lrs * 0.01) * amhkC / (sqrt(avhkC) + 0.00000001)
+                aw2C = aw2C + 1
+            }
+            တည်ဆောက် ကိန်း aw3C = 0
+            ပြည့်အောင်(aw3C < 64) {
+                တည်ဆောက် ဒသမ amvC = 0.9 * rmvvC[2 * aw3C] + 0.1 * rdWvC[aw3C]
+                တည်ဆောက် ဒသမ avvC = 0.999 * rmvvC[2 * aw3C + 1] + 0.001 * rdWvC[aw3C] * rdWvC[aw3C]
+                rmvvC[2 * aw3C] = amvC
+                rmvvC[2 * aw3C + 1] = avvC
+                တည်ဆောက် ဒသမ amhvC = amvC / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhvC = avvC / (1.0 - pow(0.999, step))
+                hWvC[aw3C] = hWvC[aw3C] - (lrs * 0.01) * amhvC / (sqrt(avhvC) + 0.00000001)
+                aw3C = aw3C + 1
+            }
+            တည်ဆောက် ကိန်း aw4B = 0
+            ပြည့်အောင်(aw4B < 64) {
+                တည်ဆောက် ဒသမ amp = 0.9 * rmvpe[2 * aw4B] + 0.1 * rdWpe[aw4B]
+                တည်ဆောက် ဒသမ avp = 0.999 * rmvpe[2 * aw4B + 1] + 0.001 * rdWpe[aw4B] * rdWpe[aw4B]
+                rmvpe[2 * aw4B] = amp
+                rmvpe[2 * aw4B + 1] = avp
+                တည်ဆောက် ဒသမ amhp = amp / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avhp = avp / (1.0 - pow(0.999, step))
+                hPE[aw4B] = hPE[aw4B] - (lrs * 0.01) * amhp / (sqrt(avhp) + 0.00000001)
+                aw4B = aw4B + 1
+            }
+            တည်ဆောက် ကိန်း aw5B = 0
+            ပြည့်အောင်(aw5B < 256) {
+                တည်ဆောက် ဒသမ am1B = 0.9 * rmv1B[2 * aw5B] + 0.1 * rdW1B[aw5B]
+                တည်ဆောက် ဒသမ av1B = 0.999 * rmv1B[2 * aw5B + 1] + 0.001 * rdW1B[aw5B] * rdW1B[aw5B]
+                rmv1B[2 * aw5B] = am1B
+                rmv1B[2 * aw5B + 1] = av1B
+                တည်ဆောက် ဒသမ amh1B = am1B / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avh1B = av1B / (1.0 - pow(0.999, step))
+                hW1B[aw5B] = hW1B[aw5B] - (lrs * 0.01) * amh1B / (sqrt(avh1B) + 0.00000001)
+                aw5B = aw5B + 1
+            }
+            တည်ဆောက် ကိန်း aw6B = 0
+            ပြည့်အောင်(aw6B < 256) {
+                တည်ဆောက် ဒသမ am2B = 0.9 * rmv2B[2 * aw6B] + 0.1 * rdW2B[aw6B]
+                တည်ဆောက် ဒသမ av2B = 0.999 * rmv2B[2 * aw6B + 1] + 0.001 * rdW2B[aw6B] * rdW2B[aw6B]
+                rmv2B[2 * aw6B] = am2B
+                rmv2B[2 * aw6B + 1] = av2B
+                တည်ဆောက် ဒသမ amh2B = am2B / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avh2B = av2B / (1.0 - pow(0.999, step))
+                hW2B[aw6B] = hW2B[aw6B] - (lrs * 0.01) * amh2B / (sqrt(avh2B) + 0.00000001)
+                aw6B = aw6B + 1
+            }
+            တည်ဆောက် ကိန်း aw5C = 0
+            ပြည့်အောင်(aw5C < 256) {
+                တည်ဆောက် ဒသမ am1C = 0.9 * rmv1C[2 * aw5C] + 0.1 * rdW1C[aw5C]
+                တည်ဆောက် ဒသမ av1C = 0.999 * rmv1C[2 * aw5C + 1] + 0.001 * rdW1C[aw5C] * rdW1C[aw5C]
+                rmv1C[2 * aw5C] = am1C
+                rmv1C[2 * aw5C + 1] = av1C
+                တည်ဆောက် ဒသမ amh1C = am1C / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avh1C = av1C / (1.0 - pow(0.999, step))
+                hW1C[aw5C] = hW1C[aw5C] - (lrs * 0.01) * amh1C / (sqrt(avh1C) + 0.00000001)
+                aw5C = aw5C + 1
+            }
+            တည်ဆောက် ကိန်း aw6C = 0
+            ပြည့်အောင်(aw6C < 256) {
+                တည်ဆောက် ဒသမ am2C = 0.9 * rmv2C[2 * aw6C] + 0.1 * rdW2C[aw6C]
+                တည်ဆောက် ဒသမ av2C = 0.999 * rmv2C[2 * aw6C + 1] + 0.001 * rdW2C[aw6C] * rdW2C[aw6C]
+                rmv2C[2 * aw6C] = am2C
+                rmv2C[2 * aw6C + 1] = av2C
+                တည်ဆောက် ဒသမ amh2C = am2C / (1.0 - pow(0.9, step))
+                တည်ဆောက် ဒသမ avh2C = av2C / (1.0 - pow(0.999, step))
+                hW2C[aw6C] = hW2C[aw6C] - (lrs * 0.01) * amh2C / (sqrt(avh2C) + 0.00000001)
+                aw6C = aw6C + 1
+            }
+            တည်ဆောက် ကိန်း bc4 = 0
+            ပြည့်အောင်(bc4 < 64) {
+                တည်ဆောက် ဒသမ ec24 = hWq2[bc4] - hWq[bc4]
+                သုံးသပ်ချက်အရ(ec24 < 0) { ec24 = 0 - ec24 }
+                သုံးသပ်ချက်အရ(ec24 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec25 = hWk2[bc4] - hWk[bc4]
+                သုံးသပ်ချက်အရ(ec25 < 0) { ec25 = 0 - ec25 }
+                သုံးသပ်ချက်အရ(ec25 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec26 = hWv2[bc4] - hWv[bc4]
+                သုံးသပ်ချက်အရ(ec26 < 0) { ec26 = 0 - ec26 }
+                သုံးသပ်ချက်အရ(ec26 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec27 = hmvq[2 * bc4] - rmvq[2 * bc4]
+                သုံးသပ်ချက်အရ(ec27 < 0) { ec27 = 0 - ec27 }
+                သုံးသပ်ချက်အရ(ec27 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec28 = hmvq[2 * bc4 + 1] - rmvq[2 * bc4 + 1]
+                သုံးသပ်ချက်အရ(ec28 < 0) { ec28 = 0 - ec28 }
+                သုံးသပ်ချက်အရ(ec28 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec29 = hmvk[2 * bc4] - rmvk[2 * bc4]
+                သုံးသပ်ချက်အရ(ec29 < 0) { ec29 = 0 - ec29 }
+                သုံးသပ်ချက်အရ(ec29 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec30 = hmvk[2 * bc4 + 1] - rmvk[2 * bc4 + 1]
+                သုံးသပ်ချက်အရ(ec30 < 0) { ec30 = 0 - ec30 }
+                သုံးသပ်ချက်အရ(ec30 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec31 = hmvv[2 * bc4] - rmvv[2 * bc4]
+                သုံးသပ်ချက်အရ(ec31 < 0) { ec31 = 0 - ec31 }
+                သုံးသပ်ချက်အရ(ec31 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec32 = hmvv[2 * bc4 + 1] - rmvv[2 * bc4 + 1]
+                သုံးသပ်ချက်အရ(ec32 < 0) { ec32 = 0 - ec32 }
+                သုံးသပ်ချက်အရ(ec32 > 0.000001) { bad = bad + 1 }
+                bc4 = bc4 + 1
+            }
+            တည်ဆောက် ကိန်း bc5 = 0
+            ပြည့်အောင်(bc5 < 88) {
+                တည်ဆောက် ဒသမ ec33 = hE2[bc5] - hE[bc5]
+                သုံးသပ်ချက်အရ(ec33 < 0) { ec33 = 0 - ec33 }
+                သုံးသပ်ချက်အရ(ec33 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec34 = hmve[2 * bc5] - rmve[2 * bc5]
+                သုံးသပ်ချက်အရ(ec34 < 0) { ec34 = 0 - ec34 }
+                သုံးသပ်ချက်အရ(ec34 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec35 = hmve[2 * bc5 + 1] - rmve[2 * bc5 + 1]
+                သုံးသပ်ချက်အရ(ec35 < 0) { ec35 = 0 - ec35 }
+                သုံးသပ်ချက်အရ(ec35 > 0.000001) { bad = bad + 1 }
+                bc5 = bc5 + 1
+            }
+            တည်ဆောက် ကိန်း bc6 = 0
+            ပြည့်အောင်(bc6 < 256) {
+                တည်ဆောက် ဒသမ ec36 = hW12[bc6] - hW1[bc6]
+                သုံးသပ်ချက်အရ(ec36 < 0) { ec36 = 0 - ec36 }
+                သုံးသပ်ချက်အရ(ec36 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec37 = hW22[bc6] - hW2[bc6]
+                သုံးသပ်ချက်အရ(ec37 < 0) { ec37 = 0 - ec37 }
+                သုံးသပ်ချက်အရ(ec37 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec38 = hmv1[2 * bc6] - rmv1[2 * bc6]
+                သုံးသပ်ချက်အရ(ec38 < 0) { ec38 = 0 - ec38 }
+                သုံးသပ်ချက်အရ(ec38 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec39 = hmv1[2 * bc6 + 1] - rmv1[2 * bc6 + 1]
+                သုံးသပ်ချက်အရ(ec39 < 0) { ec39 = 0 - ec39 }
+                သုံးသပ်ချက်အရ(ec39 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec40 = hmv2[2 * bc6] - rmv2[2 * bc6]
+                သုံးသပ်ချက်အရ(ec40 < 0) { ec40 = 0 - ec40 }
+                သုံးသပ်ချက်အရ(ec40 > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec41 = hmv2[2 * bc6 + 1] - rmv2[2 * bc6 + 1]
+                သုံးသပ်ချက်အရ(ec41 < 0) { ec41 = 0 - ec41 }
+                သုံးသပ်ချက်အရ(ec41 > 0.000001) { bad = bad + 1 }
+                bc6 = bc6 + 1
+            }
+            တည်ဆောက် ကိန်း bc4B = 0
+            ပြည့်အောင်(bc4B < 64) {
+                တည်ဆောက် ဒသမ ec24B = hWq2B[bc4B] - hWqB[bc4B]
+                သုံးသပ်ချက်အရ(ec24B < 0) { ec24B = 0 - ec24B }
+                သုံးသပ်ချက်အရ(ec24B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec25B = hWk2B[bc4B] - hWkB[bc4B]
+                သုံးသပ်ချက်အရ(ec25B < 0) { ec25B = 0 - ec25B }
+                သုံးသပ်ချက်အရ(ec25B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec26B = hWv2B[bc4B] - hWvB[bc4B]
+                သုံးသပ်ချက်အရ(ec26B < 0) { ec26B = 0 - ec26B }
+                သုံးသပ်ချက်အရ(ec26B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec27B = hmvqB[2 * bc4B] - rmvqB[2 * bc4B]
+                သုံးသပ်ချက်အရ(ec27B < 0) { ec27B = 0 - ec27B }
+                သုံးသပ်ချက်အရ(ec27B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec28B = hmvqB[2 * bc4B + 1] - rmvqB[2 * bc4B + 1]
+                သုံးသပ်ချက်အရ(ec28B < 0) { ec28B = 0 - ec28B }
+                သုံးသပ်ချက်အရ(ec28B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec29B = hmvkB[2 * bc4B] - rmvkB[2 * bc4B]
+                သုံးသပ်ချက်အရ(ec29B < 0) { ec29B = 0 - ec29B }
+                သုံးသပ်ချက်အရ(ec29B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec30B = hmvkB[2 * bc4B + 1] - rmvkB[2 * bc4B + 1]
+                သုံးသပ်ချက်အရ(ec30B < 0) { ec30B = 0 - ec30B }
+                သုံးသပ်ချက်အရ(ec30B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec31B = hmvvB[2 * bc4B] - rmvvB[2 * bc4B]
+                သုံးသပ်ချက်အရ(ec31B < 0) { ec31B = 0 - ec31B }
+                သုံးသပ်ချက်အရ(ec31B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec32B = hmvvB[2 * bc4B + 1] - rmvvB[2 * bc4B + 1]
+                သုံးသပ်ချက်အရ(ec32B < 0) { ec32B = 0 - ec32B }
+                သုံးသပ်ချက်အရ(ec32B > 0.000001) { bad = bad + 1 }
+                bc4B = bc4B + 1
+            }
+            တည်ဆောက် ကိန်း bc4C = 0
+            ပြည့်အောင်(bc4C < 64) {
+                တည်ဆောက် ဒသမ ec24C = hWq2C[bc4C] - hWqC[bc4C]
+                သုံးသပ်ချက်အရ(ec24C < 0) { ec24C = 0 - ec24C }
+                သုံးသပ်ချက်အရ(ec24C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec25C = hWk2C[bc4C] - hWkC[bc4C]
+                သုံးသပ်ချက်အရ(ec25C < 0) { ec25C = 0 - ec25C }
+                သုံးသပ်ချက်အရ(ec25C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec26C = hWv2C[bc4C] - hWvC[bc4C]
+                သုံးသပ်ချက်အရ(ec26C < 0) { ec26C = 0 - ec26C }
+                သုံးသပ်ချက်အရ(ec26C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec27C = hmvqC[2 * bc4C] - rmvqC[2 * bc4C]
+                သုံးသပ်ချက်အရ(ec27C < 0) { ec27C = 0 - ec27C }
+                သုံးသပ်ချက်အရ(ec27C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec28C = hmvqC[2 * bc4C + 1] - rmvqC[2 * bc4C + 1]
+                သုံးသပ်ချက်အရ(ec28C < 0) { ec28C = 0 - ec28C }
+                သုံးသပ်ချက်အရ(ec28C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec29C = hmvkC[2 * bc4C] - rmvkC[2 * bc4C]
+                သုံးသပ်ချက်အရ(ec29C < 0) { ec29C = 0 - ec29C }
+                သုံးသပ်ချက်အရ(ec29C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec30C = hmvkC[2 * bc4C + 1] - rmvkC[2 * bc4C + 1]
+                သုံးသပ်ချက်အရ(ec30C < 0) { ec30C = 0 - ec30C }
+                သုံးသပ်ချက်အရ(ec30C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec31C = hmvvC[2 * bc4C] - rmvvC[2 * bc4C]
+                သုံးသပ်ချက်အရ(ec31C < 0) { ec31C = 0 - ec31C }
+                သုံးသပ်ချက်အရ(ec31C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec32C = hmvvC[2 * bc4C + 1] - rmvvC[2 * bc4C + 1]
+                သုံးသပ်ချက်အရ(ec32C < 0) { ec32C = 0 - ec32C }
+                သုံးသပ်ချက်အရ(ec32C > 0.000001) { bad = bad + 1 }
+                bc4C = bc4C + 1
+            }
+            တည်ဆောက် ကိန်း bc5B = 0
+            ပြည့်အောင်(bc5B < 64) {
+                တည်ဆောက် ဒသမ ec33B = hPE2[bc5B] - hPE[bc5B]
+                သုံးသပ်ချက်အရ(ec33B < 0) { ec33B = 0 - ec33B }
+                သုံးသပ်ချက်အရ(ec33B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec34B = hmvpe[2 * bc5B] - rmvpe[2 * bc5B]
+                သုံးသပ်ချက်အရ(ec34B < 0) { ec34B = 0 - ec34B }
+                သုံးသပ်ချက်အရ(ec34B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec35B = hmvpe[2 * bc5B + 1] - rmvpe[2 * bc5B + 1]
+                သုံးသပ်ချက်အရ(ec35B < 0) { ec35B = 0 - ec35B }
+                သုံးသပ်ချက်အရ(ec35B > 0.000001) { bad = bad + 1 }
+                bc5B = bc5B + 1
+            }
+            တည်ဆောက် ကိန်း bc6B = 0
+            ပြည့်အောင်(bc6B < 256) {
+                တည်ဆောက် ဒသမ ec36B = hW12B[bc6B] - hW1B[bc6B]
+                သုံးသပ်ချက်အရ(ec36B < 0) { ec36B = 0 - ec36B }
+                သုံးသပ်ချက်အရ(ec36B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec37B = hW22B[bc6B] - hW2B[bc6B]
+                သုံးသပ်ချက်အရ(ec37B < 0) { ec37B = 0 - ec37B }
+                သုံးသပ်ချက်အရ(ec37B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec38B = hmv1B[2 * bc6B] - rmv1B[2 * bc6B]
+                သုံးသပ်ချက်အရ(ec38B < 0) { ec38B = 0 - ec38B }
+                သုံးသပ်ချက်အရ(ec38B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec39B = hmv1B[2 * bc6B + 1] - rmv1B[2 * bc6B + 1]
+                သုံးသပ်ချက်အရ(ec39B < 0) { ec39B = 0 - ec39B }
+                သုံးသပ်ချက်အရ(ec39B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec40B = hmv2B[2 * bc6B] - rmv2B[2 * bc6B]
+                သုံးသပ်ချက်အရ(ec40B < 0) { ec40B = 0 - ec40B }
+                သုံးသပ်ချက်အရ(ec40B > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec41B = hmv2B[2 * bc6B + 1] - rmv2B[2 * bc6B + 1]
+                သုံးသပ်ချက်အရ(ec41B < 0) { ec41B = 0 - ec41B }
+                သုံးသပ်ချက်အရ(ec41B > 0.000001) { bad = bad + 1 }
+                bc6B = bc6B + 1
+            }
+            တည်ဆောက် ကိန်း bc6C = 0
+            ပြည့်အောင်(bc6C < 256) {
+                တည်ဆောက် ဒသမ ec36C = hW12C[bc6C] - hW1C[bc6C]
+                သုံးသပ်ချက်အရ(ec36C < 0) { ec36C = 0 - ec36C }
+                သုံးသပ်ချက်အရ(ec36C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec37C = hW22C[bc6C] - hW2C[bc6C]
+                သုံးသပ်ချက်အရ(ec37C < 0) { ec37C = 0 - ec37C }
+                သုံးသပ်ချက်အရ(ec37C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec38C = hmv1C[2 * bc6C] - rmv1C[2 * bc6C]
+                သုံးသပ်ချက်အရ(ec38C < 0) { ec38C = 0 - ec38C }
+                သုံးသပ်ချက်အရ(ec38C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec39C = hmv1C[2 * bc6C + 1] - rmv1C[2 * bc6C + 1]
+                သုံးသပ်ချက်အရ(ec39C < 0) { ec39C = 0 - ec39C }
+                သုံးသပ်ချက်အရ(ec39C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec40C = hmv2C[2 * bc6C] - rmv2C[2 * bc6C]
+                သုံးသပ်ချက်အရ(ec40C < 0) { ec40C = 0 - ec40C }
+                သုံးသပ်ချက်အရ(ec40C > 0.000001) { bad = bad + 1 }
+                တည်ဆောက် ဒသမ ec41C = hmv2C[2 * bc6C + 1] - rmv2C[2 * bc6C + 1]
+                သုံးသပ်ချက်အရ(ec41C < 0) { ec41C = 0 - ec41C }
+                သုံးသပ်ချက်အရ(ec41C > 0.000001) { bad = bad + 1 }
+                bc6C = bc6C + 1
+            }
+        printf("sample: dWq1_0 gpu=%.10f cpu=%.10f\n", hDWq[0], rdWq[0])
+        printf("sample: dWq2_0 gpu=%.10f cpu=%.10f\n", hDWqB[0], rdWqB[0])
+        printf("sample: Wq1_new gpu=%.10f cpu=%.10f\n", hWq2[0], hWq[0])
+        printf("sample: Wq2_new gpu=%.10f cpu=%.10f\n", hWq2B[0], hWqB[0])
+        printf("sample: mvq1_0 gpu=%.10f cpu=%.10f\n", hmvq[0], rmvq[0])
+        printf("sample: mvq2_0 gpu=%.10f cpu=%.10f\n", hmvqB[0], rmvqB[0])
+        printf("sample: dWq3_0 gpu=%.10f cpu=%.10f\n", hDWqC[0], rdWqC[0])
+        printf("sample: Wq3_new gpu=%.10f cpu=%.10f\n", hWq2C[0], hWqC[0])
+        printf("sample: mvq3_0 gpu=%.10f cpu=%.10f\n", hmvqC[0], rmvqC[0])
+        printf("sample: dWte_0 gpu=%.10f cpu=%.10f\n", hDWte[0], rdWte[0])
+        printf("sample: dWpe_0 gpu=%.10f cpu=%.10f\n", hDWpe[0], rdWpe[0])
+        printf("sample: wte_new gpu=%.10f cpu=%.10f\n", hE2[0], hE[0])
+        printf("sample: wpe_new gpu=%.10f cpu=%.10f\n", hPE2[0], hPE[0])
+        printf("sample: mve_0 gpu=%.10f cpu=%.10f\n", hmve[0], rmve[0])
+        printf("sample: mvpe_0 gpu=%.10f cpu=%.10f\n", hmvpe[0], rmvpe[0])
+        lprev = ltot
+        step = step + 1
+    }
+    printf("loss first = %.6f\n", lossF)
+    printf("loss last  = %.6f\n", lossL)
+    printf("A row0 sum=%.12f row7 sum=%.12f\n", rsF0, rsF7)
+    printf("A2 row0 sum=%.12f row7 sum=%.12f\n", rsFB0, rsFB7)
+    printf("A3 row0 sum=%.12f row7 sum=%.12f\n", rsFC0, rsFC7)
+    printf("P1 row0 sum=%.12f row7 sum=%.12f\n", rsPF0, rsPF7)
+    printf("P2 row0 sum=%.12f row7 sum=%.12f\n", rsPF0B, rsPF7B)
+    printf("P3 row0 sum=%.12f row7 sum=%.12f\n", rsPFC0, rsPFC7)
+    printf("sample: Wq1_final gpu=%.10f cpu=%.10f\n", hWq2[0], hWq[0])
+    printf("sample: Wq2_final gpu=%.10f cpu=%.10f\n", hWq2B[0], hWqB[0])
+    printf("sample: Wq3_final gpu=%.10f cpu=%.10f\n", hWq2C[0], hWqC[0])
+    printf("sample: mvq1_final gpu=%.10f cpu=%.10f\n", hmvq[0], rmvq[0])
+    printf("sample: mvq2_final gpu=%.10f cpu=%.10f\n", hmvqB[0], rmvqB[0])
+    printf("sample: mvq3_final gpu=%.10f cpu=%.10f\n", hmvqC[0], rmvqC[0])
+    printf("sample: wte_final gpu=%.10f cpu=%.10f\n", hE2[0], hE[0])
+    printf("sample: wpe_final gpu=%.10f cpu=%.10f\n", hPE2[0], hPE[0])
+    printf("sample: mve_final gpu=%.10f cpu=%.10f\n", hmve[0], rmve[0])
+    printf("sample: mvpe_final gpu=%.10f cpu=%.10f\n", hmvpe[0], rmvpe[0])
+    သုံးသပ်ချက်အရ(lossL < lossF) {
+        printf("LOSS DECREASED — 8 forward loss pairs 8 AdamW steps (t=1..8) inverse-step lr schedule 18 matrices persistent true-gradient m/v — L=3 chained deep supervision sequence CE with tied head and trainable embedding works on GPU\n")
+    }
+    သုံးသပ်ချက်အရ(bad > 0) {
+        printf("BLOCK SEQCE MISMATCH — bad=%d\n", bad)
+    }
+    သုံးသပ်ချက်အရ(bad == 0) {
+        printf("BLOCK SEQCE MATCH — L=3 chained three-block deep supervision in pure MMC on GPU: forward chain dx0 → block-1 → block-2 → block-3 (each block = attention + FFN + residual + centered LN, shared gamma/beta) — trainable embedding (wte V×K one-hot-gathered via mm_k: E = M@wte + MP@wpe) + tied output head (logits = H @ wte^T via dEt = tpose_rc(dE), ALL THREE blocks deep supervision, loss = CE1+CE2+CE3) — CE loss = -(1/T)·Σ_t log P[t,y_t] with shift-by-one token targets (x_t=(3t+1) mod 11, y_t = x_((t+1) mod T)) — step-1 CE = ln(11) byte-exact per block (uniform softmax, separable wte init + centered LN) — CE gradient (P−Y)/T computed on host from device softmax — wte gradient = embedding path (M^T@dX0) + block-1 head path (dLg1^T@H3) + block-2 head path (dLg2^T@H3B) + block-3 head path (dLg3^T@H3C) summed on host; wpe gradient = MP^T@dX0 — L=3 chain fully spliced: block-3 backward dX2 → block-2 dh3gB splice before LN-backward → dX1 → block-1 dh3g splice → dX0 — mirror chain identical (rdXtC → rdH3B splice → rdXtB → rdH3 splice → rdX0) — 18 AdamW matrices ({Wq Wk Wv W1 W2}×3 + wte + wpe) lrs=1/step persistent TRUE m/v — 82576 gate conditions over the 8-step run (3216 forward elementwise + 6992 backward elementwise + 84 masked-zero + 24 rowsum + 4 loss-sync + 1 anchor + 1 LOSS DECREASED per step) all GPU = CPU (T=8, K=8, d=8, H=32, V=11) — zero new kernels — locked kernels only — L=3 deep supervision chain proven in pure MMC on GPU\n")
+    }
+    ပြန်ပေး bad
+}
