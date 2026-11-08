@@ -38,3 +38,4 @@ src/*.mmc.bak*
 experiments/**/loss/*.bin
 .ac_state/
 .ad_state/
+.ae_state/
